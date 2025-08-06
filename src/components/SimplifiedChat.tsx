@@ -318,9 +318,9 @@ export const SimplifiedChat = () => {
   return (
     <div className="h-dvh flex flex-col bg-background">
       {/* Header */}
-      <div className="flex-shrink-0 p-3 sm:p-4">
+      <div className="flex-shrink-0 p-2 sm:p-3">
         <div className="w-full max-w-none mx-auto">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0 p-3 sm:p-4 bg-card rounded-xl sm:rounded-2xl border border-border shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 p-2 sm:p-3 bg-card rounded-lg sm:rounded-xl border border-border shadow-sm">
             <div className="min-w-0 flex-1">
               <h1 className="text-lg sm:text-2xl font-bold text-primary truncate">
                 MyHealing Chat
@@ -355,10 +355,10 @@ export const SimplifiedChat = () => {
         <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl flex flex-col h-full">
           <CardContent className="flex-1 flex flex-col p-0">
             {/* Área de Mensagens */}
-            <ScrollArea className="flex-1 p-3 sm:p-4 md:p-6">
-              <div className="space-y-3 sm:space-y-4">
+            <ScrollArea className="flex-1 p-2 sm:p-3">
+              <div className="space-y-2 sm:space-y-3">
                 {messages.length === 0 && (
-                  <div className="text-center text-muted-foreground py-8 sm:py-12">
+                  <div className="text-center text-muted-foreground py-4 sm:py-6">
                     <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
                       <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary-foreground" />
                     </div>
@@ -375,10 +375,10 @@ export const SimplifiedChat = () => {
                 {messages.map((message) => {
                   if (message.role === "session_end") {
                     return (
-                      <div key={message.id} className="flex justify-center my-8">
+                      <div key={message.id} className="flex justify-center my-4 sm:my-6">
                         <div className="flex items-center w-full max-w-md">
                           <div className="flex-1 h-px bg-border"></div>
-                          <div className="px-4 py-2 bg-muted rounded-full text-xs text-muted-foreground">
+                          <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground">
                             {message.content}
                           </div>
                           <div className="flex-1 h-px bg-border"></div>
@@ -464,7 +464,7 @@ export const SimplifiedChat = () => {
             </ScrollArea>
 
             {/* Input de Mensagem */}
-            <div className="border-t border-border p-3 sm:p-4 md:p-6">
+            <div className="border-t border-border p-2 sm:p-3">
               <div className="flex gap-2 sm:gap-3">
                 <Input
                   value={input}
