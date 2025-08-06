@@ -316,9 +316,9 @@ export const SimplifiedChat = () => {
   };
 
   return (
-    <div className="h-dvh flex flex-col bg-background">
-      {/* Header */}
-      <div className="flex-shrink-0 p-2 sm:p-3">
+    <div className="h-dvh bg-background grid grid-rows-[auto_1fr] overflow-hidden">
+      {/* Header Fixo */}
+      <div className="flex-shrink-0 p-2 sm:p-3 bg-background z-10">
         <div className="w-full max-w-none mx-auto">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 p-2 sm:p-3 bg-card rounded-lg sm:rounded-xl border border-border shadow-sm">
             <div className="min-w-0 flex-1">
@@ -350,121 +350,123 @@ export const SimplifiedChat = () => {
         </div>
       </div>
 
-      {/* Chat Principal */}
-      <div className="flex-1 px-3 sm:px-4 pb-3 sm:pb-4 min-h-0">
-        <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl flex flex-col h-full">
-          <CardContent className="flex-1 flex flex-col p-0">
-            {/* Área de Mensagens */}
-            <ScrollArea className="flex-1 p-2 sm:p-3">
-              <div className="space-y-2 sm:space-y-3">
-                {messages.length === 0 && (
-                  <div className="text-center text-muted-foreground py-4 sm:py-6">
-                    <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
-                      <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary-foreground" />
-                    </div>
-                    <p className="text-lg sm:text-xl font-medium mb-2 sm:mb-3 text-primary">
-                      Bem-vindo ao MyHealing Chat
-                    </p>
-                    <p className="text-xs sm:text-sm max-w-xs sm:max-w-md mx-auto leading-relaxed px-4">
-                      Sou seu terapeuta virtual. Pode compartilhar seus sentimentos e pensamentos comigo.
-                      Estou aqui para escutar e ajudar em sua jornada de cura.
-                    </p>
-                  </div>
-                )}
-                
-                {messages.map((message) => {
-                  if (message.role === "session_end") {
-                    return (
-                      <div key={message.id} className="flex justify-center my-4 sm:my-6">
-                        <div className="flex items-center w-full max-w-md">
-                          <div className="flex-1 h-px bg-border"></div>
-                          <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground">
-                            {message.content}
-                          </div>
-                          <div className="flex-1 h-px bg-border"></div>
-                        </div>
+      {/* Chat Area com altura controlada */}
+      <div className="min-h-0 px-2 sm:px-3 pb-2 sm:pb-3 overflow-hidden">
+        <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl h-full flex flex-col overflow-hidden">
+          <CardContent className="p-0 flex flex-col h-full overflow-hidden">
+            {/* Área de Mensagens com altura fixa */}
+            <div className="flex-1 min-h-0 relative">
+              <ScrollArea className="absolute inset-0 p-2 sm:p-3">
+                <div className="space-y-2 sm:space-y-3 pb-2">
+                  {messages.length === 0 && (
+                    <div className="text-center text-muted-foreground py-4 sm:py-6">
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
+                        <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary-foreground" />
                       </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={message.id}
-                      className={`flex gap-2 sm:gap-3 ${
-                        message.role === "user" ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      {message.role === "assistant" && (
-                        <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
-                          <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                      <p className="text-lg sm:text-xl font-medium mb-2 sm:mb-3 text-primary">
+                        Bem-vindo ao MyHealing Chat
+                      </p>
+                      <p className="text-xs sm:text-sm max-w-xs sm:max-w-md mx-auto leading-relaxed px-4">
+                        Sou seu terapeuta virtual. Pode compartilhar seus sentimentos e pensamentos comigo.
+                        Estou aqui para escutar e ajudar em sua jornada de cura.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {messages.map((message) => {
+                    if (message.role === "session_end") {
+                      return (
+                        <div key={message.id} className="flex justify-center my-4 sm:my-6">
+                          <div className="flex items-center w-full max-w-md">
+                            <div className="flex-1 h-px bg-border"></div>
+                            <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground">
+                              {message.content}
+                            </div>
+                            <div className="flex-1 h-px bg-border"></div>
+                          </div>
                         </div>
-                      )}
-                      
+                      );
+                    }
+
+                    return (
                       <div
-                        className={`max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-xl sm:rounded-2xl ${
-                          message.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground border border-border"
+                        key={message.id}
+                        className={`flex gap-2 sm:gap-3 ${
+                          message.role === "user" ? "justify-end" : "justify-start"
                         }`}
                       >
-                        {message.buttonMessage && (
-                          <p className="text-xs sm:text-sm mb-2 sm:mb-3 font-medium">{message.buttonMessage}</p>
-                        )}
-                        <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                        
-                        {message.buttons && message.buttons.length > 0 && (
-                          <div className="mt-2 sm:mt-3 flex flex-wrap gap-1 sm:gap-2">
-                            {message.buttons.map((button) => (
-                              <Button
-                                key={button.id}
-                                variant="outline"
-                                size="sm"
-                                className="text-xs sm:text-sm border-primary/30 text-primary hover:bg-primary/10 h-8 sm:h-9"
-                                onClick={() => handleButtonClick(button.id, button.text)}
-                                disabled={isLoading}
-                              >
-                                {button.text}
-                              </Button>
-                            ))}
+                        {message.role === "assistant" && (
+                          <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
+                            <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
                           </div>
                         )}
                         
-                        <div className={`text-xs mt-1 sm:mt-2 ${
-                          message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
-                        }`}>
-                          {new Date(message.created_at).toLocaleTimeString()}
+                        <div
+                          className={`max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-xl sm:rounded-2xl ${
+                            message.role === "user"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-foreground border border-border"
+                          }`}
+                        >
+                          {message.buttonMessage && (
+                            <p className="text-xs sm:text-sm mb-2 sm:mb-3 font-medium">{message.buttonMessage}</p>
+                          )}
+                          <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                          
+                          {message.buttons && message.buttons.length > 0 && (
+                            <div className="mt-2 sm:mt-3 flex flex-wrap gap-1 sm:gap-2">
+                              {message.buttons.map((button) => (
+                                <Button
+                                  key={button.id}
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs sm:text-sm border-primary/30 text-primary hover:bg-primary/10 h-8 sm:h-9"
+                                  onClick={() => handleButtonClick(button.id, button.text)}
+                                  disabled={isLoading}
+                                >
+                                  {button.text}
+                                </Button>
+                              ))}
+                            </div>
+                          )}
+                          
+                          <div className={`text-xs mt-1 sm:mt-2 ${
+                            message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
+                          }`}>
+                            {new Date(message.created_at).toLocaleTimeString()}
+                          </div>
+                        </div>
+                        
+                        {message.role === "user" && (
+                          <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent flex items-center justify-center border border-border">
+                            <User className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  
+                  {isLoading && (
+                    <div className="flex gap-2 sm:gap-3 justify-start">
+                      <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
+                        <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                      </div>
+                      <div className="bg-muted p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin text-primary" />
+                          <span className="text-xs sm:text-sm text-muted-foreground">Pensando com carinho...</span>
                         </div>
                       </div>
-                      
-                      {message.role === "user" && (
-                        <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent flex items-center justify-center border border-border">
-                          <User className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
-                        </div>
-                      )}
                     </div>
-                  );
-                })}
-                
-                {isLoading && (
-                  <div className="flex gap-2 sm:gap-3 justify-start">
-                    <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
-                      <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-                    </div>
-                    <div className="bg-muted p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin text-primary" />
-                        <span className="text-xs sm:text-sm text-muted-foreground">Pensando com carinho...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
+                  )}
+                  
+                  <div ref={messagesEndRef} />
+                </div>
+              </ScrollArea>
+            </div>
 
-            {/* Input de Mensagem */}
-            <div className="border-t border-border p-2 sm:p-3">
+            {/* Input Fixo na parte inferior */}
+            <div className="flex-shrink-0 border-t border-border p-2 sm:p-3 bg-background">
               <div className="flex gap-2 sm:gap-3">
                 <Input
                   value={input}
