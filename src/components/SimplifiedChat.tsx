@@ -316,54 +316,56 @@ export const SimplifiedChat = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
+    <div className="h-dvh flex flex-col bg-background">
       {/* Header */}
-      <div className="max-w-4xl mx-auto mb-4">
-        <div className="flex justify-between items-center p-6 bg-card rounded-2xl border border-border shadow-sm">
-          <div>
-            <h1 className="text-2xl font-bold text-primary">
-              MyHealing Chat
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">Seu espaço de cura e bem-estar</p>
-          </div>
-          <div className="flex gap-2">
-            {currentSessionId && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={endCurrentSession}
-                className="border-primary/30 text-primary hover:bg-primary/10"
-              >
-                <Power className="h-4 w-4 mr-2" />
-                Encerrar Sessão
-              </Button>
-            )}
-            <Link to="/admin">
-              <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10">
-                <Settings className="h-4 w-4 mr-2" />
-                Administração
-              </Button>
-            </Link>
+      <div className="flex-shrink-0 p-3 sm:p-4">
+        <div className="w-full max-w-none mx-auto">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0 p-3 sm:p-4 bg-card rounded-xl sm:rounded-2xl border border-border shadow-sm">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-2xl font-bold text-primary truncate">
+                MyHealing Chat
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">Seu espaço de cura e bem-estar</p>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              {currentSessionId && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={endCurrentSession}
+                  className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
+                >
+                  <Power className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Encerrar Sessão</span>
+                </Button>
+              )}
+              <Link to="/admin">
+                <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm">
+                  <Settings className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Admin</span>
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Chat Principal */}
-      <div className="max-w-4xl mx-auto">
-        <Card className="bg-card border-border shadow-sm rounded-2xl flex flex-col h-[calc(100vh-8rem)]">
+      <div className="flex-1 px-3 sm:px-4 pb-3 sm:pb-4 min-h-0">
+        <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl flex flex-col h-full">
           <CardContent className="flex-1 flex flex-col p-0">
             {/* Área de Mensagens */}
-            <ScrollArea className="flex-1 p-6">
-              <div className="space-y-4">
+            <ScrollArea className="flex-1 p-3 sm:p-4 md:p-6">
+              <div className="space-y-3 sm:space-y-4">
                 {messages.length === 0 && (
-                  <div className="text-center text-muted-foreground py-12">
-                    <div className="w-16 h-16 mx-auto mb-6 bg-primary rounded-full flex items-center justify-center">
-                      <Bot className="h-8 w-8 text-primary-foreground" />
+                  <div className="text-center text-muted-foreground py-8 sm:py-12">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
+                      <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary-foreground" />
                     </div>
-                    <p className="text-xl font-medium mb-3 text-primary">
+                    <p className="text-lg sm:text-xl font-medium mb-2 sm:mb-3 text-primary">
                       Bem-vindo ao MyHealing Chat
                     </p>
-                    <p className="text-sm max-w-md mx-auto leading-relaxed">
+                    <p className="text-xs sm:text-sm max-w-xs sm:max-w-md mx-auto leading-relaxed px-4">
                       Sou seu terapeuta virtual. Pode compartilhar seus sentimentos e pensamentos comigo.
                       Estou aqui para escutar e ajudar em sua jornada de cura.
                     </p>
@@ -388,36 +390,36 @@ export const SimplifiedChat = () => {
                   return (
                     <div
                       key={message.id}
-                      className={`flex gap-3 ${
+                      className={`flex gap-2 sm:gap-3 ${
                         message.role === "user" ? "justify-end" : "justify-start"
                       }`}
                     >
                       {message.role === "assistant" && (
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                          <Bot className="h-5 w-5 text-primary-foreground" />
+                        <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
+                          <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
                         </div>
                       )}
                       
                       <div
-                        className={`max-w-[80%] p-4 rounded-2xl ${
+                        className={`max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-xl sm:rounded-2xl ${
                           message.role === "user"
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-foreground border border-border"
                         }`}
                       >
                         {message.buttonMessage && (
-                          <p className="text-sm mb-3 font-medium">{message.buttonMessage}</p>
+                          <p className="text-xs sm:text-sm mb-2 sm:mb-3 font-medium">{message.buttonMessage}</p>
                         )}
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                         
                         {message.buttons && message.buttons.length > 0 && (
-                          <div className="mt-3 space-y-2">
+                          <div className="mt-2 sm:mt-3 flex flex-wrap gap-1 sm:gap-2">
                             {message.buttons.map((button) => (
                               <Button
                                 key={button.id}
                                 variant="outline"
                                 size="sm"
-                                className="mr-2 mb-2 border-primary/30 text-primary hover:bg-primary/10"
+                                className="text-xs sm:text-sm border-primary/30 text-primary hover:bg-primary/10 h-8 sm:h-9"
                                 onClick={() => handleButtonClick(button.id, button.text)}
                                 disabled={isLoading}
                               >
@@ -427,7 +429,7 @@ export const SimplifiedChat = () => {
                           </div>
                         )}
                         
-                        <div className={`text-xs mt-1 ${
+                        <div className={`text-xs mt-1 sm:mt-2 ${
                           message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
                         }`}>
                           {new Date(message.created_at).toLocaleTimeString()}
@@ -435,8 +437,8 @@ export const SimplifiedChat = () => {
                       </div>
                       
                       {message.role === "user" && (
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-accent flex items-center justify-center border border-border">
-                          <User className="h-5 w-5 text-accent-foreground" />
+                        <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent flex items-center justify-center border border-border">
+                          <User className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
                         </div>
                       )}
                     </div>
@@ -444,14 +446,14 @@ export const SimplifiedChat = () => {
                 })}
                 
                 {isLoading && (
-                  <div className="flex gap-3 justify-start">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                      <Bot className="h-5 w-5 text-primary-foreground" />
+                  <div className="flex gap-2 sm:gap-3 justify-start">
+                    <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
+                      <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
                     </div>
-                    <div className="bg-muted p-4 rounded-2xl border border-border">
+                    <div className="bg-muted p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border">
                       <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                        <span className="text-sm text-muted-foreground">Pensando com carinho...</span>
+                        <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin text-primary" />
+                        <span className="text-xs sm:text-sm text-muted-foreground">Pensando com carinho...</span>
                       </div>
                     </div>
                   </div>
@@ -462,20 +464,21 @@ export const SimplifiedChat = () => {
             </ScrollArea>
 
             {/* Input de Mensagem */}
-            <div className="border-t border-border p-6">
-              <div className="flex gap-3">
+            <div className="border-t border-border p-3 sm:p-4 md:p-6">
+              <div className="flex gap-2 sm:gap-3">
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Digite sua mensagem..."
                   disabled={isLoading}
-                  className="flex-1 border-primary/30 focus:border-primary"
+                  className="flex-1 border-primary/30 focus:border-primary h-10 sm:h-11 text-sm"
                 />
                 <Button 
                   onClick={() => sendMessage()} 
                   disabled={isLoading || !input.trim()}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
+                  size="icon"
                 >
                   <Send className="h-4 w-4" />
                 </Button>
