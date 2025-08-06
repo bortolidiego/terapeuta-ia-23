@@ -316,175 +316,174 @@ export const SimplifiedChat = () => {
   };
 
   return (
-    <div className="h-dvh bg-background grid grid-rows-[auto_1fr] overflow-hidden">
+    <div className="h-dvh bg-background grid grid-rows-[auto_1fr_auto] gap-2 sm:gap-3 p-2 sm:p-3 overflow-hidden">
       {/* Header Fixo */}
-      <div className="flex-shrink-0 p-2 sm:p-3 bg-background z-10">
-        <div className="w-full max-w-none mx-auto">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 p-2 sm:p-3 bg-card rounded-lg sm:rounded-xl border border-border shadow-sm">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg sm:text-2xl font-bold text-primary truncate">
-                MyHealing Chat
-              </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-1">Seu espaço de cura e bem-estar</p>
-            </div>
-            <div className="flex gap-2 flex-shrink-0">
-              {currentSessionId && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={endCurrentSession}
-                  className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
-                >
-                  <Power className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Encerrar Sessão</span>
-                </Button>
-              )}
-              <Link to="/admin">
-                <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm">
-                  <Settings className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Admin</span>
-                </Button>
-              </Link>
-            </div>
+      <div className="flex-shrink-0">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 p-2 sm:p-3 bg-card rounded-lg sm:rounded-xl border border-border shadow-sm">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg sm:text-2xl font-bold text-primary truncate">
+              MyHealing Chat
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">Seu espaço de cura e bem-estar</p>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            {currentSessionId && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={endCurrentSession}
+                className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
+              >
+                <Power className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Encerrar Sessão</span>
+              </Button>
+            )}
+            <Link to="/admin">
+              <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm">
+                <Settings className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Admin</span>
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
 
-      {/* Chat Area com altura controlada */}
-      <div className="min-h-0 px-2 sm:px-3 pb-2 sm:pb-3 overflow-hidden">
-        <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl h-full flex flex-col overflow-hidden">
-          <CardContent className="p-0 flex flex-col h-full overflow-hidden">
-            {/* Área de Mensagens com altura fixa */}
-            <div className="flex-1 min-h-0 relative">
-              <ScrollArea className="absolute inset-0 p-2 sm:p-3">
-                <div className="space-y-2 sm:space-y-3 pb-2">
-                  {messages.length === 0 && (
-                    <div className="text-center text-muted-foreground py-4 sm:py-6">
-                      <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
-                        <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary-foreground" />
-                      </div>
-                      <p className="text-lg sm:text-xl font-medium mb-2 sm:mb-3 text-primary">
-                        Bem-vindo ao MyHealing Chat
-                      </p>
-                      <p className="text-xs sm:text-sm max-w-xs sm:max-w-md mx-auto leading-relaxed px-4">
-                        Sou seu terapeuta virtual. Pode compartilhar seus sentimentos e pensamentos comigo.
-                        Estou aqui para escutar e ajudar em sua jornada de cura.
-                      </p>
+      {/* Área de Mensagens - Ocupa todo o espaço restante */}
+      <div className="min-h-0 flex-1">
+        <Card className="h-full bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
+          <CardContent className="p-0 h-full">
+            <ScrollArea className="h-full p-2 sm:p-3">
+              <div className="space-y-2 sm:space-y-3">
+                {messages.length === 0 && (
+                  <div className="text-center text-muted-foreground py-4 sm:py-6">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
+                      <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary-foreground" />
                     </div>
-                  )}
-                  
-                  {messages.map((message) => {
-                    if (message.role === "session_end") {
-                      return (
-                        <div key={message.id} className="flex justify-center my-4 sm:my-6">
-                          <div className="flex items-center w-full max-w-md">
-                            <div className="flex-1 h-px bg-border"></div>
-                            <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground">
-                              {message.content}
-                            </div>
-                            <div className="flex-1 h-px bg-border"></div>
-                          </div>
-                        </div>
-                      );
-                    }
-
+                    <p className="text-lg sm:text-xl font-medium mb-2 sm:mb-3 text-primary">
+                      Bem-vindo ao MyHealing Chat
+                    </p>
+                    <p className="text-xs sm:text-sm max-w-xs sm:max-w-md mx-auto leading-relaxed px-4">
+                      Sou seu terapeuta virtual. Pode compartilhar seus sentimentos e pensamentos comigo.
+                      Estou aqui para escutar e ajudar em sua jornada de cura.
+                    </p>
+                  </div>
+                )}
+                
+                {messages.map((message) => {
+                  if (message.role === "session_end") {
                     return (
-                      <div
-                        key={message.id}
-                        className={`flex gap-2 sm:gap-3 ${
-                          message.role === "user" ? "justify-end" : "justify-start"
-                        }`}
-                      >
-                        {message.role === "assistant" && (
-                          <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
-                            <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                      <div key={message.id} className="flex justify-center my-4 sm:my-6">
+                        <div className="flex items-center w-full max-w-md">
+                          <div className="flex-1 h-px bg-border"></div>
+                          <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground">
+                            {message.content}
                           </div>
-                        )}
-                        
-                        <div
-                          className={`max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-xl sm:rounded-2xl ${
-                            message.role === "user"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-foreground border border-border"
-                          }`}
-                        >
-                          {message.buttonMessage && (
-                            <p className="text-xs sm:text-sm mb-2 sm:mb-3 font-medium">{message.buttonMessage}</p>
-                          )}
-                          <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                          
-                          {message.buttons && message.buttons.length > 0 && (
-                            <div className="mt-2 sm:mt-3 flex flex-wrap gap-1 sm:gap-2">
-                              {message.buttons.map((button) => (
-                                <Button
-                                  key={button.id}
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-xs sm:text-sm border-primary/30 text-primary hover:bg-primary/10 h-8 sm:h-9"
-                                  onClick={() => handleButtonClick(button.id, button.text)}
-                                  disabled={isLoading}
-                                >
-                                  {button.text}
-                                </Button>
-                              ))}
-                            </div>
-                          )}
-                          
-                          <div className={`text-xs mt-1 sm:mt-2 ${
-                            message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
-                          }`}>
-                            {new Date(message.created_at).toLocaleTimeString()}
-                          </div>
+                          <div className="flex-1 h-px bg-border"></div>
                         </div>
-                        
-                        {message.role === "user" && (
-                          <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent flex items-center justify-center border border-border">
-                            <User className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
-                          </div>
-                        )}
                       </div>
                     );
-                  })}
-                  
-                  {isLoading && (
-                    <div className="flex gap-2 sm:gap-3 justify-start">
-                      <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
-                        <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-                      </div>
-                      <div className="bg-muted p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border">
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin text-primary" />
-                          <span className="text-xs sm:text-sm text-muted-foreground">Pensando com carinho...</span>
+                  }
+
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex gap-2 sm:gap-3 ${
+                        message.role === "user" ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      {message.role === "assistant" && (
+                        <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
+                          <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                        </div>
+                      )}
+                      
+                      <div
+                        className={`max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-xl sm:rounded-2xl ${
+                          message.role === "user"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-foreground border border-border"
+                        }`}
+                      >
+                        {message.buttonMessage && (
+                          <p className="text-xs sm:text-sm mb-2 sm:mb-3 font-medium">{message.buttonMessage}</p>
+                        )}
+                        <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                        
+                        {message.buttons && message.buttons.length > 0 && (
+                          <div className="mt-2 sm:mt-3 flex flex-wrap gap-1 sm:gap-2">
+                            {message.buttons.map((button) => (
+                              <Button
+                                key={button.id}
+                                variant="outline"
+                                size="sm"
+                                className="text-xs sm:text-sm border-primary/30 text-primary hover:bg-primary/10 h-8 sm:h-9"
+                                onClick={() => handleButtonClick(button.id, button.text)}
+                                disabled={isLoading}
+                              >
+                                {button.text}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                        
+                        <div className={`text-xs mt-1 sm:mt-2 ${
+                          message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
+                        }`}>
+                          {new Date(message.created_at).toLocaleTimeString()}
                         </div>
                       </div>
+                      
+                      {message.role === "user" && (
+                        <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent flex items-center justify-center border border-border">
+                          <User className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
+                        </div>
+                      )}
                     </div>
-                  )}
-                  
-                  <div ref={messagesEndRef} />
-                </div>
-              </ScrollArea>
-            </div>
-
-            {/* Input Fixo na parte inferior */}
-            <div className="flex-shrink-0 border-t border-border p-2 sm:p-3 bg-background">
-              <div className="flex gap-2 sm:gap-3">
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Digite sua mensagem..."
-                  disabled={isLoading}
-                  className="flex-1 border-primary/30 focus:border-primary h-10 sm:h-11 text-sm"
-                />
-                <Button 
-                  onClick={() => sendMessage()} 
-                  disabled={isLoading || !input.trim()}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
-                  size="icon"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+                  );
+                })}
+                
+                {isLoading && (
+                  <div className="flex gap-2 sm:gap-3 justify-start">
+                    <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
+                      <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                    </div>
+                    <div className="bg-muted p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin text-primary" />
+                        <span className="text-xs sm:text-sm text-muted-foreground">Pensando com carinho...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div ref={messagesEndRef} />
               </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Input Fixo Separado */}
+      <div className="flex-shrink-0">
+        <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
+          <CardContent className="p-2 sm:p-3">
+            <div className="flex gap-2 sm:gap-3">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Digite sua mensagem..."
+                disabled={isLoading}
+                className="flex-1 border-primary/30 focus:border-primary h-10 sm:h-11 text-sm"
+              />
+              <Button 
+                onClick={() => sendMessage()} 
+                disabled={isLoading || !input.trim()}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
+                size="icon"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
             </div>
           </CardContent>
         </Card>
