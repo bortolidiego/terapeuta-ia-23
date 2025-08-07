@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, BookOpen, Plus, Edit, Trash2, Save, ArrowLeft } from "lucide-react";
+import { Settings, BookOpen, Plus, Edit, Trash2, Save, ArrowLeft, BarChart3, RefreshCw, RotateCcw } from "lucide-react";
+import { OpenAIMonitoring } from "@/components/OpenAIMonitoring";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -262,7 +263,7 @@ export const AdminPanel = () => {
         </div>
 
         <Tabs defaultValue="config" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 bg-card border border-border rounded-xl p-1">
+          <TabsList className="grid w-full grid-cols-3 bg-card border border-border rounded-xl p-1">
             <TabsTrigger value="config" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Settings className="h-4 w-4" />
               Configurações
@@ -270,6 +271,10 @@ export const AdminPanel = () => {
             <TabsTrigger value="knowledge" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <BookOpen className="h-4 w-4" />
               Base de Conhecimento
+            </TabsTrigger>
+            <TabsTrigger value="monitoring" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <BarChart3 className="h-4 w-4" />
+              Monitoramento
             </TabsTrigger>
           </TabsList>
 
@@ -298,14 +303,27 @@ export const AdminPanel = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="model">Modelo OpenAI</Label>
-                    <Input
+                    <select
                       id="model"
                       value={config.model_name}
                       onChange={(e) =>
                         setConfig({ ...config, model_name: e.target.value })
                       }
-                      className="mt-2"
-                    />
+                      className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="gpt-4.1-2025-04-14">GPT-4.1 (2025) - Mais Recente ⭐</option>
+                      <option value="gpt-4o-mini">GPT-4o Mini - Rápido e Econômico</option>
+                      <option value="gpt-4o">GPT-4o - Poderoso (Caro)</option>
+                      <option value="o3-2025-04-16">O3 - Raciocínio Avançado</option>
+                      <option value="o4-mini-2025-04-16">O4 Mini - Raciocínio Rápido</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {config.model_name === 'gpt-4.1-2025-04-14' && 'Modelo flagship mais recente da OpenAI'}
+                      {config.model_name === 'gpt-4o-mini' && 'Ótima relação custo-benefício, rápido'}
+                      {config.model_name === 'gpt-4o' && 'Modelo anterior, mais caro'}
+                      {config.model_name === 'o3-2025-04-16' && 'Excelente para problemas complexos'}
+                      {config.model_name === 'o4-mini-2025-04-16' && 'Raciocínio eficiente'}
+                    </p>
                   </div>
 
                   <div>
@@ -494,6 +512,59 @@ export const AdminPanel = () => {
                   </Card>
                 ))}
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="monitoring">
+            <div className="space-y-6">
+              <Card className="bg-card border border-border shadow-sm rounded-2xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl text-primary">
+                    <BarChart3 className="h-5 w-5" />
+                    Monitoramento OpenAI
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Acompanhe o uso da API OpenAI, custos e performance do sistema.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <OpenAIMonitoring period="24h" />
+                </CardContent>
+              </Card>
+
+              {/* Seção de configurações de cache e otimização */}
+              <Card className="bg-card border border-border shadow-sm rounded-2xl">
+                <CardHeader>
+                  <CardTitle className="text-lg text-primary">
+                    Configurações de Performance
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 border rounded-lg bg-background">
+                      <h4 className="font-medium mb-2">Cache de Sentimentos</h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Reduce API calls reutilizando sentimentos gerados para contextos similares.
+                      </p>
+                      <Button variant="outline" size="sm">
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Limpar Cache
+                      </Button>
+                    </div>
+                    
+                    <div className="p-4 border rounded-lg bg-background">
+                      <h4 className="font-medium mb-2">Reset de Frequências</h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Reinicia contadores de frequência dos sentimentos mais usados.
+                      </p>
+                      <Button variant="outline" size="sm">
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Reset Frequências
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>

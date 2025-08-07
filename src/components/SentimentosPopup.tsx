@@ -12,6 +12,7 @@ interface Sentimento {
   nome: string;
   categoria: string;
   frequencia_uso: number;
+  ultima_selecao?: string;
 }
 
 interface FiltroPersonalizado {
@@ -349,18 +350,32 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
   };
 
   const aplicarFiltroMaisFrequentes = () => {
-    const sentimentosFrequentes = sentimentosOrdenadosEFiltrados
+    // Algoritmo melhorado que considera frequência + recência
+    const agora = new Date();
+    const sentimentosComScore = sentimentosOrdenadosEFiltrados
       .filter(s => s.frequencia_uso > 0)
-      .sort((a, b) => b.frequencia_uso - a.frequencia_uso)
+      .map(s => {
+        // Calcular score combinando frequência e recência
+        const diasDesdeUltimaSelecao = s.ultima_selecao 
+          ? Math.floor((agora.getTime() - new Date(s.ultima_selecao).getTime()) / (1000 * 60 * 60 * 24))
+          : 365; // Se nunca foi selecionado, considerar muito antigo
+        
+        // Score: frequência ponderada pela recência (quanto mais recente, maior o peso)
+        const pesoRecencia = Math.max(0.1, 1 - (diasDesdeUltimaSelecao / 30)); // Peso diminui ao longo de 30 dias
+        const score = s.frequencia_uso * pesoRecencia;
+        
+        return { ...s, score };
+      })
+      .sort((a, b) => b.score - a.score)
       .slice(0, 50)
       .map(s => s.nome);
     
-    setSentimentosSelecionados(sentimentosFrequentes);
+    setSentimentosSelecionados(sentimentosComScore);
     setFiltroAtivo('mais-frequentes');
     
     toast({
       title: "Filtro aplicado",
-      description: `${sentimentosFrequentes.length} sentimentos mais frequentes selecionados.`,
+      description: `${sentimentosComScore.length} sentimentos mais relevantes selecionados (baseado em frequência + recência).`,
     });
   };
 
