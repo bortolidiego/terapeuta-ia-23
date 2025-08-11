@@ -6,21 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, BookOpen, Plus, Edit, Trash2, Save, ArrowLeft, BarChart3, RefreshCw, RotateCcw } from "lucide-react";
+import { Settings, BookOpen, Plus, Edit, Trash2, Save, ArrowLeft, BarChart3 } from "lucide-react";
 import { OpenAIMonitoring } from "@/components/OpenAIMonitoring";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Switch } from "@/components/ui/switch";
+
 interface TherapistConfig {
   id: string;
   main_prompt: string;
   model_name: string;
   temperature: number;
   max_tokens: number;
-  use_system_defaults?: boolean;
   template_version?: string;
 }
+
 interface KnowledgeItem {
   id: string;
   title: string;
@@ -30,14 +30,13 @@ interface KnowledgeItem {
   is_active: boolean;
   priority: number;
 }
+
 export const AdminPanel = () => {
   const [config, setConfig] = useState<TherapistConfig | null>(null);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [editingKnowledge, setEditingKnowledge] = useState<KnowledgeItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
   const [newKnowledge, setNewKnowledge] = useState({
     title: "",
     content: "",
@@ -45,49 +44,52 @@ export const AdminPanel = () => {
     keywords: "",
     priority: 1
   });
+
   useEffect(() => {
     loadConfig();
     loadKnowledge();
   }, []);
+
   const loadConfig = async () => {
     try {
-      const {
-        data,
-        error
-      } = await supabase.from("therapist_config").select("*").eq("is_active", true).single();
+      const { data, error } = await supabase
+        .from("therapist_config")
+        .select("*")
+        .eq("is_active", true)
+        .single();
       if (error) throw error;
       setConfig(data);
     } catch (error) {
       console.error("Erro ao carregar configuração:", error);
     }
   };
+
   const loadKnowledge = async () => {
     try {
-      const {
-        data,
-        error
-      } = await supabase.from("knowledge_base").select("*").order("priority", {
-        ascending: false
-      });
+      const { data, error } = await supabase
+        .from("knowledge_base")
+        .select("*")
+        .order("priority", { ascending: false });
       if (error) throw error;
       setKnowledge(data || []);
     } catch (error) {
       console.error("Erro ao carregar base de conhecimento:", error);
     }
   };
+
   const saveConfig = async () => {
     if (!config) return;
     setIsLoading(true);
     try {
-      const {
-        error
-      } = await supabase.from("therapist_config").update({
-        main_prompt: config.main_prompt,
-        model_name: config.model_name,
-        temperature: config.temperature,
-        max_tokens: config.max_tokens,
-        use_system_defaults: config.use_system_defaults ?? true
-      }).eq("id", config.id);
+      const { error } = await supabase
+        .from("therapist_config")
+        .update({
+          main_prompt: config.main_prompt,
+          model_name: config.model_name,
+          temperature: config.temperature,
+          max_tokens: config.max_tokens,
+        })
+        .eq("id", config.id);
       if (error) throw error;
       toast({
         title: "Configuração salva",
@@ -104,20 +106,21 @@ export const AdminPanel = () => {
       setIsLoading(false);
     }
   };
+
   const addKnowledge = async () => {
     if (!newKnowledge.title || !newKnowledge.content) return;
     setIsLoading(true);
     try {
       const keywordsArray = newKnowledge.keywords.split(",").map(k => k.trim()).filter(k => k);
-      const {
-        error
-      } = await supabase.from("knowledge_base").insert({
-        title: newKnowledge.title,
-        content: newKnowledge.content,
-        category: newKnowledge.category,
-        keywords: keywordsArray,
-        priority: newKnowledge.priority
-      });
+      const { error } = await supabase
+        .from("knowledge_base")
+        .insert({
+          title: newKnowledge.title,
+          content: newKnowledge.content,
+          category: newKnowledge.category,
+          keywords: keywordsArray,
+          priority: newKnowledge.priority
+        });
       if (error) throw error;
       setNewKnowledge({
         title: "",
@@ -142,13 +145,15 @@ export const AdminPanel = () => {
       setIsLoading(false);
     }
   };
+
   const updateKnowledge = async () => {
     if (!editingKnowledge) return;
     setIsLoading(true);
     try {
-      const {
-        error
-      } = await supabase.from("knowledge_base").update(editingKnowledge).eq("id", editingKnowledge.id);
+      const { error } = await supabase
+        .from("knowledge_base")
+        .update(editingKnowledge)
+        .eq("id", editingKnowledge.id);
       if (error) throw error;
       setEditingKnowledge(null);
       loadKnowledge();
@@ -167,12 +172,14 @@ export const AdminPanel = () => {
       setIsLoading(false);
     }
   };
+
   const deleteKnowledge = async (id: string) => {
     setIsLoading(true);
     try {
-      const {
-        error
-      } = await supabase.from("knowledge_base").delete().eq("id", id);
+      const { error } = await supabase
+        .from("knowledge_base")
+        .delete()
+        .eq("id", id);
       if (error) throw error;
       loadKnowledge();
       toast({
@@ -190,19 +197,22 @@ export const AdminPanel = () => {
       setIsLoading(false);
     }
   };
+
   const toggleKnowledgeStatus = async (item: KnowledgeItem) => {
     try {
-      const {
-        error
-      } = await supabase.from("knowledge_base").update({
-        is_active: !item.is_active
-      }).eq("id", item.id);
+      const { error } = await supabase
+        .from("knowledge_base")
+        .update({
+          is_active: !item.is_active
+        })
+        .eq("id", item.id);
       if (error) throw error;
       loadKnowledge();
     } catch (error) {
       console.error("Erro ao alterar status:", error);
     }
   };
+
   if (!config) {
     return <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -211,7 +221,9 @@ export const AdminPanel = () => {
         </div>
       </div>;
   }
-  return <div className="min-h-screen bg-background p-6">
+
+  return (
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header com navegação */}
         <div className="flex items-center gap-6 mb-8">
@@ -255,32 +267,27 @@ export const AdminPanel = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Usar padrões do sistema</Label>
-                    <p className="text-sm text-muted-foreground">Ignora o prompt salvo e usa o Router Prompt padrão.</p>
-                  </div>
-                  <Switch
-                    checked={!!config.use_system_defaults}
-                    onCheckedChange={(v) => setConfig({ ...config, use_system_defaults: v })}
-                  />
-                </div>
-
                 <div>
                   <Label htmlFor="prompt">Prompt Principal</Label>
-                  <Textarea id="prompt" value={config.main_prompt} onChange={e => setConfig({
-                  ...config,
-                  main_prompt: e.target.value
-                })} rows={8} className="mt-2" placeholder="Descreva como o terapeuta deve se comportar..." />
+                  <Textarea
+                    id="prompt"
+                    value={config.main_prompt}
+                    onChange={e => setConfig({ ...config, main_prompt: e.target.value })}
+                    rows={8}
+                    className="mt-2"
+                    placeholder="Descreva como o terapeuta deve se comportar..."
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="model">Modelo OpenAI</Label>
-                    <select id="model" value={config.model_name} onChange={e => setConfig({
-                    ...config,
-                    model_name: e.target.value
-                  })} className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                    <select
+                      id="model"
+                      value={config.model_name}
+                      onChange={e => setConfig({ ...config, model_name: e.target.value })}
+                      className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
                       <option value="gpt-4.1-2025-04-14">GPT-4.1 (2025) - Mais Recente ⭐</option>
                       <option value="gpt-4o-mini">GPT-4o Mini - Rápido e Econômico</option>
                       <option value="gpt-4o">GPT-4o - Poderoso (Caro)</option>
@@ -298,22 +305,35 @@ export const AdminPanel = () => {
 
                   <div>
                     <Label htmlFor="temperature">Temperatura</Label>
-                    <Input id="temperature" type="number" min="0" max="1" step="0.1" value={config.temperature} onChange={e => setConfig({
-                    ...config,
-                    temperature: parseFloat(e.target.value)
-                  })} className="mt-2" />
+                    <Input
+                      id="temperature"
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={config.temperature}
+                      onChange={e => setConfig({ ...config, temperature: parseFloat(e.target.value) })}
+                      className="mt-2"
+                    />
                   </div>
 
                   <div>
                     <Label htmlFor="tokens">Máx. Tokens</Label>
-                    <Input id="tokens" type="number" value={config.max_tokens} onChange={e => setConfig({
-                    ...config,
-                    max_tokens: parseInt(e.target.value)
-                  })} className="mt-2" />
+                    <Input
+                      id="tokens"
+                      type="number"
+                      value={config.max_tokens}
+                      onChange={e => setConfig({ ...config, max_tokens: parseInt(e.target.value) })}
+                      className="mt-2"
+                    />
                   </div>
                 </div>
 
-                <Button onClick={saveConfig} disabled={isLoading} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button
+                  onClick={saveConfig}
+                  disabled={isLoading}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
                   <Save className="h-4 w-4 mr-2" />
                   Salvar Configurações
                 </Button>
@@ -335,46 +355,63 @@ export const AdminPanel = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="title">Título</Label>
-                      <Input id="title" value={newKnowledge.title} onChange={e => setNewKnowledge({
-                      ...newKnowledge,
-                      title: e.target.value
-                    })} placeholder="Ex: Técnicas de Respiração" />
+                      <Input
+                        id="title"
+                        value={newKnowledge.title}
+                        onChange={e => setNewKnowledge({ ...newKnowledge, title: e.target.value })}
+                        placeholder="Ex: Técnicas de Respiração"
+                      />
                     </div>
                     <div>
                       <Label htmlFor="category">Categoria</Label>
-                      <Input id="category" value={newKnowledge.category} onChange={e => setNewKnowledge({
-                      ...newKnowledge,
-                      category: e.target.value
-                    })} placeholder="Ex: ansiedade, tcc, emergência" />
+                      <Input
+                        id="category"
+                        value={newKnowledge.category}
+                        onChange={e => setNewKnowledge({ ...newKnowledge, category: e.target.value })}
+                        placeholder="Ex: ansiedade, tcc, emergência"
+                      />
                     </div>
                   </div>
 
                   <div>
                     <Label htmlFor="content">Conteúdo</Label>
-                    <Textarea id="content" value={newKnowledge.content} onChange={e => setNewKnowledge({
-                    ...newKnowledge,
-                    content: e.target.value
-                  })} rows={4} placeholder="Descreva as informações que o terapeuta deve saber..." />
+                    <Textarea
+                      id="content"
+                      value={newKnowledge.content}
+                      onChange={e => setNewKnowledge({ ...newKnowledge, content: e.target.value })}
+                      rows={4}
+                      placeholder="Descreva as informações que o terapeuta deve saber..."
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="keywords">Palavras-chave (separadas por vírgula)</Label>
-                      <Input id="keywords" value={newKnowledge.keywords} onChange={e => setNewKnowledge({
-                      ...newKnowledge,
-                      keywords: e.target.value
-                    })} placeholder="respiração, ansiedade, técnica" />
+                      <Input
+                        id="keywords"
+                        value={newKnowledge.keywords}
+                        onChange={e => setNewKnowledge({ ...newKnowledge, keywords: e.target.value })}
+                        placeholder="respiração, ansiedade, técnica"
+                      />
                     </div>
                     <div>
                       <Label htmlFor="priority">Prioridade (1-10)</Label>
-                      <Input id="priority" type="number" min="1" max="10" value={newKnowledge.priority} onChange={e => setNewKnowledge({
-                      ...newKnowledge,
-                      priority: parseInt(e.target.value)
-                    })} />
+                      <Input
+                        id="priority"
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={newKnowledge.priority}
+                        onChange={e => setNewKnowledge({ ...newKnowledge, priority: parseInt(e.target.value) })}
+                      />
                     </div>
                   </div>
 
-                  <Button onClick={addKnowledge} disabled={isLoading} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                  <Button
+                    onClick={addKnowledge}
+                    disabled={isLoading}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Adicionar
                   </Button>
@@ -383,7 +420,8 @@ export const AdminPanel = () => {
 
               {/* Lista de conhecimentos */}
               <div className="grid gap-4">
-                {knowledge.map(item => <Card key={item.id} className="bg-card border border-border shadow-sm rounded-2xl hover:shadow-md transition-all duration-300">
+                {knowledge.map(item => (
+                  <Card key={item.id} className="bg-card border border-border shadow-sm rounded-2xl hover:shadow-md transition-all duration-300">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -398,11 +436,15 @@ export const AdminPanel = () => {
                           <p className="text-sm text-muted-foreground mb-2">
                             {item.content.substring(0, 150)}...
                           </p>
-                          {item.keywords && item.keywords.length > 0 && <div className="flex flex-wrap gap-1">
-                              {item.keywords.map((keyword, idx) => <Badge key={idx} variant="outline" className="text-xs">
+                          {item.keywords && item.keywords.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {item.keywords.map((keyword, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs">
                                   {keyword}
-                                </Badge>)}
-                            </div>}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="flex gap-2 ml-4">
                           <Button size="sm" variant="outline" onClick={() => toggleKnowledgeStatus(item)}>
@@ -417,7 +459,8 @@ export const AdminPanel = () => {
                         </div>
                       </div>
                     </CardContent>
-                  </Card>)}
+                  </Card>
+                ))}
               </div>
             </div>
           </TabsContent>
@@ -447,7 +490,8 @@ export const AdminPanel = () => {
       </div>
 
       {/* Modal de edição */}
-      {editingKnowledge && <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      {editingKnowledge && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-2xl">
             <CardHeader>
               <CardTitle>Editar Conhecimento</CardTitle>
@@ -455,17 +499,11 @@ export const AdminPanel = () => {
             <CardContent className="space-y-4">
               <div>
                 <Label>Título</Label>
-                <Input value={editingKnowledge.title} onChange={e => setEditingKnowledge({
-              ...editingKnowledge,
-              title: e.target.value
-            })} />
+                <Input value={editingKnowledge.title} onChange={e => setEditingKnowledge({ ...editingKnowledge, title: e.target.value })} />
               </div>
               <div>
                 <Label>Conteúdo</Label>
-                <Textarea value={editingKnowledge.content} onChange={e => setEditingKnowledge({
-              ...editingKnowledge,
-              content: e.target.value
-            })} rows={6} />
+                <Textarea value={editingKnowledge.content} onChange={e => setEditingKnowledge({ ...editingKnowledge, content: e.target.value })} rows={6} />
               </div>
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" onClick={() => setEditingKnowledge(null)}>
@@ -477,6 +515,8 @@ export const AdminPanel = () => {
               </div>
             </CardContent>
           </Card>
-        </div>}
-    </div>;
+        </div>
+      )}
+    </div>
+  );
 };

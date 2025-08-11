@@ -132,7 +132,6 @@ export type Database = {
           temperature: number
           template_version: string
           updated_at: string
-          use_system_defaults: boolean
         }
         Insert: {
           created_at?: string
@@ -144,7 +143,6 @@ export type Database = {
           temperature?: number
           template_version?: string
           updated_at?: string
-          use_system_defaults?: boolean
         }
         Update: {
           created_at?: string
@@ -156,7 +154,6 @@ export type Database = {
           temperature?: number
           template_version?: string
           updated_at?: string
-          use_system_defaults?: boolean
         }
         Relationships: []
       }

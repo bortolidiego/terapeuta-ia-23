@@ -16,23 +16,6 @@ interface Message {
   content: string;
 }
 
-// Prompt padrão (Router) em PT-BR quando "usar padrões do sistema" estiver ativo
-const getDefaultRouterPrompt = (): string => {
-  return (
-    'Você é um terapeuta virtual compassivo, profissional e objetivo. ' +
-    'Siga protocolos quando apropriado, faça perguntas claras e avance passo a passo.\n\n' +
-    'Regras de resposta:\n' +
-    '1) Seja breve e empático.\n' +
-    '2) Se houver etapas/fluxos, explique a próxima ação ao usuário.\n' +
-    '3) Quando precisar oferecer escolhas, gere botões clicáveis no formato JSON a seguir.\n' +
-    '4) Quando precisar de uma seleção de sentimentos, inclua o marcador [POPUP:sentimentos].\n\n' +
-    'Formato JSON de botões (para casos complexos):\n' +
-    '```json\n{"type":"buttons","message":"Pergunta aqui","options":[{"id":"opcao1","text":"Opção 1"},{"id":"opcao2","text":"Opção 2"}]}\n```\n' +
-    'Formato Markdown (para casos simples):\n' +
-    '[BTN:opcao1:Opção 1] [BTN:opcao2:Opção 2]'
-  );
-};
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -83,8 +66,8 @@ serve(async (req) => {
       console.error('Erro ao buscar therapy_facts:', factsError);
     }
 
-    // Construir prompt system estruturado
-    let systemPrompt = config.use_system_defaults ? getDefaultRouterPrompt() : config.main_prompt;
+    // Construir prompt system: usar SEMPRE o main_prompt (Router Prompt definido como padrão no DB)
+    let systemPrompt = config.main_prompt;
 
     // Incluir fatos pendentes no prompt (se houver)
     if (typeof therapyFacts !== 'undefined' && therapyFacts && therapyFacts.length > 0) {
@@ -229,7 +212,7 @@ serve(async (req) => {
     
     return new Response(
       JSON.stringify({ 
-        error: error.message,
+        error: (error as Error).message,
         reply: 'Desculpe, houve um problema técnico. Tente novamente em alguns momentos.' 
       }),
       {
