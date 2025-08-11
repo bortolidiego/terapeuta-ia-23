@@ -176,7 +176,70 @@ serve(async (req) => {
       usage: data.usage 
     });
 
-    const assistantReply = data.choices[0].message.content;
+    let assistantReply = data.choices[0].message.content;
+
+    // Detecta se o usuário está enviando sentimentos selecionados
+    if (message.includes('Sentimentos selecionados:')) {
+      console.log('Detectando sentimentos selecionados');
+      
+      // Extrai e normaliza os sentimentos
+      const sentimentosMatch = message.match(/Sentimentos selecionados:\s*(.+)/);
+      if (sentimentosMatch) {
+        const sentimentosText = sentimentosMatch[1];
+        const sentimentos = sentimentosText
+          .split(',')
+          .map(s => s.trim().toLowerCase())
+          .filter(s => s.length > 0);
+        
+        console.log(`Sentimentos extraídos: ${sentimentos.length} itens`);
+        
+        // Valida se tem pelo menos 40 sentimentos
+        if (sentimentos.length < 40) {
+          console.log('Poucos sentimentos selecionados, reabrindo popup');
+          assistantReply = `Obrigado pela seleção! Porém, preciso que você escolha pelo menos 40 sentimentos para prosseguirmos com eficácia. Você selecionou ${sentimentos.length}. Por favor, selecione mais sentimentos:
+
+[POPUP:sentimentos]`;
+        } else {
+          console.log('Sentimentos suficientes, gerando comandos quânticos');
+          
+          // Seleciona 3 sentimentos aleatórios para os comandos
+          const sentimentosParaComandos = [];
+          const sentimentosDisponiveis = [...sentimentos];
+          
+          for (let i = 0; i < 3 && sentimentosDisponiveis.length > 0; i++) {
+            const randomIndex = Math.floor(Math.random() * sentimentosDisponiveis.length);
+            sentimentosParaComandos.push(sentimentosDisponiveis.splice(randomIndex, 1)[0]);
+          }
+          
+          // Gera comandos quânticos baseados no contexto atual
+          const contextoAtual = history.slice(-3).map((h: Message) => h.content).join(' ');
+          const palavrasChave = contextoAtual.toLowerCase().match(/\b\w{4,}\b/g) || [];
+          const contextoRelevante = palavrasChave.slice(0, 5).join(', ');
+          
+          const comandos = sentimentosParaComandos.map((sentimento, index) => {
+            const acoes = [
+              `Respirar profundamente ao lembrar de ${contextoRelevante}`,
+              `Visualizar-se lidando com a situação de forma serena`,
+              `Honrar os sentimentos com gratidão e aceitação`,
+              `Transformar a energia em movimento positivo`,
+              `Conectar-se com sua força interior`
+            ];
+            return `${sentimento.charAt(0).toUpperCase() + sentimento.slice(1)}: ${acoes[index] || acoes[0]}`;
+          });
+          
+          assistantReply = `Perfeito! Com base nos ${sentimentos.length} sentimentos selecionados, aqui estão seus comandos quânticos personalizados:
+
+**Comandos Quânticos:**
+1. ${comandos[0]}
+2. ${comandos[1]}
+3. ${comandos[2]}
+
+Ótimo! Seus comandos quânticos foram criados. Você gostaria de trabalhar na autocura deste fato agora ou prefere deixar para outro momento?
+
+[BTN:autocura_agora:Trabalhar na autocura agora] [BTN:autocura_depois:Deixar para depois]`;
+        }
+      }
+    }
 
     // Analisar a mensagem para possíveis gatilhos de conhecimento
     const messageWords = message.toLowerCase().split(' ');
