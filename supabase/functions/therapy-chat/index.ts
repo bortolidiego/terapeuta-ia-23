@@ -16,6 +16,23 @@ interface Message {
   content: string;
 }
 
+// Prompt padrão (Router) em PT-BR quando "usar padrões do sistema" estiver ativo
+const getDefaultRouterPrompt = (): string => {
+  return (
+    'Você é um terapeuta virtual compassivo, profissional e objetivo. ' +
+    'Siga protocolos quando apropriado, faça perguntas claras e avance passo a passo.\n\n' +
+    'Regras de resposta:\n' +
+    '1) Seja breve e empático.\n' +
+    '2) Se houver etapas/fluxos, explique a próxima ação ao usuário.\n' +
+    '3) Quando precisar oferecer escolhas, gere botões clicáveis no formato JSON a seguir.\n' +
+    '4) Quando precisar de uma seleção de sentimentos, inclua o marcador [POPUP:sentimentos].\n\n' +
+    'Formato JSON de botões (para casos complexos):\n' +
+    '```json\n{"type":"buttons","message":"Pergunta aqui","options":[{"id":"opcao1","text":"Opção 1"},{"id":"opcao2","text":"Opção 2"}]}\n```\n' +
+    'Formato Markdown (para casos simples):\n' +
+    '[BTN:opcao1:Opção 1] [BTN:opcao2:Opção 2]'
+  );
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -55,8 +72,28 @@ serve(async (req) => {
       console.error('Erro ao buscar base de conhecimento:', knowledgeError);
     }
 
+    // Buscar fatos pendentes da sessão
+    const { data: therapyFacts, error: factsError } = await supabase
+      .from('therapy_facts')
+      .select('id, fact_text, status')
+      .eq('status', 'pending')
+      .eq('session_id', sessionId);
+
+    if (factsError) {
+      console.error('Erro ao buscar therapy_facts:', factsError);
+    }
+
     // Construir prompt system estruturado
-    let systemPrompt = config.main_prompt;
+    let systemPrompt = config.use_system_defaults ? getDefaultRouterPrompt() : config.main_prompt;
+
+    // Incluir fatos pendentes no prompt (se houver)
+    if (typeof therapyFacts !== 'undefined' && therapyFacts && therapyFacts.length > 0) {
+      systemPrompt += '\n\n=== FATOS PENDENTES (contexto da sessão) ===';
+      therapyFacts.forEach((f: { id: string; fact_text: string; status: string }) => {
+        systemPrompt += `\n- [ID ${f.id}] ${f.fact_text} (status: ${f.status})`;
+      });
+      systemPrompt += '\nUse estes fatos para orientar as próximas perguntas e decisões.';
+    }
     
     if (knowledge && knowledge.length > 0) {
       systemPrompt += '\n\n=== INSTRUÇÕES PARA USO DA BASE DE CONHECIMENTO ===';
@@ -92,7 +129,7 @@ serve(async (req) => {
       systemPrompt += '\nQuando uma etapa requer seleção de opções pelo usuário, você pode criar botões clicáveis usando:';
       systemPrompt += '\n\n**FORMATO JSON (para casos complexos):**';
       systemPrompt += '\n```json';
-      systemPrompt += '\n{"type": "buttons", "message": "Pergunta aqui", "options": [{"id": "opcao1", "text": "Opção 1"}, {"id": "opcao2", "text": "Opção 2"}]}';
+      systemPrompt += '\n{"type": "buttons", "message": "Pergunta aqui", "options": [{"id": "opcao1", "text": "Opção 1"}, {"id": "opcao2", "text": "Opção 2"}]}'
       systemPrompt += '\n```';
       systemPrompt += '\n\n**FORMATO MARKDOWN (para casos simples):**';
       systemPrompt += '\n[BTN:opcao1:Opção 1] [BTN:opcao2:Opção 2]';
@@ -112,8 +149,8 @@ serve(async (req) => {
         role: 'system',
         content: systemPrompt
       },
-      // Adicionar histórico limitado (últimas 10 mensagens)
-      ...history.slice(-10).map((msg: Message) => ({
+      // Adicionar histórico limitado (últimas 25 mensagens)
+      ...history.slice(-25).map((msg: Message) => ({
         role: msg.role,
         content: msg.content
       })),

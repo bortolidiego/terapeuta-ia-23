@@ -11,12 +11,15 @@ import { OpenAIMonitoring } from "@/components/OpenAIMonitoring";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
 interface TherapistConfig {
   id: string;
   main_prompt: string;
   model_name: string;
   temperature: number;
   max_tokens: number;
+  use_system_defaults?: boolean;
+  template_version?: string;
 }
 interface KnowledgeItem {
   id: string;
@@ -82,7 +85,8 @@ export const AdminPanel = () => {
         main_prompt: config.main_prompt,
         model_name: config.model_name,
         temperature: config.temperature,
-        max_tokens: config.max_tokens
+        max_tokens: config.max_tokens,
+        use_system_defaults: config.use_system_defaults ?? true
       }).eq("id", config.id);
       if (error) throw error;
       toast({
@@ -251,6 +255,17 @@ export const AdminPanel = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Usar padrões do sistema</Label>
+                    <p className="text-sm text-muted-foreground">Ignora o prompt salvo e usa o Router Prompt padrão.</p>
+                  </div>
+                  <Switch
+                    checked={!!config.use_system_defaults}
+                    onCheckedChange={(v) => setConfig({ ...config, use_system_defaults: v })}
+                  />
+                </div>
+
                 <div>
                   <Label htmlFor="prompt">Prompt Principal</Label>
                   <Textarea id="prompt" value={config.main_prompt} onChange={e => setConfig({
