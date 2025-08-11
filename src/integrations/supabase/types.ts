@@ -130,7 +130,9 @@ export type Database = {
           max_tokens: number
           model_name: string
           temperature: number
+          template_version: string
           updated_at: string
+          use_system_defaults: boolean
         }
         Insert: {
           created_at?: string
@@ -140,7 +142,9 @@ export type Database = {
           max_tokens?: number
           model_name?: string
           temperature?: number
+          template_version?: string
           updated_at?: string
+          use_system_defaults?: boolean
         }
         Update: {
           created_at?: string
@@ -150,6 +154,38 @@ export type Database = {
           max_tokens?: number
           model_name?: string
           temperature?: number
+          template_version?: string
+          updated_at?: string
+          use_system_defaults?: boolean
+        }
+        Relationships: []
+      }
+      therapy_facts: {
+        Row: {
+          created_at: string
+          fact_text: string
+          id: string
+          sentiments: Json | null
+          session_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fact_text: string
+          id?: string
+          sentiments?: Json | null
+          session_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fact_text?: string
+          id?: string
+          sentiments?: Json | null
+          session_id?: string | null
+          status?: string
           updated_at?: string
         }
         Relationships: []
