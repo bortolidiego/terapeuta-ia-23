@@ -280,6 +280,10 @@ export type Database = {
         Args: { sentiment_name: string }
         Returns: undefined
       }
+      is_session_owner: {
+        Args: { session_uuid: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
