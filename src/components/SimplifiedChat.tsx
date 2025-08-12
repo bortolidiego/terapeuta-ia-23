@@ -323,8 +323,8 @@ export const SimplifiedChat = () => {
       }
     }
 
-    // 3) Fallback (somente quando o Router indicar FATO_ESPECIFICO):
-    if (routerProtocol === 'FATO_ESPECIFICO') {
+    // 3) Fallback (somente quando o Router indicar FATO_ESPECIFICO na etapa choose_fact):
+    if (routerProtocol === 'FATO_ESPECIFICO' && (routerStep === 'choose_fact' || !routerStep)) {
       const lines = body.split('\n');
       const itemRegex = /^\s*(?:\d+[\)\.\-]?\s+|[-*•]\s+)(.+)$/;
       const rawItems = lines
@@ -349,16 +349,14 @@ export const SimplifiedChat = () => {
         const buttons: Array<{id: string; text: string}> = [
           { id: 'fato1', text: `${top3[0]}.` },
           { id: 'fato2', text: `${top3[1]}.` },
-          { id: 'fato3', text: `${top3[2]}.` },
-          { id: 'autocura_agora', text: 'Trabalhar sentimentos agora' },
-          { id: 'autocura_depois', text: 'Autocurar depois' },
+          { id: 'fato3', text: `${top3[2]}.` }
         ];
 
         const contentWithoutList = lines.filter(l => !itemRegex.test(l)).join('\n').trim();
         return {
           content: contentWithoutList,
           buttons,
-          buttonMessage: 'Escolha a melhor descrição APENAS DO FATO. Depois, selecione se quer autocurar agora ou deixar para depois.'
+          buttonMessage: 'Escolha a melhor descrição APENAS DO FATO:'
         };
       }
     }
@@ -483,6 +481,19 @@ export const SimplifiedChat = () => {
     // Botão de continuar com novo problema
     if (buttonId === 'sim') {
       await sendMessage('Quero trabalhar outro problema');
+      return;
+    }
+
+    // Botões de fatos pendentes
+    if (buttonId.startsWith('pending_fact_')) {
+      const factId = buttonId.replace('pending_fact_', '');
+      await sendMessage(`Selecionado fato pendente ID: ${factId}`);
+      return;
+    }
+
+    // Botão de novo problema
+    if (buttonId === 'new_problem') {
+      await sendMessage('Quero trabalhar um novo problema');
       return;
     }
 

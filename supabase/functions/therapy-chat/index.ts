@@ -162,13 +162,17 @@ serve(async (req) => {
     // Protocolo de FATO ESPECÍFICO (sempre disponível)
     systemPrompt += '\n\n=== SISTEMA DE AUTOCURA E FATOS (FATO ESPECÍFICO) ===';
     systemPrompt += '\nQuando o usuário mencionar um FATO ESPECÍFICO (um evento concreto no tempo):';
+    systemPrompt += '\n\n**ETAPA 1 - ESCOLHA DO FATO (step=choose_fact):**';
     systemPrompt += '\n1. Crie EXATAMENTE 3 variações APENAS DO FATO, curtas e objetivas, descrevendo somente QUANDO e O QUE aconteceu.';
     systemPrompt += "\n   - PROIBIDO: emoções, julgamentos ou adjetivos (ex.: 'foi tenso', 'fiquei desolado', 'me senti...').";
     systemPrompt += '\n   - NÃO use aspas nas variações.';
     systemPrompt += '\n2. Use SEMPRE botões em UMA ÚNICA LINHA no formato: [BTN:fato1:Variação 1] [BTN:fato2:Variação 2] [BTN:fato3:Variação 3].';
-    systemPrompt += '\n3. Logo ABAIXO, em UMA ÚNICA LINHA, ofereça: [BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois].';
-    systemPrompt += '\n4. NÃO usar listas numeradas ou marcadores para as variações. SEMPRE use botões.';
-    systemPrompt += '\n5. Emoções SÓ entram após o usuário escolher autocura_agora.';
+    systemPrompt += '\n3. NÃO mostrar botões de autocura nesta etapa.';
+    systemPrompt += '\n\n**ETAPA 2 - VERIFICAÇÃO E AUTOCURA (step=next_action):**';
+    systemPrompt += '\n1. Após usuário selecionar fato, verificar se há outros fatos pendentes no sistema.';
+    systemPrompt += '\n2. Se houver fatos pendentes: mostrar lista dos fatos + [BTN:new_problem:Novo problema].';
+    systemPrompt += '\n3. Se não houver fatos pendentes: oferecer [BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois].';
+    systemPrompt += '\n4. Após autocura completa: usar POST_AUTOCURA para retornar ao router.';
 
     // Preparar mensagens para OpenAI
     const messages: Array<{role: string, content: string}> = [
@@ -238,10 +242,23 @@ serve(async (req) => {
     if (fatoSelecionadoMatch) {
       const chosenFact = fatoSelecionadoMatch[1].replace(/[“”"]/g, '').trim();
       console.log('Fato específico selecionado:', chosenFact);
-      assistantReply = `ROUTER: FATO_ESPECIFICO | step=next_action\nPerfeito. Fato específico fixado: ${chosenFact}.\n\nAgora escolha como deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
+      // Verificar se há fatos pendentes
+      if (therapyFacts && therapyFacts.length > 0) {
+        let fatosPendentesText = '\n\nHá fatos pendentes de outras sessões. Escolha qual deseja trabalhar:\n';
+        therapyFacts.forEach((f: { id: string; fact_text: string; status: string }) => {
+          fatosPendentesText += `\n[BTN:pending_fact_${f.id}:${f.fact_text}]`;
+        });
+        fatosPendentesText += '\n[BTN:new_problem:Trabalhar novo problema]';
+        assistantReply = `ROUTER: FATO_ESPECIFICO | step=pending_facts\nPerfeito. Fato específico fixado: ${chosenFact}.${fatosPendentesText}`;
+      } else {
+        assistantReply = `ROUTER: FATO_ESPECIFICO | step=next_action\nPerfeito. Fato específico fixado: ${chosenFact}.\n\nAgora escolha como deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
+      }
     } else if (message.trim().toLowerCase() === 'autocura_agora') {
       console.log('Fluxo: autocura agora');
       assistantReply = 'ROUTER: FATO_ESPECIFICO | step=sentiments_popup\nÓtimo. Vamos selecionar os sentimentos principais deste fato.\n\n[POPUP:sentimentos]';
+    } else if (message.trim().toLowerCase() === 'autocura finalizada, retornar ao início') {
+      console.log('Fluxo: retornando ao router após autocura');
+      assistantReply = 'ROUTER: POST_AUTOCURA | step=complete\nSua autocura foi finalizada com sucesso! ✨\n\nPosso ajudá-lo com algo mais hoje?\n\n[BTN:sim:Sim, quero trabalhar outro problema] [BTN:encerrar:Encerrar consulta]';
     } else if (message.trim().toLowerCase() === 'autocura_depois') {
       console.log('Fluxo: autocura depois');
       // Encontrar último fato selecionado no histórico recente
@@ -274,11 +291,10 @@ serve(async (req) => {
           const top3 = items.slice(0, 3).map(clean);
           const preamble = lines.filter(l => !itemRegex.test(l)).join('\n').trim();
           const buttonsLine = `[BTN:fato1:${top3[0]}] [BTN:fato2:${top3[1]}] [BTN:fato3:${top3[2]}]`;
-          const actionsLine = `[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
           if (routerProtocol === 'FATO_ESPECIFICO') {
-            assistantReply = [preamble, '', buttonsLine, actionsLine].join('\n').trim();
+            assistantReply = [preamble, '', buttonsLine].join('\n').trim();
           } else if (!hasRouterHeader) {
-            assistantReply = [`ROUTER: FATO_ESPECIFICO | step=choose_fact`, preamble, '', buttonsLine, actionsLine].join('\n').trim();
+            assistantReply = [`ROUTER: FATO_ESPECIFICO | step=choose_fact`, preamble, '', buttonsLine].join('\n').trim();
         }
       }
     }
