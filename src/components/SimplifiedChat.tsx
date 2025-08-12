@@ -548,11 +548,11 @@ export const SimplifiedChat = () => {
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">Seu espaço de cura e bem-estar</p>
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            {currentSessionId && (
+            {currentConsultationId && (
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={endCurrentSession}
+                onClick={endCurrentConsultation}
                 className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
               >
                 <Power className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
@@ -591,7 +591,7 @@ export const SimplifiedChat = () => {
                 )}
                 
                 {messages.map((message) => {
-                  if (message.role === "session_end" || message.metadata?.type === 'session_end') {
+                  if (message.role === "consultation_end" || message.metadata?.type === 'consultation_end') {
                     return (
                       <div key={message.id} className="flex justify-center my-4 sm:my-6">
                         <div className="flex items-center w-full max-w-md">

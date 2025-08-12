@@ -279,7 +279,6 @@ serve(async (req) => {
             assistantReply = [preamble, '', buttonsLine, actionsLine].join('\n').trim();
           } else if (!hasRouterHeader) {
             assistantReply = [`ROUTER: FATO_ESPECIFICO | step=choose_fact`, preamble, '', buttonsLine, actionsLine].join('\n').trim();
-          }
         }
       }
     }
