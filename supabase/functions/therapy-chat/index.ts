@@ -252,7 +252,7 @@ serve(async (req) => {
     } else {
       // Normalização: converter listas numeradas/simples em botões de fato + opções de autocura
       const hasButtons = /\[BTN:[^:]+:[^\]]+\]/.test(assistantReply);
-      if (!hasButtons) {
+      if (!hasButtons && routerProtocol === 'FATO_ESPECIFICO') {
         const lines = assistantReply.split('\n');
         const itemRegex = /^\s*(?:\d+[)\.-]?\s+|[-*•]\s+)(.+)$/;
         const items = lines
