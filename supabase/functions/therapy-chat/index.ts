@@ -124,6 +124,15 @@ serve(async (req) => {
       systemPrompt += '\n- Em que etapa do protocolo o usuário está';
       systemPrompt += '\n- Se esta etapa requer botões de seleção';
       systemPrompt += '\nEntão, execute o protocolo apropriado ou responda seguindo suas instruções principais.';
+      
+      systemPrompt += '\n\n=== SISTEMA DE AUTOCURA E FATOS ===';
+      systemPrompt += '\nQuando o usuário mencionar um fato/situação específica que precisa trabalhar:';
+      systemPrompt += '\n1. Identifique o fato específico';
+      systemPrompt += '\n2. Gere 3 variações/sugestões de como expressar este fato';
+      systemPrompt += '\n3. Ofereça botões de escolha das 3 sugestões + opções de autocura';
+      systemPrompt += '\n4. Use o formato: [BTN:sugestao1:Primeira sugestão] [BTN:sugestao2:Segunda sugestão] [BTN:sugestao3:Terceira sugestão]';
+      systemPrompt += '\n5. Adicione também: [BTN:autocura_agora:Trabalhar na autocura agora] [BTN:autocura_depois:Deixar para depois]';
+      systemPrompt += '\n6. Quando escolhido "autocura_agora", prossiga com a seleção de sentimentos';
     }
 
     // Preparar mensagens para OpenAI
@@ -213,6 +222,7 @@ serve(async (req) => {
             sentimentos: sentimentos,
             fatoEspecifico: fatoEspecifico,
             totalSentimentos: sentimentos.length,
+            status: "Autocura EMITIDA",
             message: `Perfeito! Com base nos ${sentimentos.length} sentimentos selecionados, aqui estão seus comandos quânticos personalizados:`
           });
         }

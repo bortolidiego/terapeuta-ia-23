@@ -303,13 +303,11 @@ export const SimplifiedChat = () => {
     const comandosCompletos = [
       mensagemIntro,
       "",
-      "**Comandos Quânticos:**",
+      "**Comandos Quânticos (Status: Autocura EMITIDA):**",
       ...comandosPorSentimento,
       ...linhasFinais,
       "",
-      "Ótimo! Seus comandos quânticos foram criados. Você gostaria de trabalhar na autocura deste fato agora ou prefere deixar para outro momento?",
-      "",
-      "[BTN:autocura_agora:Trabalhar na autocura agora] [BTN:autocura_depois:Deixar para depois]"
+      "✨ Seus comandos quânticos foram criados com sucesso! A autocura foi emitida e está em processo."
     ];
 
     return comandosCompletos.join('\n');
