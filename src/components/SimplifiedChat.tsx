@@ -68,13 +68,37 @@ export const SimplifiedChat = () => {
 
   const createNewConsultation = async () => {
     try {
+      // Obter o usuário autenticado
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.error("Usuário não autenticado");
+        toast({
+          title: "Erro de autenticação",
+          description: "Você precisa estar logado para iniciar uma consulta.",
+          variant: "destructive",
+        });
+        return null;
+      }
+
       const { data, error } = await supabase
         .from("therapy_sessions")
-        .insert({ title: `Consulta ${new Date().toLocaleString()}` })
+        .insert({ 
+          title: `Consulta ${new Date().toLocaleString()}`,
+          user_id: user.id
+        })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro ao criar consulta:", error);
+        toast({
+          title: "Erro ao criar consulta",
+          description: "Não foi possível iniciar uma nova consulta. Tente novamente.",
+          variant: "destructive",
+        });
+        throw error;
+      }
       
       setCurrentConsultationId(data.id);
       return data.id;
