@@ -252,7 +252,8 @@ serve(async (req) => {
     } else {
       // Normalização: converter listas numeradas/simples em botões de fato + opções de autocura
       const hasButtons = /\[BTN:[^:]+:[^\]]+\]/.test(assistantReply);
-      if (!hasButtons && routerProtocol === 'FATO_ESPECIFICO') {
+      const hasRouterHeader = !!routerMatch;
+      if (!hasButtons) {
         const lines = assistantReply.split('\n');
         const itemRegex = /^\s*(?:\d+[)\.-]?\s+|[-*•]\s+)(.+)$/;
         const items = lines
@@ -262,18 +263,18 @@ serve(async (req) => {
           })
           .filter(Boolean) as string[];
         if (items.length >= 3) {
-          const clean = (t: string) => t.replace(/[“”"]/g, '').trim().replace(/\.$/, '');
+          const clean = (t: string) => t.replace(/[“”\"]/g, '').trim().replace(/\.$/, '');
           const top3 = items.slice(0, 3).map(clean);
           const preamble = lines.filter(l => !itemRegex.test(l)).join('\n').trim();
-          assistantReply = [
-            preamble,
-            '',
-            `[BTN:fato1:${top3[0]}] [BTN:fato2:${top3[1]}] [BTN:fato3:${top3[2]}]`,
-            `[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`
-          ].join('\n').trim();
+          const buttonsLine = `[BTN:fato1:${top3[0]}] [BTN:fato2:${top3[1]}] [BTN:fato3:${top3[2]}]`;
+          const actionsLine = `[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
+          if (routerProtocol === 'FATO_ESPECIFICO') {
+            assistantReply = [preamble, '', buttonsLine, actionsLine].join('\n').trim();
+          } else if (!hasRouterHeader) {
+            assistantReply = [`ROUTER: FATO_ESPECIFICO | step=choose_fact`, preamble, '', buttonsLine, actionsLine].join('\n').trim();
+          }
         }
       }
-    }
 
     // Detecta se o usuário está enviando sentimentos selecionados
     if (message.includes('Sentimentos selecionados:')) {

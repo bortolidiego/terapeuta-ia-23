@@ -30,14 +30,13 @@ serve(async (req) => {
       .eq('is_active', true)
       .single();
 
-    if (kbError || !knowledgeBase) {
-      console.error('Erro ao buscar base de conhecimento:', kbError);
-      throw new Error('Base de conhecimento não encontrada');
-    }
+      console.warn('Base de conhecimento não encontrada ou inativa; seguindo com fallback.', kbError);
+      usedFallback = true;
 
-    // Gerar sentimentos específicos baseados no contexto
-    let generatedSentiments = [];
-    if (context && context.trim()) {
+      // Gerar sentimentos específicos baseados no contexto
+      let usedFallback = false;
+      let generatedSentiments = [];
+      if (context && context.trim()) {
       console.log('Chamando OpenAI para gerar sentimentos...');
       
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -99,7 +98,10 @@ Gere sentimentos negativos relacionados a esta situação:`
         console.log('Sentimentos parseados:', generatedSentiments);
       } else {
         console.error('Erro na resposta da OpenAI:', response.status, await response.text());
+        usedFallback = true;
       }
+    } else {
+      usedFallback = true;
     }
 
     console.log('Generated sentiments:', generatedSentiments);
@@ -139,7 +141,8 @@ Gere sentimentos negativos relacionados a esta situação:`
 
     return new Response(JSON.stringify({ 
       sentiments: allSentiments,
-      newSentimentsGenerated: generatedSentiments.length
+      newSentimentsGenerated: generatedSentiments.length,
+      usedFallback
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -148,7 +151,8 @@ Gere sentimentos negativos relacionados a esta situação:`
     console.error('Error in generate-sentiments function:', error);
     return new Response(JSON.stringify({ 
       error: error.message,
-      sentiments: [] 
+      sentiments: [],
+      usedFallback: true
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

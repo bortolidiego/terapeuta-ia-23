@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
@@ -85,6 +85,12 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
               description: `${functionData.newSentimentsGenerated} sentimentos contextuais foram criados com base na sua situação.`,
             });
           }
+          if (functionData.usedFallback) {
+            toast({
+              title: "Usando sentimentos padrão",
+              description: "Não foi possível gerar sentimentos contextuais; usando a base geral.",
+            });
+          }
         }
         setLoadingSentimentos(false);
       } else {
@@ -127,6 +133,12 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
           title: "Sentimentos regenerados!",
           description: `${functionData.newSentimentsGenerated} novos sentimentos contextuais foram criados.`,
         });
+        if (functionData.usedFallback) {
+          toast({
+            title: "Usando sentimentos padrão",
+            description: "Não foi possível gerar sentimentos contextuais; usando a base geral.",
+          });
+        }
       }
     } catch (error) {
       console.error('Error regenerating sentiments:', error);
@@ -614,6 +626,9 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
               )}
             </div>
           </DialogTitle>
+          <DialogDescription>
+            Escolha pelo menos 40 sentimentos negativos relacionados ao seu fato para gerar a autocura.
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-3 border-b pb-3">
