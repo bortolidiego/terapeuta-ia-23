@@ -16,6 +16,7 @@ interface Message {
   created_at: string;
   buttons?: Array<{id: string; text: string}>;
   buttonMessage?: string;
+  metadata?: any;
 }
 
 export const SimplifiedChat = () => {
@@ -55,7 +56,8 @@ export const SimplifiedChat = () => {
         id: msg.id,
         role: msg.role as "user" | "assistant" | "session_end",
         content: msg.content,
-        created_at: msg.created_at
+        created_at: msg.created_at,
+        metadata: (msg as any).metadata
       }));
       setMessages(typedMessages);
     } catch (error) {
@@ -88,9 +90,10 @@ export const SimplifiedChat = () => {
       // Inserir marcador de fim de sessão
       const sessionEndMessage = {
         session_id: currentSessionId,
-        role: "session_end",
+        role: "assistant",
         content: `Sessão encerrada em ${new Date().toLocaleString()}`,
-      };
+        metadata: { type: "session_end" }
+      } as const;
 
       const { error } = await supabase
         .from("session_messages")
@@ -161,7 +164,7 @@ export const SimplifiedChat = () => {
           body: {
             message: userMessage,
             sessionId: sessionId,
-            history: messages.filter(m => m.role !== "session_end"),
+            history: messages.filter(m => m.role !== "session_end" && m.metadata?.type !== 'session_end'),
           },
         }
       );
@@ -568,7 +571,7 @@ export const SimplifiedChat = () => {
                 )}
                 
                 {messages.map((message) => {
-                  if (message.role === "session_end") {
+                  if (message.role === "session_end" || message.metadata?.type === 'session_end') {
                     return (
                       <div key={message.id} className="flex justify-center my-4 sm:my-6">
                         <div className="flex items-center w-full max-w-md">

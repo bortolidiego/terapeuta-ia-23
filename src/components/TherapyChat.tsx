@@ -16,6 +16,7 @@ interface Message {
   created_at: string;
   buttons?: Array<{id: string; text: string}>;
   buttonMessage?: string;
+  metadata?: any;
 }
 
 interface Session {
@@ -81,7 +82,8 @@ export const TherapyChat = () => {
         id: msg.id,
         role: msg.role as "user" | "assistant" | "session_end",
         content: msg.content,
-        created_at: msg.created_at
+        created_at: msg.created_at,
+        metadata: (msg as any).metadata
       }));
       setMessages(typedMessages);
     } catch (error) {
@@ -124,9 +126,10 @@ export const TherapyChat = () => {
     try {
       const sessionEndMessage = {
         session_id: currentSession.id,
-        role: "session_end",
+        role: "assistant",
         content: `Sessão encerrada em ${new Date().toLocaleString()}`,
-      };
+        metadata: { type: "session_end" }
+      } as const;
 
       const { error } = await supabase
         .from("session_messages")
@@ -594,7 +597,7 @@ export const TherapyChat = () => {
                 )}
                 
                 {messages.map((message) => (
-                  message.role === "session_end" ? (
+                  (message.role === "session_end" || message.metadata?.type === 'session_end') ? (
                     <div key={message.id} className="flex justify-center my-6">
                       <div className="flex items-center w-full max-w-md">
                         <div className="flex-1 h-px bg-white/10"></div>
