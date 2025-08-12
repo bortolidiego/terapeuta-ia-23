@@ -125,14 +125,13 @@ serve(async (req) => {
       systemPrompt += '\n- Se esta etapa requer botões de seleção';
       systemPrompt += '\nEntão, execute o protocolo apropriado ou responda seguindo suas instruções principais.';
       
-      systemPrompt += '\n\n=== SISTEMA DE AUTOCURA E FATOS ===';
-      systemPrompt += '\nQuando o usuário mencionar um fato/situação específica que precisa trabalhar:';
-      systemPrompt += '\n1. Identifique o fato específico';
-      systemPrompt += '\n2. Gere 3 variações/sugestões de como expressar este fato';
-      systemPrompt += '\n3. Ofereça botões de escolha das 3 sugestões + opções de autocura';
-      systemPrompt += '\n4. Use o formato: [BTN:sugestao1:Primeira sugestão] [BTN:sugestao2:Segunda sugestão] [BTN:sugestao3:Terceira sugestão]';
-      systemPrompt += '\n5. Adicione também: [BTN:autocura_agora:Trabalhar na autocura agora] [BTN:autocura_depois:Deixar para depois]';
-      systemPrompt += '\n6. Quando escolhido "autocura_agora", prossiga com a seleção de sentimentos';
+      systemPrompt += '\n\n=== SISTEMA DE AUTOCURA E FATOS (FATO ESPECÍFICO) ===';
+      systemPrompt += '\nQuando o usuário mencionar um FATO ESPECÍFICO (um evento concreto no tempo):';
+      systemPrompt += '\n1. Crie EXATAMENTE 3 variações APENAS DO FATO, sem emoções/qualificações.';
+      systemPrompt += '\n2. Use SEMPRE botões no formato: [BTN:fato1:Variação 1] [BTN:fato2:Variação 2] [BTN:fato3:Variação 3] (todos em UMA linha).';
+      systemPrompt += '\n3. Logo abaixo, ofereça: [BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois] (em UMA linha).';
+      systemPrompt += '\n4. NÃO usar listas numeradas, nem aspas dentro dos botões.';
+      systemPrompt += '\n5. Emoções NÃO devem aparecer nas variações do fato. Emoções só entram após o usuário escolher autocura_agora.';
     }
 
     // Preparar mensagens para OpenAI

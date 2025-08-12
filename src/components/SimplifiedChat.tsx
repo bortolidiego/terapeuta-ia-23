@@ -26,6 +26,7 @@ export const SimplifiedChat = () => {
   const [pendingResponse, setPendingResponse] = useState<string>("");
   const [currentContext, setCurrentContext] = useState<string>("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [selectedFactText, setSelectedFactText] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -269,20 +270,159 @@ export const SimplifiedChat = () => {
         return match ? { id: match[1], text: match[2] } : null;
       }).filter(Boolean);
 
-      if (buttons.length > 0) {
+      if ((buttons as Array<{id: string; text: string}>).length > 0) {
         return {
           content: content.replace(/\[BTN:[^:]+:[^\]]+\]/g, '').trim(),
-          buttons: buttons as Array<{id: string; text: string}>,
+        buttons: buttons as Array<{id: string; text: string}>,
           buttonMessage: ""
         };
       }
     }
 
+    // Fallback: converter listas numeradas/simples em botões de Fato Específico
+    const lines = content.split('\n');
+    const itemRegex = /^\s*(?:\d+[\)\.\-]?\s+|[-*•]\s+)(.+)$/;
+    const rawItems = lines
+      .map(l => l.match(itemRegex))
+      .filter(Boolean)
+      .map((m: RegExpMatchArray) => m[1].trim());
+
+    const cleanFactText = (txt: string) => {
+      return txt
+        .replace(/["“”]/g, '')
+        .replace(/\b(me\s+)?senti[^\.,;\]]*/gi, '')
+        .replace(/\bfiquei[^\.,;\]]*/gi, '')
+        .replace(/\bestava[^\.,;\]]*/gi, '')
+        .replace(/\bemocionad[oa][^\.,;\]]*/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+        .replace(/\.$/, '');
+    };
+
+    if (rawItems.length >= 3) {
+      const top3 = rawItems.slice(0, 3).map(cleanFactText);
+      const buttons: Array<{id: string; text: string}> = [
+        { id: 'fato1', text: `${top3[0]}.` },
+        { id: 'fato2', text: `${top3[1]}.` },
+        { id: 'fato3', text: `${top3[2]}.` },
+        { id: 'autocura_agora', text: 'Trabalhar sentimentos agora' },
+        { id: 'autocura_depois', text: 'Autocurar depois' },
+      ];
+
+      const contentWithoutList = lines.filter(l => !itemRegex.test(l)).join('\n').trim();
+      return {
+        content: contentWithoutList,
+        buttons,
+        buttonMessage: 'Escolha a melhor descrição APENAS DO FATO. Depois, selecione se quer autocurar agora ou deixar para depois.'
+      };
+    }
+
     return { content, buttons: undefined, buttonMessage: undefined };
   };
 
-  const handleButtonClick = (buttonId: string, buttonText: string) => {
-    sendMessage(buttonId);
+  const handleButtonClick = async (buttonId: string, buttonText: string) => {
+    // Seleção de uma variação de fato específico
+    if (buttonId.startsWith('fato')) {
+      setSelectedFactText(buttonText);
+      await sendMessage(`Fato selecionado: ${buttonText}`);
+      return;
+    }
+
+    // Autocura agora: mostrar perguntas guias e abrir popup imediatamente
+    if (buttonId === 'autocura_agora') {
+      const guidance = [
+        'Perfeito. Antes de abrirmos a etapa de sentimentos, responda mentalmente às 3 perguntas:',
+        '• O que você sentiu na hora ou no dia?',
+        '• O que você continuou sentindo depois?',
+        '• O que você recebeu desse fato (como te afetou a longo prazo)?',
+        '',
+        '[POPUP:sentimentos]'
+      ].join('\n');
+
+      // Garantir sessão
+      let sessionId = currentSessionId;
+      if (!sessionId) {
+        sessionId = await createNewSession();
+        if (!sessionId) return;
+        setCurrentSessionId(sessionId);
+      }
+
+      // Persistir resposta do assistente e abrir popup
+      try {
+        const { error: assistantError } = await supabase
+          .from('session_messages')
+          .insert({ session_id: sessionId, role: 'assistant', content: guidance });
+        if (assistantError) throw assistantError;
+
+        const assistantMessage = {
+          id: (Date.now() + 2).toString(),
+          role: 'assistant' as const,
+          content: guidance,
+          created_at: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+
+        // Extrair contexto das últimas mensagens do usuário
+        const recentUserMessages = messages
+          .filter(msg => msg.role === 'user')
+          .slice(-3)
+          .map(msg => msg.content)
+          .join(' ');
+        setCurrentContext(recentUserMessages);
+        setShowSentimentosPopup(true);
+      } catch (e) {
+        console.error('Erro ao registrar orientação de autocura:', e);
+      }
+      return;
+    }
+
+    // Autocura depois: registrar fato pendente
+    if (buttonId === 'autocura_depois') {
+      if (!selectedFactText) {
+        toast({
+          title: 'Selecione um fato',
+          description: 'Escolha uma das três variações do fato antes de salvar para depois.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      let sessionId = currentSessionId;
+      if (!sessionId) {
+        sessionId = await createNewSession();
+        if (!sessionId) return;
+        setCurrentSessionId(sessionId);
+      }
+
+      try {
+        const { error: insertError } = await supabase
+          .from('therapy_facts')
+          .insert({ session_id: sessionId, fact_text: selectedFactText, status: 'pending' });
+        if (insertError) throw insertError;
+
+        const confirmation = 'Fato salvo para autocura futura. Vamos seguir com seu atendimento no seu ritmo.';
+        const { error: assistantError } = await supabase
+          .from('session_messages')
+          .insert({ session_id: sessionId, role: 'assistant', content: confirmation });
+        if (assistantError) throw assistantError;
+
+        const assistantMessage = {
+          id: (Date.now() + 3).toString(),
+          role: 'assistant' as const,
+          content: confirmation,
+          created_at: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        setSelectedFactText(null);
+      } catch (e) {
+        console.error('Erro ao salvar fato pendente:', e);
+        toast({ title: 'Erro', description: 'Não foi possível salvar o fato para depois.', variant: 'destructive' });
+      }
+      return;
+    }
+
+    // Qualquer outro botão: enviar ID para o backend
+    await sendMessage(buttonId);
   };
 
   const construirComandosQuanticos = (sentimentos: string[], fatoEspecifico: string, mensagemIntro: string) => {
