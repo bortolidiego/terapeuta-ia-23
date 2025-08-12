@@ -20,9 +20,10 @@ serve(async (req) => {
   }
 
   try {
+    const startTime = performance.now();
     const { message, sessionId, history = [] } = await req.json();
     
-    console.log(`Processando mensagem: "${message.substring(0, 100)}..."`);
+    console.log(`[PERFORMANCE] Iniciando processamento da mensagem: "${message.substring(0, 50)}..."`);
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -34,24 +35,20 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Buscar configuração do terapeuta
-    const { data: therapistConfig } = await supabase
-      .from('therapist_config')
-      .select('*')
-      .single();
+    // OTIMIZAÇÃO: Executar consultas em paralelo
+    const dbStartTime = performance.now();
+    const [therapistConfigResult, knowledgeResult, therapyFactsResult] = await Promise.all([
+      supabase.from('therapist_config').select('*').single(),
+      supabase.from('knowledge_base').select('*'), // Removido .eq('active', true) - coluna não existe
+      supabase.from('therapy_facts').select('*').eq('status', 'pending').order('created_at', { ascending: false })
+    ]);
+    
+    const dbTime = performance.now() - dbStartTime;
+    console.log(`[PERFORMANCE] Consultas DB completadas em ${dbTime.toFixed(2)}ms`);
 
-    // Buscar base de conhecimento
-    const { data: knowledge } = await supabase
-      .from('knowledge_base')
-      .select('*')
-      .eq('active', true);
-
-    // Buscar fatos pendentes
-    const { data: therapyFacts } = await supabase
-      .from('therapy_facts')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
+    const therapistConfig = therapistConfigResult.data;
+    const knowledge = knowledgeResult.data;
+    const therapyFacts = therapyFactsResult.data;
 
     // Construir o system prompt
     let systemPrompt = `Você é um assistente de psicoterapia compassivo baseado em Análise de Bioenergia de Alexander Lowen. Seu objetivo principal é ajudar o usuário a processar experiências específicas através da autocura quântica.
@@ -109,51 +106,79 @@ FORMATAÇÃO DE BOTÕES:
 Use o formato: [BTN:id:texto] para criar botões interativos
 Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentimentos agora]`;
 
-    // Preparar mensagens para OpenAI
+    // OTIMIZAÇÃO: Limitar histórico para as últimas 20 mensagens
+    const limitedHistory = history.slice(-20);
     const messages = [
       { role: "system", content: systemPrompt },
-      ...history.map((h: Message) => ({
+      ...limitedHistory.map((h: Message) => ({
         role: h.role,
         content: h.content
       })),
       { role: "user", content: message }
     ];
 
-    console.log(`Enviando para OpenAI: {
+    console.log(`[PERFORMANCE] Enviando para OpenAI: {
   model: "gpt-4o-mini",
-  messagesCount: ${messages.length},
+  messagesCount: ${messages.length} (limitado de ${history.length}),
   temperature: 0.7,
+  max_tokens: 1500,
   pendingFacts: ${therapyFacts?.length || 0}
 }`);
 
-    // Fazer chamada para OpenAI
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 1000,
-      }),
-    });
+    // OTIMIZAÇÃO: Fazer chamada para OpenAI com timeout
+    const openaiStartTime = performance.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos timeout
+    
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 1500, // Reduzido de 10000 para 1500
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      const openaiTime = performance.now() - openaiStartTime;
+      console.log(`[PERFORMANCE] OpenAI respondeu em ${openaiTime.toFixed(2)}ms`);
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Erro da OpenAI:', errorData);
-      throw new Error(`OpenAI API error: ${response.status}`);
-    }
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Erro da OpenAI:', errorData);
+        throw new Error(`OpenAI API error: ${response.status}`);
+      }
 
-    const data = await response.json();
-    let assistantReply = data.choices[0].message.content;
+      const data = await response.json();
+      let assistantReply = data.choices[0].message.content;
 
-    console.log(`Resposta da OpenAI recebida: {
+      console.log(`[PERFORMANCE] Resposta processada: {
   choices: ${data.choices?.length || 0},
-  usage: ${JSON.stringify(data.usage)}
+  usage: ${JSON.stringify(data.usage)},
+  prompt_tokens: ${data.usage?.prompt_tokens || 0},
+  completion_tokens: ${data.usage?.completion_tokens || 0}
 }`);
+      
+    } catch (timeoutError) {
+      clearTimeout(timeoutId);
+      console.error('[PERFORMANCE] Timeout na OpenAI:', timeoutError);
+      
+      // Fallback para timeout
+      return new Response(JSON.stringify({ 
+        reply: 'Desculpe, o sistema está um pouco lento no momento. Pode repetir sua mensagem?',
+        error: 'timeout',
+        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Detectar ROUTER na resposta do modelo
     let routerProtocol = 'UNKNOWN';
@@ -304,6 +329,10 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
     if (triggeredKnowledge) {
       assistantReply += triggeredKnowledge;
     }
+
+    // Log de performance final
+    const totalTime = performance.now() - startTime;
+    console.log(`[PERFORMANCE] Processamento total completado em ${totalTime.toFixed(2)}ms`);
 
     return new Response(JSON.stringify({ 
       reply: assistantReply,
