@@ -275,6 +275,7 @@ serve(async (req) => {
           }
         }
       }
+    }
 
     // Detecta se o usuário está enviando sentimentos selecionados
     if (message.includes('Sentimentos selecionados:')) {
