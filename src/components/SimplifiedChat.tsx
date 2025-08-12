@@ -245,14 +245,26 @@ export const SimplifiedChat = () => {
   };
 
   const processMessageForButtons = (content: string) => {
-    // Detectar formato JSON
-    const jsonMatch = content.match(/```json\s*(\{[^`]+\})\s*```/);
+    // Remover e interpretar cabeçalho ROUTER, se existir
+    const routerHeaderMatch = content.match(/^\s*ROUTER:\s*([A-Z_]+)(?:\s*\|\s*step=([a-z0-9_:-]+))?/i);
+    const routerProtocol = routerHeaderMatch ? (routerHeaderMatch[1] || '').toUpperCase() : undefined;
+    const routerStep = routerHeaderMatch ? (routerHeaderMatch[2] || '') : undefined;
+
+    if (routerProtocol) {
+      console.log('ROUTER detectado no frontend:', { routerProtocol, routerStep });
+    }
+
+    // Corpo sem o cabeçalho ROUTER
+    const body = content.replace(/^\s*ROUTER:[^\n]*\n?/, '').trim();
+
+    // 1) Detectar formato JSON de botões
+    const jsonMatch = body.match(/```json\s*(\{[^`]+\})\s*```/);
     if (jsonMatch) {
       try {
         const buttonData = JSON.parse(jsonMatch[1]);
         if (buttonData.type === "buttons" && buttonData.options) {
           return {
-            content: content.replace(/```json\s*\{[^`]+\}\s*```/, '').trim(),
+            content: body.replace(/```json\s*\{[^`]+\}\s*```/, '').trim(),
             buttons: buttonData.options,
             buttonMessage: buttonData.message || ""
           };
@@ -262,8 +274,8 @@ export const SimplifiedChat = () => {
       }
     }
 
-    // Detectar formato Markdown [BTN:id:text]
-    const markdownButtons = content.match(/\[BTN:([^:]+):([^\]]+)\]/g);
+    // 2) Detectar formato Markdown [BTN:id:text]
+    const markdownButtons = body.match(/\[BTN:([^:]+):([^\]]+)\]/g);
     if (markdownButtons) {
       const buttons = markdownButtons.map(btn => {
         const match = btn.match(/\[BTN:([^:]+):([^\]]+)\]/);
@@ -272,52 +284,55 @@ export const SimplifiedChat = () => {
 
       if ((buttons as Array<{id: string; text: string}>).length > 0) {
         return {
-          content: content.replace(/\[BTN:[^:]+:[^\]]+\]/g, '').trim(),
-        buttons: buttons as Array<{id: string; text: string}>,
+          content: body.replace(/\[BTN:[^:]+:[^\]]+\]/g, '').trim(),
+          buttons: buttons as Array<{id: string; text: string}>,
           buttonMessage: ""
         };
       }
     }
 
-    // Fallback: converter listas numeradas/simples em botões de Fato Específico
-    const lines = content.split('\n');
-    const itemRegex = /^\s*(?:\d+[\)\.\-]?\s+|[-*•]\s+)(.+)$/;
-    const rawItems = lines
-      .map(l => l.match(itemRegex))
-      .filter(Boolean)
-      .map((m: RegExpMatchArray) => m[1].trim());
+    // 3) Fallback (somente quando o Router indicar FATO_ESPECIFICO):
+    if (routerProtocol === 'FATO_ESPECIFICO') {
+      const lines = body.split('\n');
+      const itemRegex = /^\s*(?:\d+[\)\.\-]?\s+|[-*•]\s+)(.+)$/;
+      const rawItems = lines
+        .map(l => l.match(itemRegex))
+        .filter(Boolean)
+        .map((m: RegExpMatchArray) => m[1].trim());
 
-    const cleanFactText = (txt: string) => {
-      return txt
-        .replace(/["“”]/g, '')
-        .replace(/\b(me\s+)?senti[^\.,;\]]*/gi, '')
-        .replace(/\bfiquei[^\.,;\]]*/gi, '')
-        .replace(/\bestava[^\.,;\]]*/gi, '')
-        .replace(/\bemocionad[oa][^\.,;\]]*/gi, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim()
-        .replace(/\.$/, '');
-    };
-
-    if (rawItems.length >= 3) {
-      const top3 = rawItems.slice(0, 3).map(cleanFactText);
-      const buttons: Array<{id: string; text: string}> = [
-        { id: 'fato1', text: `${top3[0]}.` },
-        { id: 'fato2', text: `${top3[1]}.` },
-        { id: 'fato3', text: `${top3[2]}.` },
-        { id: 'autocura_agora', text: 'Trabalhar sentimentos agora' },
-        { id: 'autocura_depois', text: 'Autocurar depois' },
-      ];
-
-      const contentWithoutList = lines.filter(l => !itemRegex.test(l)).join('\n').trim();
-      return {
-        content: contentWithoutList,
-        buttons,
-        buttonMessage: 'Escolha a melhor descrição APENAS DO FATO. Depois, selecione se quer autocurar agora ou deixar para depois.'
+      const cleanFactText = (txt: string) => {
+        return txt
+          .replace(/["“”]/g, '')
+          .replace(/\b(me\s+)?senti[^\.,;\]]*/gi, '')
+          .replace(/\bfiquei[^\.,;\]]*/gi, '')
+          .replace(/\bestava[^\.,;\]]*/gi, '')
+          .replace(/\bemocionad[oa][^\.,;\]]*/gi, '')
+          .replace(/\s{2,}/g, ' ')
+          .trim()
+          .replace(/\.$/, '');
       };
+
+      if (rawItems.length >= 3) {
+        const top3 = rawItems.slice(0, 3).map(cleanFactText);
+        const buttons: Array<{id: string; text: string}> = [
+          { id: 'fato1', text: `${top3[0]}.` },
+          { id: 'fato2', text: `${top3[1]}.` },
+          { id: 'fato3', text: `${top3[2]}.` },
+          { id: 'autocura_agora', text: 'Trabalhar sentimentos agora' },
+          { id: 'autocura_depois', text: 'Autocurar depois' },
+        ];
+
+        const contentWithoutList = lines.filter(l => !itemRegex.test(l)).join('\n').trim();
+        return {
+          content: contentWithoutList,
+          buttons,
+          buttonMessage: 'Escolha a melhor descrição APENAS DO FATO. Depois, selecione se quer autocurar agora ou deixar para depois.'
+        };
+      }
     }
 
-    return { content, buttons: undefined, buttonMessage: undefined };
+    // 4) Sem botões
+    return { content: body, buttons: undefined, buttonMessage: undefined };
   };
 
   const handleButtonClick = async (buttonId: string, buttonText: string) => {

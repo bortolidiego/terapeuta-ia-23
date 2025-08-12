@@ -125,16 +125,44 @@ serve(async (req) => {
       systemPrompt += '\n- Se esta etapa requer botões de seleção';
       systemPrompt += '\nEntão, execute o protocolo apropriado ou responda seguindo suas instruções principais.';
       
-      systemPrompt += '\n\n=== SISTEMA DE AUTOCURA E FATOS (FATO ESPECÍFICO) ===';
-      systemPrompt += '\nQuando o usuário mencionar um FATO ESPECÍFICO (um evento concreto no tempo):';
-      systemPrompt += '\n1. Crie EXATAMENTE 3 variações APENAS DO FATO, curtas e objetivas, descrevendo somente QUANDO e O QUE aconteceu.';
-      systemPrompt += '\n   - PROIBIDO: emoções, julgamentos ou adjetivos (ex.: \'foi tenso\', \'fiquei desolado\', \'me senti...\').';
-      systemPrompt += '\n   - NÃO use aspas nas variações.';
-      systemPrompt += '\n2. Use SEMPRE botões em UMA ÚNICA LINHA no formato: [BTN:fato1:Variação 1] [BTN:fato2:Variação 2] [BTN:fato3:Variação 3].';
-      systemPrompt += '\n3. Logo ABAIXO, em UMA ÚNICA LINHA, ofereça: [BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois].';
-      systemPrompt += '\n4. NÃO usar listas numeradas ou marcadores para as variações. SEMPRE use botões.';
-      systemPrompt += '\n5. Emoções SÓ entram após o usuário escolher autocura_agora.';
     }
+
+    // Adicionar instruções de botões quando não houver knowledge (para manter consistência de formato)
+    if (!knowledge || knowledge.length === 0) {
+      systemPrompt += '\n\n=== SISTEMA DE BOTÕES INTERATIVOS ===';
+      systemPrompt += '\nQuando uma etapa requer seleção de opções pelo usuário, você pode criar botões clicáveis usando:';
+      systemPrompt += '\n\n**FORMATO JSON (para casos complexos):**';
+      systemPrompt += '\n```json';
+      systemPrompt += '\n{"type": "buttons", "message": "Pergunta aqui", "options": [{"id": "opcao1", "text": "Opção 1"}, {"id": "opcao2", "text": "Opção 2"}]}'
+      systemPrompt += '\n```';
+      systemPrompt += '\n\n**FORMATO MARKDOWN (para casos simples):**';
+      systemPrompt += '\n[BTN:opcao1:Opção 1] [BTN:opcao2:Opção 2]';
+      systemPrompt += '\n\nQuando o usuário selecionar uma opção, você receberá o ID da opção como mensagem. Continue o fluxo baseado na seleção.';
+    }
+
+    // Router de protocolos (sempre ativo)
+    systemPrompt += '\n\n=== ROUTER DE PROTOCOLOS ===';
+    systemPrompt += '\nAntes de responder, classifique o pedido do usuário em um protocolo e INICIE a resposta com:';
+    systemPrompt += '\nROUTER: <PROTOCOLO> | step=<etapa_atual>';
+    systemPrompt += '\nProtocolos possíveis:';
+    systemPrompt += '\n- FATO_ESPECIFICO: Quando há um único evento concreto no tempo. Evite quando são relatos genéricos ou recorrentes.';
+    systemPrompt += '\n- GERAL: Conversa geral, perguntas amplas, orientação sem evento único.';
+    systemPrompt += '\n- KB:<NOME>: Quando algum protocolo específico da Base de Conhecimento se aplica.';
+    systemPrompt += '\nRegras:';
+    systemPrompt += '\n- Só use FATO_ESPECIFICO se houver um evento único, datável. Caso contrário, use GERAL ou KB.';
+    systemPrompt += '\n- Se FATO_ESPECIFICO, gere exatamente 3 variações do FATO e os botões de autocura conforme instruções do protocolo abaixo.';
+    systemPrompt += '\n- Use botões [BTN:id:texto] quando a etapa exigir escolha do usuário.';
+
+    // Protocolo de FATO ESPECÍFICO (sempre disponível)
+    systemPrompt += '\n\n=== SISTEMA DE AUTOCURA E FATOS (FATO ESPECÍFICO) ===';
+    systemPrompt += '\nQuando o usuário mencionar um FATO ESPECÍFICO (um evento concreto no tempo):';
+    systemPrompt += '\n1. Crie EXATAMENTE 3 variações APENAS DO FATO, curtas e objetivas, descrevendo somente QUANDO e O QUE aconteceu.';
+    systemPrompt += "\n   - PROIBIDO: emoções, julgamentos ou adjetivos (ex.: 'foi tenso', 'fiquei desolado', 'me senti...').";
+    systemPrompt += '\n   - NÃO use aspas nas variações.';
+    systemPrompt += '\n2. Use SEMPRE botões em UMA ÚNICA LINHA no formato: [BTN:fato1:Variação 1] [BTN:fato2:Variação 2] [BTN:fato3:Variação 3].';
+    systemPrompt += '\n3. Logo ABAIXO, em UMA ÚNICA LINHA, ofereça: [BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois].';
+    systemPrompt += '\n4. NÃO usar listas numeradas ou marcadores para as variações. SEMPRE use botões.';
+    systemPrompt += '\n5. Emoções SÓ entram após o usuário escolher autocura_agora.';
 
     // Preparar mensagens para OpenAI
     const messages: Array<{role: string, content: string}> = [
@@ -188,15 +216,25 @@ serve(async (req) => {
 
     let assistantReply = data.choices[0].message.content;
 
+    // Detectar ROUTER na resposta do modelo
+    let routerProtocol = 'UNKNOWN';
+    let routerStep = '';
+    const routerMatch = assistantReply.match(/^\s*ROUTER:\s*([A-Z_]+)(?:\s*\|\s*step=([a-z0-9_:-]+))?/i);
+    if (routerMatch) {
+      routerProtocol = (routerMatch[1] || '').toUpperCase();
+      routerStep = routerMatch[2] || '';
+      console.log('Router detectado:', { routerProtocol, routerStep });
+    }
+
     // Tratamento especial para o fluxo de FATO ESPECÍFICO
     const fatoSelecionadoMatch = message.match(/^\s*Fato selecionado:\s*(.+)/i);
     if (fatoSelecionadoMatch) {
       const chosenFact = fatoSelecionadoMatch[1].replace(/[“”"]/g, '').trim();
       console.log('Fato específico selecionado:', chosenFact);
-      assistantReply = `Perfeito. Fato específico fixado: ${chosenFact}.\n\nAgora escolha como deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
+      assistantReply = `ROUTER: FATO_ESPECIFICO | step=next_action\nPerfeito. Fato específico fixado: ${chosenFact}.\n\nAgora escolha como deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
     } else if (message.trim().toLowerCase() === 'autocura_agora') {
       console.log('Fluxo: autocura agora');
-      assistantReply = 'Ótimo. Vamos selecionar os sentimentos principais deste fato.\n\n[POPUP:sentimentos]';
+      assistantReply = 'ROUTER: FATO_ESPECIFICO | step=sentiments_popup\nÓtimo. Vamos selecionar os sentimentos principais deste fato.\n\n[POPUP:sentimentos]';
     } else if (message.trim().toLowerCase() === 'autocura_depois') {
       console.log('Fluxo: autocura depois');
       // Encontrar último fato selecionado no histórico recente
@@ -210,7 +248,7 @@ serve(async (req) => {
       } catch (e) {
         console.error('Exceção ao salvar fato pendente:', e);
       }
-      assistantReply = 'Fato salvo para trabalharmos depois. Quando desejar, retomamos a autocura deste evento.';
+      assistantReply = 'ROUTER: FATO_ESPECIFICO | step=saved_pending\nFato salvo para trabalharmos depois. Quando desejar, retomamos a autocura deste evento.';
     } else {
       // Normalização: converter listas numeradas/simples em botões de fato + opções de autocura
       const hasButtons = /\[BTN:[^:]+:[^\]]+\]/.test(assistantReply);
