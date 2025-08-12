@@ -299,14 +299,12 @@ export const SimplifiedChat = () => {
       `Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu recebi ${fatoEspecifico} ACABARAM!`
     ];
 
-    // Construir mensagem completa
+    // Construir mensagem completa - todos os comandos juntos sem separação
     const comandosCompletos = [
       mensagemIntro,
       "",
       "**Comandos Quânticos:**",
       ...comandosPorSentimento,
-      "",
-      "**Comandos Finais:**",
       ...linhasFinais,
       "",
       "Ótimo! Seus comandos quânticos foram criados. Você gostaria de trabalhar na autocura deste fato agora ou prefere deixar para outro momento?",
