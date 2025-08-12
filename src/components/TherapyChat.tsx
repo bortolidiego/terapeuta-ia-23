@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, MessageCircle, Bot, User, Settings } from "lucide-react";
+import { Loader2, Send, MessageCircle, Bot, User, Settings, Power } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,7 @@ import SentimentosPopup from "./SentimentosPopup";
 
 interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "session_end";
   content: string;
   created_at: string;
   buttons?: Array<{id: string; text: string}>;
@@ -79,7 +79,7 @@ export const TherapyChat = () => {
       if (error) throw error;
       const typedMessages = (data || []).map(msg => ({
         id: msg.id,
-        role: msg.role as "user" | "assistant",
+        role: msg.role as "user" | "assistant" | "session_end",
         content: msg.content,
         created_at: msg.created_at
       }));
@@ -115,6 +115,40 @@ export const TherapyChat = () => {
         description: "Não foi possível criar uma nova sessão.",
         variant: "destructive",
       });
+    }
+  };
+
+  const endCurrentSession = async () => {
+    if (!currentSession) return;
+
+    try {
+      const sessionEndMessage = {
+        session_id: currentSession.id,
+        role: "session_end",
+        content: `Sessão encerrada em ${new Date().toLocaleString()}`,
+      };
+
+      const { error } = await supabase
+        .from("session_messages")
+        .insert(sessionEndMessage);
+
+      if (error) throw error;
+
+      const newEndMessage: Message = {
+        id: Date.now().toString(),
+        role: "session_end",
+        content: sessionEndMessage.content,
+        created_at: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, newEndMessage]);
+
+      toast({
+        title: "Sessão encerrada",
+        description: "Você pode iniciar uma nova sessão a qualquer momento.",
+      });
+    } catch (error) {
+      console.error("Erro ao encerrar sessão:", error);
+      toast({ title: "Erro", description: "Não foi possível encerrar a sessão.", variant: "destructive" });
     }
   };
 
@@ -522,11 +556,22 @@ export const TherapyChat = () => {
 
         {/* Chat Principal */}
         <Card className="lg:col-span-3 bg-card/90 backdrop-blur-md border-white/20 shadow-healing rounded-2xl flex flex-col">
-          <CardHeader className="border-b border-white/10">
+          <CardHeader className="border-b border-white/10 flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-primary drop-shadow-sm" />
               {currentSession ? currentSession.title : "MyHealing Chat"}
             </CardTitle>
+            {currentSession && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={endCurrentSession}
+                className="border-white/20"
+              >
+                <Power className="h-4 w-4 mr-2" />
+                Encerrar Sessão
+              </Button>
+            )}
           </CardHeader>
           
           <CardContent className="flex-1 flex flex-col p-0">
@@ -549,60 +594,72 @@ export const TherapyChat = () => {
                 )}
                 
                 {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex gap-3 ${
-                      message.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    {message.role === "assistant" && (
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-healing flex items-center justify-center shadow-healing">
-                        <Bot className="h-5 w-5 text-white drop-shadow-sm" />
+                  message.role === "session_end" ? (
+                    <div key={message.id} className="flex justify-center my-6">
+                      <div className="flex items-center w-full max-w-md">
+                        <div className="flex-1 h-px bg-white/10"></div>
+                        <div className="px-3 py-1 bg-card/80 rounded-full text-xs text-muted-foreground border border-white/10">
+                          {message.content}
+                        </div>
+                        <div className="flex-1 h-px bg-white/10"></div>
                       </div>
-                    )}
-                    
+                    </div>
+                  ) : (
                     <div
-                      className={`max-w-[80%] p-4 rounded-2xl ${
-                        message.role === "user"
-                          ? "bg-gradient-healing text-white shadow-healing"
-                          : "bg-card/95 text-foreground border border-white/10 backdrop-blur-sm shadow-healing"
+                      key={message.id}
+                      className={`flex gap-3 ${
+                        message.role === "user" ? "justify-end" : "justify-start"
                       }`}
                     >
-                      {message.buttonMessage && (
-                        <p className="text-sm mb-3 font-medium">{message.buttonMessage}</p>
-                      )}
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                      
-                      {message.buttons && message.buttons.length > 0 && (
-                        <div className="mt-3 space-y-2">
-                          {message.buttons.map((button) => (
-                            <Button
-                              key={button.id}
-                              variant="outline"
-                              size="sm"
-                              className="mr-2 mb-2"
-                              onClick={() => handleButtonClick(button.id, button.text)}
-                              disabled={isLoading}
-                            >
-                              {button.text}
-                            </Button>
-                          ))}
+                      {message.role === "assistant" && (
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-healing flex items-center justify-center shadow-healing">
+                          <Bot className="h-5 w-5 text-white drop-shadow-sm" />
                         </div>
                       )}
                       
-                      <div className={`text-xs mt-1 ${
-                        message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
-                      }`}>
-                        {new Date(message.created_at).toLocaleTimeString()}
+                      <div
+                        className={`max-w-[80%] p-4 rounded-2xl ${
+                          message.role === "user"
+                            ? "bg-gradient-healing text-white shadow-healing"
+                            : "bg-card/95 text-foreground border border-white/10 backdrop-blur-sm shadow-healing"
+                        }`}
+                      >
+                        {message.buttonMessage && (
+                          <p className="text-sm mb-3 font-medium">{message.buttonMessage}</p>
+                        )}
+                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        
+                        {message.buttons && message.buttons.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {message.buttons.map((button) => (
+                              <Button
+                                key={button.id}
+                                variant="outline"
+                                size="sm"
+                                className="mr-2 mb-2"
+                                onClick={() => handleButtonClick(button.id, button.text)}
+                                disabled={isLoading}
+                              >
+                                {button.text}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                        
+                        <div className={`text-xs mt-1 ${
+                          message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
+                        }`}>
+                          {new Date(message.created_at).toLocaleTimeString()}
+                        </div>
                       </div>
+                      
+                      {message.role === "user" && (
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-mystical flex items-center justify-center shadow-healing">
+                          <User className="h-5 w-5 text-white drop-shadow-sm" />
+                        </div>
+                      )}
                     </div>
-                    
-                    {message.role === "user" && (
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-mystical flex items-center justify-center shadow-healing">
-                        <User className="h-5 w-5 text-white drop-shadow-sm" />
-                      </div>
-                    )}
-                  </div>
+                  )
                 ))}
                 
                 {isLoading && (
