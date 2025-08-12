@@ -184,8 +184,23 @@ export const SimplifiedChat = () => {
         return;
       }
 
+      // Verificar se é comando quântico estruturado
+      let finalResponse = response.reply;
+      try {
+        const quantumData = JSON.parse(response.reply);
+        if (quantumData.type === "quantum_commands") {
+          finalResponse = construirComandosQuanticos(
+            quantumData.sentimentos,
+            quantumData.fatoEspecifico,
+            quantumData.message
+          );
+        }
+      } catch (e) {
+        // Se não for JSON válido, usar resposta normal
+      }
+
       // Processar resposta para detectar botões
-      const processedResponse = processMessageForButtons(response.reply);
+      const processedResponse = processMessageForButtons(finalResponse);
 
       // Salvar resposta do assistente
       const { error: assistantError } = await supabase
@@ -268,6 +283,38 @@ export const SimplifiedChat = () => {
 
   const handleButtonClick = (buttonId: string, buttonText: string) => {
     sendMessage(buttonId);
+  };
+
+  const construirComandosQuanticos = (sentimentos: string[], fatoEspecifico: string, mensagemIntro: string) => {
+    // Template para cada sentimento selecionado
+    const comandosPorSentimento = sentimentos.map(sentimento => 
+      `Código ALMA, a minha consciência escolhe: ${sentimento.toUpperCase()} que eu senti ${fatoEspecifico} ACABARAM!`
+    );
+
+    // 4 linhas finais obrigatórias
+    const linhasFinais = [
+      `Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu recebi ${fatoEspecifico} ACABARAM!`,
+      `Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu senti ${fatoEspecifico} ACABARAM!`,
+      `Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu gerei ${fatoEspecifico} ACABARAM!`,
+      `Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu recebi ${fatoEspecifico} ACABARAM!`
+    ];
+
+    // Construir mensagem completa
+    const comandosCompletos = [
+      mensagemIntro,
+      "",
+      "**Comandos Quânticos:**",
+      ...comandosPorSentimento,
+      "",
+      "**Comandos Finais:**",
+      ...linhasFinais,
+      "",
+      "Ótimo! Seus comandos quânticos foram criados. Você gostaria de trabalhar na autocura deste fato agora ou prefere deixar para outro momento?",
+      "",
+      "[BTN:autocura_agora:Trabalhar na autocura agora] [BTN:autocura_depois:Deixar para depois]"
+    ];
+
+    return comandosCompletos.join('\n');
   };
 
   const handleSentimentosConfirm = async (sentimentos: string[]) => {

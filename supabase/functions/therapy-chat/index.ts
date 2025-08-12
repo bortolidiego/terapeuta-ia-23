@@ -200,43 +200,21 @@ serve(async (req) => {
 
 [POPUP:sentimentos]`;
         } else {
-          console.log('Sentimentos suficientes, gerando comandos quânticos');
+          console.log('Sentimentos suficientes, gerando template para comandos quânticos');
           
-          // Seleciona 3 sentimentos aleatórios para os comandos
-          const sentimentosParaComandos = [];
-          const sentimentosDisponiveis = [...sentimentos];
+          // Extrair fato específico do contexto recente
+          const contextoRecente = history.slice(-5).map((h: Message) => h.content).join(' ');
+          const fatoMatch = contextoRecente.match(/(?:fato|situação|evento|problema)[^.!?]*[.!?]/i);
+          const fatoEspecifico = fatoMatch ? fatoMatch[0].trim() : "a situação que você compartilhou";
           
-          for (let i = 0; i < 3 && sentimentosDisponiveis.length > 0; i++) {
-            const randomIndex = Math.floor(Math.random() * sentimentosDisponiveis.length);
-            sentimentosParaComandos.push(sentimentosDisponiveis.splice(randomIndex, 1)[0]);
-          }
-          
-          // Gera comandos quânticos baseados no contexto atual
-          const contextoAtual = history.slice(-3).map((h: Message) => h.content).join(' ');
-          const palavrasChave = contextoAtual.toLowerCase().match(/\b\w{4,}\b/g) || [];
-          const contextoRelevante = palavrasChave.slice(0, 5).join(', ');
-          
-          const comandos = sentimentosParaComandos.map((sentimento, index) => {
-            const acoes = [
-              `Respirar profundamente ao lembrar de ${contextoRelevante}`,
-              `Visualizar-se lidando com a situação de forma serena`,
-              `Honrar os sentimentos com gratidão e aceitação`,
-              `Transformar a energia em movimento positivo`,
-              `Conectar-se com sua força interior`
-            ];
-            return `${sentimento.charAt(0).toUpperCase() + sentimento.slice(1)}: ${acoes[index] || acoes[0]}`;
+          // Enviar dados estruturados para o frontend construir os comandos
+          assistantReply = JSON.stringify({
+            type: "quantum_commands",
+            sentimentos: sentimentos,
+            fatoEspecifico: fatoEspecifico,
+            totalSentimentos: sentimentos.length,
+            message: `Perfeito! Com base nos ${sentimentos.length} sentimentos selecionados, aqui estão seus comandos quânticos personalizados:`
           });
-          
-          assistantReply = `Perfeito! Com base nos ${sentimentos.length} sentimentos selecionados, aqui estão seus comandos quânticos personalizados:
-
-**Comandos Quânticos:**
-1. ${comandos[0]}
-2. ${comandos[1]}
-3. ${comandos[2]}
-
-Ótimo! Seus comandos quânticos foram criados. Você gostaria de trabalhar na autocura deste fato agora ou prefere deixar para outro momento?
-
-[BTN:autocura_agora:Trabalhar na autocura agora] [BTN:autocura_depois:Deixar para depois]`;
         }
       }
     }
