@@ -55,12 +55,11 @@ serve(async (req) => {
       console.error('Erro ao buscar base de conhecimento:', knowledgeError);
     }
 
-    // Buscar fatos pendentes da sessão
+    // Buscar TODOS os fatos pendentes de todas as consultas (não só a atual)
     const { data: therapyFacts, error: factsError } = await supabase
       .from('therapy_facts')
       .select('id, fact_text, status')
-      .eq('status', 'pending')
-      .eq('session_id', sessionId);
+      .eq('status', 'pending');
 
     if (factsError) {
       console.error('Erro ao buscar therapy_facts:', factsError);
@@ -71,11 +70,14 @@ serve(async (req) => {
 
     // Incluir fatos pendentes no prompt (se houver)
     if (typeof therapyFacts !== 'undefined' && therapyFacts && therapyFacts.length > 0) {
-      systemPrompt += '\n\n=== FATOS PENDENTES (contexto da sessão) ===';
+      systemPrompt += '\n\n=== FATOS PENDENTES DE CONSULTAS ANTERIORES ===';
       therapyFacts.forEach((f: { id: string; fact_text: string; status: string }) => {
         systemPrompt += `\n- [ID ${f.id}] ${f.fact_text} (status: ${f.status})`;
       });
-      systemPrompt += '\nUse estes fatos para orientar as próximas perguntas e decisões.';
+      systemPrompt += '\n\n**IMPORTANTE:** Se há fatos pendentes no início da consulta, ofereça as opções:';
+      systemPrompt += '\n- Botões para cada fato pendente (formato: [BTN:pending_fact_<ID>:<texto_do_fato>])';
+      systemPrompt += '\n- [BTN:new_problem:Trabalhar novo problema]';
+      systemPrompt += '\nApós o usuário escolher um fato pendente, proceda direto para autocura usando [POPUP:sentimentos].';
     }
     
     if (knowledge && knowledge.length > 0) {
@@ -145,13 +147,17 @@ serve(async (req) => {
     systemPrompt += '\nAntes de responder, classifique o pedido do usuário em um protocolo e INICIE a resposta com:';
     systemPrompt += '\nROUTER: <PROTOCOLO> | step=<etapa_atual>';
     systemPrompt += '\nProtocolos possíveis:';
+    systemPrompt += '\n- PENDING_FACTS: Início de nova consulta com fatos pendentes - mostre lista de fatos + opção novo problema';
     systemPrompt += '\n- FATO_ESPECIFICO: Quando há um único evento concreto no tempo. Evite quando são relatos genéricos ou recorrentes.';
+    systemPrompt += '\n- POST_AUTOCURA: Após completar comandos quânticos - perguntar se pode ajudar em algo mais';
     systemPrompt += '\n- GERAL: Conversa geral, perguntas amplas, orientação sem evento único.';
     systemPrompt += '\n- KB:<NOME>: Quando algum protocolo específico da Base de Conhecimento se aplica.';
     systemPrompt += '\nRegras:';
+    systemPrompt += '\n- SEMPRE comece nova consulta verificando fatos pendentes (PENDING_FACTS)';
     systemPrompt += '\n- Só use FATO_ESPECIFICO se houver um evento único, datável. Caso contrário, use GERAL ou KB.';
     systemPrompt += '\n- Se FATO_ESPECIFICO, gere exatamente 3 variações do FATO e os botões de autocura conforme instruções do protocolo abaixo.';
     systemPrompt += '\n- Use botões [BTN:id:texto] quando a etapa exigir escolha do usuário.';
+    systemPrompt += '\n- Após autocura completa, use POST_AUTOCURA para retornar ao início.';
 
     // Protocolo de FATO ESPECÍFICO (sempre disponível)
     systemPrompt += '\n\n=== SISTEMA DE AUTOCURA E FATOS (FATO ESPECÍFICO) ===';
@@ -184,7 +190,8 @@ serve(async (req) => {
     console.log('Enviando para OpenAI:', { 
       model: config.model_name, 
       messagesCount: messages.length,
-      temperature: config.temperature 
+      temperature: config.temperature,
+      pendingFacts: therapyFacts?.length || 0
     });
 
     // Chamar OpenAI
@@ -311,7 +318,8 @@ serve(async (req) => {
             fatoEspecifico: fatoEspecifico,
             totalSentimentos: sentimentos.length,
             status: 'Autocura EMITIDA',
-            message: `Perfeito! Com base nos ${sentimentos.length} sentimentos selecionados, aqui estão seus comandos quânticos personalizados:`
+            message: `Perfeito! Com base nos ${sentimentos.length} sentimentos selecionados, aqui estão seus comandos quânticos personalizados:`,
+            postMessage: '\n\n[BTN:finalizar:Finalizar autocura]'
           });
         }
       }

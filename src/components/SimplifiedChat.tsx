@@ -11,7 +11,7 @@ import SentimentosPopup from "./SentimentosPopup";
 
 interface Message {
   id: string;
-  role: "user" | "assistant" | "session_end";
+  role: "user" | "assistant" | "consultation_end";
   content: string;
   created_at: string;
   buttons?: Array<{id: string; text: string}>;
@@ -26,7 +26,7 @@ export const SimplifiedChat = () => {
   const [showSentimentosPopup, setShowSentimentosPopup] = useState(false);
   const [pendingResponse, setPendingResponse] = useState<string>("");
   const [currentContext, setCurrentContext] = useState<string>("");
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [currentConsultationId, setCurrentConsultationId] = useState<string | null>(null);
   const [selectedFactText, setSelectedFactText] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -54,7 +54,7 @@ export const SimplifiedChat = () => {
       
       const typedMessages = (data || []).map(msg => ({
         id: msg.id,
-        role: msg.role as "user" | "assistant" | "session_end",
+        role: msg.role as "user" | "assistant" | "consultation_end",
         content: msg.content,
         created_at: msg.created_at,
         metadata: (msg as any).metadata
@@ -65,58 +65,58 @@ export const SimplifiedChat = () => {
     }
   };
 
-  const createNewSession = async () => {
+  const createNewConsultation = async () => {
     try {
       const { data, error } = await supabase
         .from("therapy_sessions")
-        .insert({ title: `Sessão ${new Date().toLocaleString()}` })
+        .insert({ title: `Consulta ${new Date().toLocaleString()}` })
         .select()
         .single();
 
       if (error) throw error;
       
-      setCurrentSessionId(data.id);
+      setCurrentConsultationId(data.id);
       return data.id;
     } catch (error) {
-      console.error("Erro ao criar sessão:", error);
+      console.error("Erro ao criar consulta:", error);
       return null;
     }
   };
 
-  const endCurrentSession = async () => {
-    if (!currentSessionId) return;
+  const endCurrentConsultation = async () => {
+    if (!currentConsultationId) return;
 
     try {
-      // Inserir marcador de fim de sessão
-      const sessionEndMessage = {
-        session_id: currentSessionId,
+      // Inserir marcador de fim de consulta
+      const consultationEndMessage = {
+        session_id: currentConsultationId,
         role: "assistant",
-        content: `Sessão encerrada em ${new Date().toLocaleString()}`,
-        metadata: { type: "session_end" }
+        content: `Consulta encerrada em ${new Date().toLocaleString()}`,
+        metadata: { type: "consultation_end" }
       } as const;
 
       const { error } = await supabase
         .from("session_messages")
-        .insert(sessionEndMessage);
+        .insert(consultationEndMessage);
 
       if (error) throw error;
 
       // Atualizar estado local
       const newEndMessage: Message = {
         id: Date.now().toString(),
-        role: "session_end",
-        content: sessionEndMessage.content,
+        role: "consultation_end",
+        content: consultationEndMessage.content,
         created_at: new Date().toISOString(),
       };
       setMessages(prev => [...prev, newEndMessage]);
 
-      setCurrentSessionId(null);
+      setCurrentConsultationId(null);
       toast({
-        title: "Sessão encerrada",
-        description: "Uma nova sessão será iniciada na próxima mensagem.",
+        title: "Consulta encerrada",
+        description: "Uma nova consulta será iniciada na próxima mensagem.",
       });
     } catch (error) {
-      console.error("Erro ao encerrar sessão:", error);
+      console.error("Erro ao encerrar consulta:", error);
     }
   };
 
@@ -124,12 +124,12 @@ export const SimplifiedChat = () => {
     const actualMessage = messageText || input;
     if (!actualMessage.trim()) return;
 
-    // Se não há sessão ativa, criar uma nova
-    let sessionId = currentSessionId;
-    if (!sessionId) {
-      sessionId = await createNewSession();
-      if (!sessionId) return;
-      setCurrentSessionId(sessionId);
+    // Se não há consulta ativa, criar uma nova
+    let consultationId = currentConsultationId;
+    if (!consultationId) {
+      consultationId = await createNewConsultation();
+      if (!consultationId) return;
+      setCurrentConsultationId(consultationId);
     }
 
     const userMessage = actualMessage;
@@ -141,7 +141,7 @@ export const SimplifiedChat = () => {
       const { error: userError } = await supabase
         .from("session_messages")
         .insert({
-          session_id: sessionId,
+          session_id: consultationId,
           role: "user",
           content: userMessage,
         });
@@ -163,8 +163,8 @@ export const SimplifiedChat = () => {
         {
           body: {
             message: userMessage,
-            sessionId: sessionId,
-            history: messages.filter(m => m.role !== "session_end" && m.metadata?.type !== 'session_end'),
+            sessionId: consultationId,
+            history: messages.filter(m => m.role !== "consultation_end" && m.metadata?.type !== 'consultation_end'),
           },
         }
       );
@@ -196,7 +196,8 @@ export const SimplifiedChat = () => {
           finalResponse = construirComandosQuanticos(
             quantumData.sentimentos,
             quantumData.fatoEspecifico,
-            quantumData.message
+            quantumData.message,
+            quantumData.postMessage
           );
         }
       } catch (e) {
@@ -210,7 +211,7 @@ export const SimplifiedChat = () => {
       const { error: assistantError } = await supabase
         .from("session_messages")
         .insert({
-          session_id: sessionId,
+          session_id: consultationId,
           role: "assistant",
           content: processedResponse.content,
         });
@@ -357,19 +358,19 @@ export const SimplifiedChat = () => {
         '[POPUP:sentimentos]'
       ].join('\n');
 
-      // Garantir sessão
-      let sessionId = currentSessionId;
-      if (!sessionId) {
-        sessionId = await createNewSession();
-        if (!sessionId) return;
-        setCurrentSessionId(sessionId);
+      // Garantir consulta
+      let consultationId = currentConsultationId;
+      if (!consultationId) {
+        consultationId = await createNewConsultation();
+        if (!consultationId) return;
+        setCurrentConsultationId(consultationId);
       }
 
       // Persistir resposta do assistente e abrir popup
       try {
         const { error: assistantError } = await supabase
           .from('session_messages')
-          .insert({ session_id: sessionId, role: 'assistant', content: guidance });
+          .insert({ session_id: consultationId, role: 'assistant', content: guidance });
         if (assistantError) throw assistantError;
 
         const assistantMessage = {
@@ -405,23 +406,23 @@ export const SimplifiedChat = () => {
         return;
       }
 
-      let sessionId = currentSessionId;
-      if (!sessionId) {
-        sessionId = await createNewSession();
-        if (!sessionId) return;
-        setCurrentSessionId(sessionId);
+      let consultationId = currentConsultationId;
+      if (!consultationId) {
+        consultationId = await createNewConsultation();
+        if (!consultationId) return;
+        setCurrentConsultationId(consultationId);
       }
 
       try {
         const { error: insertError } = await supabase
           .from('therapy_facts')
-          .insert({ session_id: sessionId, fact_text: selectedFactText, status: 'pending' });
+          .insert({ session_id: consultationId, fact_text: selectedFactText, status: 'pending' });
         if (insertError) throw insertError;
 
         const confirmation = 'Fato salvo para autocura futura. Vamos seguir com seu atendimento no seu ritmo.';
         const { error: assistantError } = await supabase
           .from('session_messages')
-          .insert({ session_id: sessionId, role: 'assistant', content: confirmation });
+          .insert({ session_id: consultationId, role: 'assistant', content: confirmation });
         if (assistantError) throw assistantError;
 
         const assistantMessage = {
@@ -439,11 +440,29 @@ export const SimplifiedChat = () => {
       return;
     }
 
+    // Botão de finalizar autocura: retornar ao router
+    if (buttonId === 'finalizar') {
+      await sendMessage('Autocura finalizada, retornar ao início');
+      return;
+    }
+    
+    // Botão de encerrar consulta
+    if (buttonId === 'encerrar') {
+      await endCurrentConsultation();
+      return;
+    }
+    
+    // Botão de continuar com novo problema
+    if (buttonId === 'sim') {
+      await sendMessage('Quero trabalhar outro problema');
+      return;
+    }
+
     // Qualquer outro botão: enviar ID para o backend
     await sendMessage(buttonId);
   };
 
-  const construirComandosQuanticos = (sentimentos: string[], fatoEspecifico: string, mensagemIntro: string) => {
+  const construirComandosQuanticos = (sentimentos: string[], fatoEspecifico: string, mensagemIntro: string, postMessage?: string) => {
     // Template para cada sentimento selecionado
     const comandosPorSentimento = sentimentos.map(sentimento => 
       `Código ALMA, a minha consciência escolhe: ${sentimento.toUpperCase()} que eu senti ${fatoEspecifico} ACABARAM!`
@@ -465,7 +484,8 @@ export const SimplifiedChat = () => {
       ...comandosPorSentimento,
       ...linhasFinais,
       "",
-      "✨ Seus comandos quânticos foram criados com sucesso! A autocura foi emitida e está em processo."
+      "✨ Seus comandos quânticos foram criados com sucesso! A autocura foi emitida e está em processo.",
+      postMessage || ""
     ];
 
     return comandosCompletos.join('\n');
@@ -478,13 +498,13 @@ export const SimplifiedChat = () => {
     const sentimentosMessage = `Sentimentos selecionados: ${sentimentos.join(', ')}`;
     
     // Continuar o processamento com a resposta pendente
-    if (pendingResponse && currentSessionId) {
+    if (pendingResponse && currentConsultationId) {
       try {
         // Salvar resposta do assistente com a mensagem pendente
         const { error: assistantError } = await supabase
           .from("session_messages")
           .insert({
-            session_id: currentSessionId,
+            session_id: currentConsultationId,
             role: "assistant",
             content: pendingResponse,
           });
