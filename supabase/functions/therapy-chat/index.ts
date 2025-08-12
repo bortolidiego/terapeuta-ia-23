@@ -130,6 +130,9 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos timeout
     
+    let assistantReply = '';
+    let data: any = null;
+    
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -156,8 +159,8 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
         throw new Error(`OpenAI API error: ${response.status}`);
       }
 
-      const data = await response.json();
-      let assistantReply = data.choices[0].message.content;
+      data = await response.json();
+      assistantReply = data.choices[0].message.content;
 
       console.log(`[PERFORMANCE] Resposta processada: {
   choices: ${data.choices?.length || 0},
@@ -336,7 +339,7 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
 
     return new Response(JSON.stringify({ 
       reply: assistantReply,
-      usage: data.usage 
+      usage: data?.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
