@@ -1,10 +1,5 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
-
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,8 +7,10 @@ const corsHeaders = {
 };
 
 interface Message {
-  role: string;
+  id: string;
+  role: "user" | "assistant";
   content: string;
+  created_at: string;
 }
 
 serve(async (req) => {
@@ -23,209 +20,140 @@ serve(async (req) => {
   }
 
   try {
-    const { message, sessionId, history } = await req.json();
+    const { message, sessionId, history = [] } = await req.json();
+    
+    console.log(`Processando mensagem: "${message.substring(0, 100)}..."`);
+    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
 
-    if (!openAIApiKey) {
-      throw new Error('OPENAI_API_KEY não configurada');
+    if (!supabaseUrl || !supabaseKey || !openaiApiKey) {
+      throw new Error('Configuração de ambiente incompleta');
     }
 
-    // Criar cliente Supabase
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Buscar configuração do terapeuta
-    const { data: config, error: configError } = await supabase
+    const { data: therapistConfig } = await supabase
       .from('therapist_config')
       .select('*')
-      .eq('is_active', true)
       .single();
 
-    if (configError || !config) {
-      console.error('Erro ao buscar configuração:', configError);
-      throw new Error('Configuração do terapeuta não encontrada');
-    }
-
-    // Buscar base de conhecimento ativa
-    const { data: knowledge, error: knowledgeError } = await supabase
+    // Buscar base de conhecimento
+    const { data: knowledge } = await supabase
       .from('knowledge_base')
-      .select('title, content, category')
-      .eq('is_active', true)
-      .order('priority', { ascending: false });
+      .select('*')
+      .eq('active', true);
 
-    if (knowledgeError) {
-      console.error('Erro ao buscar base de conhecimento:', knowledgeError);
-    }
-
-    // Buscar TODOS os fatos pendentes de todas as consultas (não só a atual)
-    const { data: therapyFacts, error: factsError } = await supabase
+    // Buscar fatos pendentes
+    const { data: therapyFacts } = await supabase
       .from('therapy_facts')
-      .select('id, fact_text, status')
-      .eq('status', 'pending');
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
 
-    if (factsError) {
-      console.error('Erro ao buscar therapy_facts:', factsError);
-    }
+    // Construir o system prompt
+    let systemPrompt = `Você é um assistente de psicoterapia compassivo baseado em Análise de Bioenergia de Alexander Lowen. Seu objetivo principal é ajudar o usuário a processar experiências específicas através da autocura quântica.
 
-    // Construir prompt system: usar SEMPRE o main_prompt (Router Prompt definido como padrão no DB)
-    let systemPrompt = config.main_prompt;
+CONFIGURAÇÃO PERSONALIZADA:
+${therapistConfig ? `
+Nome: ${therapistConfig.name || 'Assistente'}
+Especialidade: ${therapistConfig.specialty || 'Análise de Bioenergia'}
+Abordagem: ${therapistConfig.approach || 'Terapêutica e acolhedora'}
+Estilo: ${therapistConfig.style || 'Direto e empático'}
+Personalidade: ${therapistConfig.personality || 'Compassiva e assertiva'}
+` : ''}
 
-    // Incluir fatos pendentes no prompt (se houver)
-    if (typeof therapyFacts !== 'undefined' && therapyFacts && therapyFacts.length > 0) {
-      systemPrompt += '\n\n=== FATOS PENDENTES DE CONSULTAS ANTERIORES ===';
-      therapyFacts.forEach((f: { id: string; fact_text: string; status: string }) => {
-        systemPrompt += `\n- [ID ${f.id}] ${f.fact_text} (status: ${f.status})`;
-      });
-      systemPrompt += '\n\n**IMPORTANTE:** Se há fatos pendentes no início da consulta, ofereça as opções:';
-      systemPrompt += '\n- Botões para cada fato pendente (formato: [BTN:pending_fact_<ID>:<texto_do_fato>])';
-      systemPrompt += '\n- [BTN:new_problem:Trabalhar novo problema]';
-      systemPrompt += '\nApós o usuário escolher um fato pendente, proceda direto para autocura usando [POPUP:sentimentos].';
-    }
-    
-    if (knowledge && knowledge.length > 0) {
-      systemPrompt += '\n\n=== INSTRUÇÕES PARA USO DA BASE DE CONHECIMENTO ===';
-      systemPrompt += '\nVocê tem acesso a informações específicas organizadas por categoria. Siga estas regras:';
-      systemPrompt += '\n1. SEMPRE verifique se há informações relevantes na base de conhecimento antes de responder';
-      systemPrompt += '\n2. Quando encontrar informações relevantes, siga EXATAMENTE o protocolo descrito';
-      systemPrompt += '\n3. Se há um fluxo específico descrito, execute cada etapa em sequência';
-      systemPrompt += '\n4. NÃO misture diferentes protocolos - foque no mais relevante para a situação';
-      systemPrompt += '\n5. Se não há protocolo específico, use as informações como contexto auxiliar';
-      
-      systemPrompt += '\n\n=== BASE DE CONHECIMENTO DISPONÍVEL ===';
-      
-      // Organizar conhecimento por categoria
-      const knowledgeByCategory: {[key: string]: any[]} = {};
-      knowledge.forEach(item => {
-        if (!knowledgeByCategory[item.category]) {
-          knowledgeByCategory[item.category] = [];
-        }
-        knowledgeByCategory[item.category].push(item);
-      });
-      
-      // Adicionar cada categoria de forma estruturada
-      Object.entries(knowledgeByCategory).forEach(([category, items]) => {
-        systemPrompt += `\n\n[CATEGORIA: ${category.toUpperCase()}]`;
-        items.forEach(item => {
-          systemPrompt += `\n\n📋 PROTOCOLO: ${item.title}`;
-          systemPrompt += `\n${item.content}`;
-          systemPrompt += '\n---';
-        });
-      });
-      
-      systemPrompt += '\n\n=== SISTEMA DE BOTÕES INTERATIVOS ===';
-      systemPrompt += '\nQuando uma etapa requer seleção de opções pelo usuário, você pode criar botões clicáveis usando:';
-      systemPrompt += '\n\n**FORMATO JSON (para casos complexos):**';
-      systemPrompt += '\n```json';
-      systemPrompt += '\n{"type": "buttons", "message": "Pergunta aqui", "options": [{"id": "opcao1", "text": "Opção 1"}, {"id": "opcao2", "text": "Opção 2"}]}'
-      systemPrompt += '\n```';
-      systemPrompt += '\n\n**FORMATO MARKDOWN (para casos simples):**';
-      systemPrompt += '\n[BTN:opcao1:Opção 1] [BTN:opcao2:Opção 2]';
-      systemPrompt += '\n\nQuando o usuário selecionar uma opção, você receberá o ID da opção como mensagem. Continue o fluxo baseado na seleção.';
-      systemPrompt += '\n\n=== INSTRUÇÃO FINAL ===';
-      systemPrompt += '\nAntes de cada resposta, identifique:';
-      systemPrompt += '\n- Qual categoria da base de conhecimento se aplica (se alguma)';
-      systemPrompt += '\n- Se há um protocolo específico a seguir';
-      systemPrompt += '\n- Em que etapa do protocolo o usuário está';
-      systemPrompt += '\n- Se esta etapa requer botões de seleção';
-      systemPrompt += '\nEntão, execute o protocolo apropriado ou responda seguindo suas instruções principais.';
-      
-    }
+CONHECIMENTO ESPECIALIZADO:
+${knowledge && knowledge.length > 0 ? knowledge.map(k => `
+- ${k.title}: ${k.content}
+${k.keywords ? `Palavras-chave: ${k.keywords}` : ''}
+`).join('\n') : ''}
 
-    // Adicionar instruções de botões quando não houver knowledge (para manter consistência de formato)
-    if (!knowledge || knowledge.length === 0) {
-      systemPrompt += '\n\n=== SISTEMA DE BOTÕES INTERATIVOS ===';
-      systemPrompt += '\nQuando uma etapa requer seleção de opções pelo usuário, você pode criar botões clicáveis usando:';
-      systemPrompt += '\n\n**FORMATO JSON (para casos complexos):**';
-      systemPrompt += '\n```json';
-      systemPrompt += '\n{"type": "buttons", "message": "Pergunta aqui", "options": [{"id": "opcao1", "text": "Opção 1"}, {"id": "opcao2", "text": "Opção 2"}]}'
-      systemPrompt += '\n```';
-      systemPrompt += '\n\n**FORMATO MARKDOWN (para casos simples):**';
-      systemPrompt += '\n[BTN:opcao1:Opção 1] [BTN:opcao2:Opção 2]';
-      systemPrompt += '\n\nQuando o usuário selecionar uma opção, você receberá o ID da opção como mensagem. Continue o fluxo baseado na seleção.';
-    }
+FATOS PENDENTES DE OUTRAS SESSÕES:
+${therapyFacts && therapyFacts.length > 0 ? therapyFacts.map(f => `- ${f.fact_text} (ID: ${f.id})`).join('\n') : 'Nenhum fato pendente.'}
 
-    // Router de protocolos (sempre ativo)
-    systemPrompt += '\n\n=== ROUTER DE PROTOCOLOS ===';
-    systemPrompt += '\nAntes de responder, classifique o pedido do usuário em um protocolo e INICIE a resposta com:';
-    systemPrompt += '\nROUTER: <PROTOCOLO> | step=<etapa_atual>';
-    systemPrompt += '\nProtocolos possíveis:';
-    systemPrompt += '\n- PENDING_FACTS: Início de nova consulta com fatos pendentes - mostre lista de fatos + opção novo problema';
-    systemPrompt += '\n- FATO_ESPECIFICO: Quando há um único evento concreto no tempo. Evite quando são relatos genéricos ou recorrentes.';
-    systemPrompt += '\n- POST_AUTOCURA: Após completar comandos quânticos - perguntar se pode ajudar em algo mais';
-    systemPrompt += '\n- GERAL: Conversa geral, perguntas amplas, orientação sem evento único.';
-    systemPrompt += '\n- KB:<NOME>: Quando algum protocolo específico da Base de Conhecimento se aplica.';
-    systemPrompt += '\nRegras:';
-    systemPrompt += '\n- SEMPRE comece nova consulta verificando fatos pendentes (PENDING_FACTS)';
-    systemPrompt += '\n- Só use FATO_ESPECIFICO se houver um evento único, datável. Caso contrário, use GERAL ou KB.';
-    systemPrompt += '\n- Se FATO_ESPECIFICO, gere exatamente 3 variações do FATO e os botões de autocura conforme instruções do protocolo abaixo.';
-    systemPrompt += '\n- Use botões [BTN:id:texto] quando a etapa exigir escolha do usuário.';
-    systemPrompt += '\n- Após autocura completa, use POST_AUTOCURA para retornar ao início.';
+PROTOCOLO DE ROTEAMENTO:
+Sempre que você identificar uma conversa sobre um problema específico, siga o protocolo ROUTER. Prefixe sua resposta com uma das opções:
 
-    // Protocolo de FATO ESPECÍFICO (sempre disponível)
-    systemPrompt += '\n\n=== SISTEMA DE AUTOCURA E FATOS (FATO ESPECÍFICO) ===';
-    systemPrompt += '\nQuando o usuário mencionar um FATO ESPECÍFICO (um evento concreto no tempo):';
-    systemPrompt += '\n\n**ETAPA 1 - ESCOLHA DO FATO (step=choose_fact):**';
-    systemPrompt += '\n1. Crie EXATAMENTE 3 variações APENAS DO FATO, curtas e objetivas, descrevendo somente QUANDO e O QUE aconteceu.';
-    systemPrompt += "\n   - PROIBIDO: emoções, julgamentos ou adjetivos (ex.: 'foi tenso', 'fiquei desolado', 'me senti...').";
-    systemPrompt += '\n   - NÃO use aspas nas variações.';
-    systemPrompt += '\n2. Use SEMPRE botões em UMA ÚNICA LINHA no formato: [BTN:fato1:Variação 1] [BTN:fato2:Variação 2] [BTN:fato3:Variação 3].';
-    systemPrompt += '\n3. NÃO mostrar botões de autocura nesta etapa.';
-    systemPrompt += '\n\n**ETAPA 2 - VERIFICAÇÃO E AUTOCURA (step=next_action):**';
-    systemPrompt += '\n1. Após usuário selecionar fato, verificar se há outros fatos pendentes no sistema.';
-    systemPrompt += '\n2. Se houver fatos pendentes: mostrar lista dos fatos + [BTN:new_problem:Novo problema].';
-    systemPrompt += '\n3. Se não houver fatos pendentes: oferecer [BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois].';
-    systemPrompt += '\n4. Após autocura completa: usar POST_AUTOCURA para retornar ao router.';
+1. ROUTER: FATO_ESPECIFICO | step=choose_fact
+   - Use quando o usuário mencionar um problema/situação específica
+   - Ofereça 3 variações da situação como lista numerada para o usuário escolher
+
+2. ROUTER: FATO_ESPECIFICO | step=pending_facts  
+   - Use quando há fatos pendentes após seleção de fato
+   - Liste fatos pendentes como botões + opção "novo problema"
+
+3. ROUTER: FATO_ESPECIFICO | step=next_action
+   - Use após seleção de fato quando não há pendentes
+   - Ofereça: "Trabalhar sentimentos agora" ou "Autocurar depois"
+
+4. ROUTER: FATO_ESPECIFICO | step=sentiments_popup
+   - Use quando usuário escolher "trabalhar sentimentos agora"
+   - Inclua [POPUP:sentimentos] para abrir seleção
+
+5. ROUTER: POST_AUTOCURA | step=complete
+   - Use após finalização da autocura
+   - Pergunte se quer trabalhar outro problema ou encerrar
+
+DIRETRIZES ESPECÍFICAS:
+- Seja direto e eficiente
+- Foque em fatos específicos, não teorias gerais
+- Quando detectar um problema específico, entre no modo FATO_ESPECIFICO
+- Transforme qualquer lista de situações em 3 variações numeradas
+- Mantenha foco na experiência concreta do usuário
+- Use linguagem acessível e acolhedora
+
+FORMATAÇÃO DE BOTÕES:
+Use o formato: [BTN:id:texto] para criar botões interativos
+Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentimentos agora]`;
 
     // Preparar mensagens para OpenAI
-    const messages: Array<{role: string, content: string}> = [
-      {
-        role: 'system',
-        content: systemPrompt
-      },
-      // Adicionar histórico limitado (últimas 25 mensagens)
-      ...history.slice(-25).map((msg: Message) => ({
-        role: msg.role,
-        content: msg.content
+    const messages = [
+      { role: "system", content: systemPrompt },
+      ...history.map((h: Message) => ({
+        role: h.role,
+        content: h.content
       })),
-      {
-        role: 'user',
-        content: message
-      }
+      { role: "user", content: message }
     ];
 
-    console.log('Enviando para OpenAI:', { 
-      model: config.model_name, 
-      messagesCount: messages.length,
-      temperature: config.temperature,
-      pendingFacts: therapyFacts?.length || 0
-    });
+    console.log(`Enviando para OpenAI: {
+  model: "gpt-4o-mini",
+  messagesCount: ${messages.length},
+  temperature: 0.7,
+  pendingFacts: ${therapyFacts?.length || 0}
+}`);
 
-    // Chamar OpenAI
+    // Fazer chamada para OpenAI
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: config.model_name,
+        model: 'gpt-4o-mini',
         messages: messages,
-        temperature: config.temperature,
-        max_tokens: config.max_tokens,
+        temperature: 0.7,
+        max_tokens: 1000,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
       console.error('Erro da OpenAI:', errorData);
-      throw new Error(`OpenAI API error: ${response.status} - ${errorData}`);
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('Resposta da OpenAI recebida:', { 
-      choices: data.choices?.length,
-      usage: data.usage 
-    });
-
     let assistantReply = data.choices[0].message.content;
+
+    console.log(`Resposta da OpenAI recebida: {
+  choices: ${data.choices?.length || 0},
+  usage: ${JSON.stringify(data.usage)}
+}`);
 
     // Detectar ROUTER na resposta do modelo
     let routerProtocol = 'UNKNOWN';
@@ -237,20 +165,34 @@ serve(async (req) => {
       console.log('Router detectado:', { routerProtocol, routerStep });
     }
 
-    // Tratamento especial para o fluxo de FATO ESPECÍFICO
+    // **CORREÇÃO CRÍTICA**: Tratamento especial para seleção de fato específico
     const fatoSelecionadoMatch = message.match(/^\s*Fato selecionado:\s*(.+)/i);
     if (fatoSelecionadoMatch) {
-      const chosenFact = fatoSelecionadoMatch[1].replace(/[“”"]/g, '').trim();
-      console.log('Fato específico selecionado:', chosenFact);
-      // Verificar se há fatos pendentes
-      if (therapyFacts && therapyFacts.length > 0) {
-        let fatosPendentesText = '\n\nHá fatos pendentes de outras sessões. Escolha qual deseja trabalhar:\n';
-        therapyFacts.forEach((f: { id: string; fact_text: string; status: string }) => {
-          fatosPendentesText += `\n[BTN:pending_fact_${f.id}:${f.fact_text}]`;
+      const chosenFact = fatoSelecionadoMatch[1].replace(/["""]/g, '').trim();
+      console.log('Fato específico selecionado - ETAPA 2:', chosenFact);
+      
+      // Buscar fatos pendentes diretamente na base de dados para garantir dados atualizados
+      const { data: fatosPendentes, error: fatosError } = await supabase
+        .from('therapy_facts')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      
+      if (fatosError) {
+        console.error('Erro ao buscar fatos pendentes:', fatosError);
+      }
+      
+      console.log(`Fatos pendentes encontrados: ${fatosPendentes?.length || 0}`);
+      
+      if (fatosPendentes && fatosPendentes.length > 0) {
+        let fatosPendentesText = '\n\nVocê tem outros fatos pendentes para autocura:\n';
+        fatosPendentes.forEach((fato: any) => {
+          fatosPendentesText += `[BTN:pending_fact_${fato.id}:${fato.fact_text}]\n`;
         });
         fatosPendentesText += '\n[BTN:new_problem:Trabalhar novo problema]';
         assistantReply = `ROUTER: FATO_ESPECIFICO | step=pending_facts\nPerfeito. Fato específico fixado: ${chosenFact}.${fatosPendentesText}`;
       } else {
+        console.log('Nenhum fato pendente, mostrando opções de autocura para o fato atual');
         assistantReply = `ROUTER: FATO_ESPECIFICO | step=next_action\nPerfeito. Fato específico fixado: ${chosenFact}.\n\nAgora escolha como deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
       }
     } else if (message.trim().toLowerCase() === 'autocura_agora') {
@@ -287,7 +229,7 @@ serve(async (req) => {
           })
           .filter(Boolean) as string[];
         if (items.length >= 3) {
-          const clean = (t: string) => t.replace(/[“”\"]/g, '').trim().replace(/\.$/, '');
+          const clean = (t: string) => t.replace(/[""\"]/g, '').trim().replace(/\.$/, '');
           const top3 = items.slice(0, 3).map(clean);
           const preamble = lines.filter(l => !itemRegex.test(l)).join('\n').trim();
           const buttonsLine = `[BTN:fato1:${top3[0]}] [BTN:fato2:${top3[1]}] [BTN:fato3:${top3[2]}]`;
@@ -348,40 +290,36 @@ serve(async (req) => {
     if (knowledge) {
       for (const item of knowledge) {
         const keywords = item.title.toLowerCase().split(' ');
-        const hasKeyword = keywords.some(keyword => 
+        const hasKeywordMatch = keywords.some(keyword => 
           messageWords.some(word => word.includes(keyword) || keyword.includes(word))
         );
         
-        if (hasKeyword && !triggeredKnowledge.includes(item.title)) {
-          triggeredKnowledge += `\n\n💡 Informação adicional sobre ${item.title}:\n${item.content}`;
+        if (hasKeywordMatch) {
+          triggeredKnowledge += `\n\n**${item.title}:**\n${item.content}`;
         }
       }
     }
 
-    const finalReply = assistantReply + triggeredKnowledge;
+    // Adicionar conhecimento disparado à resposta se houver
+    if (triggeredKnowledge) {
+      assistantReply += triggeredKnowledge;
+    }
 
-    return new Response(
-      JSON.stringify({ 
-        reply: finalReply,
-        usage: data.usage 
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return new Response(JSON.stringify({ 
+      reply: assistantReply,
+      usage: data.usage 
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
 
   } catch (error) {
     console.error('Erro na função therapy-chat:', error);
-    
-    return new Response(
-      JSON.stringify({ 
-        error: (error as Error).message,
-        reply: 'Desculpe, houve um problema técnico. Tente novamente em alguns momentos.' 
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return new Response(JSON.stringify({ 
+      error: 'Erro interno do servidor',
+      details: error.message 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

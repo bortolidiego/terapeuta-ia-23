@@ -369,6 +369,7 @@ export const SimplifiedChat = () => {
     // Seleção de uma variação de fato específico
     if (buttonId.startsWith('fato')) {
       setSelectedFactText(buttonText);
+      // Enviar mensagem para edge function processar a seleção e verificar fatos pendentes
       await sendMessage(`Fato selecionado: ${buttonText}`);
       return;
     }
