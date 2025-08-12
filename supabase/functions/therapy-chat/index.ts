@@ -127,11 +127,13 @@ serve(async (req) => {
       
       systemPrompt += '\n\n=== SISTEMA DE AUTOCURA E FATOS (FATO ESPECÍFICO) ===';
       systemPrompt += '\nQuando o usuário mencionar um FATO ESPECÍFICO (um evento concreto no tempo):';
-      systemPrompt += '\n1. Crie EXATAMENTE 3 variações APENAS DO FATO, sem emoções/qualificações.';
-      systemPrompt += '\n2. Use SEMPRE botões no formato: [BTN:fato1:Variação 1] [BTN:fato2:Variação 2] [BTN:fato3:Variação 3] (todos em UMA linha).';
-      systemPrompt += '\n3. Logo abaixo, ofereça: [BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois] (em UMA linha).';
-      systemPrompt += '\n4. NÃO usar listas numeradas, nem aspas dentro dos botões.';
-      systemPrompt += '\n5. Emoções NÃO devem aparecer nas variações do fato. Emoções só entram após o usuário escolher autocura_agora.';
+      systemPrompt += '\n1. Crie EXATAMENTE 3 variações APENAS DO FATO, curtas e objetivas, descrevendo somente QUANDO e O QUE aconteceu.';
+      systemPrompt += '\n   - PROIBIDO: emoções, julgamentos ou adjetivos (ex.: \'foi tenso\', \'fiquei desolado\', \'me senti...\').';
+      systemPrompt += '\n   - NÃO use aspas nas variações.';
+      systemPrompt += '\n2. Use SEMPRE botões em UMA ÚNICA LINHA no formato: [BTN:fato1:Variação 1] [BTN:fato2:Variação 2] [BTN:fato3:Variação 3].';
+      systemPrompt += '\n3. Logo ABAIXO, em UMA ÚNICA LINHA, ofereça: [BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois].';
+      systemPrompt += '\n4. NÃO usar listas numeradas ou marcadores para as variações. SEMPRE use botões.';
+      systemPrompt += '\n5. Emoções SÓ entram após o usuário escolher autocura_agora.';
     }
 
     // Preparar mensagens para OpenAI
@@ -186,6 +188,55 @@ serve(async (req) => {
 
     let assistantReply = data.choices[0].message.content;
 
+    // Tratamento especial para o fluxo de FATO ESPECÍFICO
+    const fatoSelecionadoMatch = message.match(/^\s*Fato selecionado:\s*(.+)/i);
+    if (fatoSelecionadoMatch) {
+      const chosenFact = fatoSelecionadoMatch[1].replace(/[“”"]/g, '').trim();
+      console.log('Fato específico selecionado:', chosenFact);
+      assistantReply = `Perfeito. Fato específico fixado: ${chosenFact}.\n\nAgora escolha como deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
+    } else if (message.trim().toLowerCase() === 'autocura_agora') {
+      console.log('Fluxo: autocura agora');
+      assistantReply = 'Ótimo. Vamos selecionar os sentimentos principais deste fato.\n\n[POPUP:sentimentos]';
+    } else if (message.trim().toLowerCase() === 'autocura_depois') {
+      console.log('Fluxo: autocura depois');
+      // Encontrar último fato selecionado no histórico recente
+      const lastFactMsg = [...history].reverse().find((m: Message) => /^(?:Fato selecionado:)/i.test(m.content));
+      const factText = lastFactMsg ? lastFactMsg.content.split(':').slice(1).join(':').trim() : 'fato específico desta sessão';
+      try {
+        const { error: insertError } = await supabase
+          .from('therapy_facts')
+          .insert({ session_id: sessionId, fact_text: factText, status: 'pending' });
+        if (insertError) console.error('Erro ao salvar fato pendente:', insertError);
+      } catch (e) {
+        console.error('Exceção ao salvar fato pendente:', e);
+      }
+      assistantReply = 'Fato salvo para trabalharmos depois. Quando desejar, retomamos a autocura deste evento.';
+    } else {
+      // Normalização: converter listas numeradas/simples em botões de fato + opções de autocura
+      const hasButtons = /\[BTN:[^:]+:[^\]]+\]/.test(assistantReply);
+      if (!hasButtons) {
+        const lines = assistantReply.split('\n');
+        const itemRegex = /^\s*(?:\d+[)\.-]?\s+|[-*•]\s+)(.+)$/;
+        const items = lines
+          .map((l: string) => {
+            const m = l.match(itemRegex);
+            return m ? m[1].trim() : null;
+          })
+          .filter(Boolean) as string[];
+        if (items.length >= 3) {
+          const clean = (t: string) => t.replace(/[“”"]/g, '').trim().replace(/\.$/, '');
+          const top3 = items.slice(0, 3).map(clean);
+          const preamble = lines.filter(l => !itemRegex.test(l)).join('\n').trim();
+          assistantReply = [
+            preamble,
+            '',
+            `[BTN:fato1:${top3[0]}] [BTN:fato2:${top3[1]}] [BTN:fato3:${top3[2]}]`,
+            `[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`
+          ].join('\n').trim();
+        }
+      }
+    }
+
     // Detecta se o usuário está enviando sentimentos selecionados
     if (message.includes('Sentimentos selecionados:')) {
       console.log('Detectando sentimentos selecionados');
@@ -204,24 +255,22 @@ serve(async (req) => {
         // Valida se tem pelo menos 40 sentimentos
         if (sentimentos.length < 40) {
           console.log('Poucos sentimentos selecionados, reabrindo popup');
-          assistantReply = `Obrigado pela seleção! Porém, preciso que você escolha pelo menos 40 sentimentos para prosseguirmos com eficácia. Você selecionou ${sentimentos.length}. Por favor, selecione mais sentimentos:
-
-[POPUP:sentimentos]`;
+          assistantReply = `Obrigado pela seleção! Porém, preciso que você escolha pelo menos 40 sentimentos para prosseguirmos com eficácia. Você selecionou ${sentimentos.length}. Por favor, selecione mais sentimentos:\n\n[POPUP:sentimentos]`;
         } else {
           console.log('Sentimentos suficientes, gerando template para comandos quânticos');
           
           // Extrair fato específico do contexto recente
           const contextoRecente = history.slice(-5).map((h: Message) => h.content).join(' ');
           const fatoMatch = contextoRecente.match(/(?:fato|situação|evento|problema)[^.!?]*[.!?]/i);
-          const fatoEspecifico = fatoMatch ? fatoMatch[0].trim() : "a situação que você compartilhou";
+          const fatoEspecifico = fatoMatch ? fatoMatch[0].trim() : 'a situação que você compartilhou';
           
           // Enviar dados estruturados para o frontend construir os comandos
           assistantReply = JSON.stringify({
-            type: "quantum_commands",
+            type: 'quantum_commands',
             sentimentos: sentimentos,
             fatoEspecifico: fatoEspecifico,
             totalSentimentos: sentimentos.length,
-            status: "Autocura EMITIDA",
+            status: 'Autocura EMITIDA',
             message: `Perfeito! Com base nos ${sentimentos.length} sentimentos selecionados, aqui estão seus comandos quânticos personalizados:`
           });
         }
