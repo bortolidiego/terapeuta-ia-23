@@ -20,6 +20,7 @@ interface Message {
 }
 
 export const SimplifiedChat = () => {
+  console.log('SimplifiedChat: Componente carregado');
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -121,12 +122,15 @@ export const SimplifiedChat = () => {
   };
 
   const sendMessage = async (messageText?: string) => {
+    console.log('sendMessage: Iniciando envio de mensagem');
+    console.log('currentConsultationId:', currentConsultationId);
     const actualMessage = messageText || input;
     if (!actualMessage.trim()) return;
 
     // Se não há consulta ativa, criar uma nova
     let consultationId = currentConsultationId;
     if (!consultationId) {
+      console.log('sendMessage: Criando nova consulta');
       consultationId = await createNewConsultation();
       if (!consultationId) return;
       setCurrentConsultationId(consultationId);
