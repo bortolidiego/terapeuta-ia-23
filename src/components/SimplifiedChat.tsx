@@ -701,7 +701,7 @@ export const SimplifiedChat = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-56px)] bg-background flex flex-col">
+    <div className="h-full bg-background flex flex-col">
       {/* Messages area - scrollable */}
       <div className="flex-1 min-h-0">
         <ScrollArea className="h-full">
