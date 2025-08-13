@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SimplifiedChat } from "@/components/SimplifiedChat";
-import UserHeader from "@/components/UserHeader";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -54,12 +53,5 @@ export const Chat = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <UserHeader />
-      <div className="flex-1">
-        <SimplifiedChat />
-      </div>
-    </div>
-  );
+  return <SimplifiedChat />;
 };

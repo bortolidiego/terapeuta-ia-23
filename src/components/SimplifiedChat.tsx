@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, Bot, User, Settings, X, Search, Mic, Square, NotebookPen, Pause, Play } from "lucide-react";
+import { Loader2, Send, Bot, User, X, Mic, Square, NotebookPen, Pause, Play } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -712,15 +712,6 @@ export const SimplifiedChat = () => {
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">Seu espaço de cura e bem-estar</p>
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setSearchDialogOpen(true)}
-              className="border-primary/30 text-primary hover:bg-primary/10"
-              title="Pesquisar mensagens"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -754,12 +745,6 @@ export const SimplifiedChat = () => {
                 </Button>
               </>
             )}
-            <Link to="/admin">
-              <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm">
-                <Settings className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Admin</span>
-              </Button>
-            </Link>
           </div>
         </div>
       </div>
