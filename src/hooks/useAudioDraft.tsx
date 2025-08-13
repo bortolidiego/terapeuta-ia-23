@@ -13,45 +13,50 @@ interface AudioDraft {
 }
 
 export const useAudioDraft = (sessionId?: string) => {
-  const [audioDrafts, setAudioDrafts] = useState<AudioDraft[]>([]);
-  const [isLoadingDrafts, setIsLoadingDrafts] = useState(false);
+  const [audioDraft, setAudioDraft] = useState<AudioDraft | null>(null);
+  const [isLoadingDraft, setIsLoadingDraft] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Load existing audio drafts
-  const loadAudioDrafts = useCallback(async () => {
+  // Load existing audio draft (only one per session)
+  const loadAudioDraft = useCallback(async () => {
     if (!user || !sessionId) return;
 
-    setIsLoadingDrafts(true);
+    setIsLoadingDraft(true);
     try {
       const { data, error } = await supabase
         .from('user_audio_drafts')
         .select('*')
         .eq('user_id', user.id)
         .eq('session_id', sessionId)
-        .order('created_at', { ascending: false });
+        .maybeSingle();
 
       if (error) throw error;
-      setAudioDrafts(data || []);
+      setAudioDraft(data);
     } catch (error) {
-      console.error('Error loading audio drafts:', error);
+      console.error('Error loading audio draft:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível carregar os rascunhos de áudio.',
+        description: 'Não foi possível carregar o rascunho de áudio.',
         variant: 'destructive',
       });
     } finally {
-      setIsLoadingDrafts(false);
+      setIsLoadingDraft(false);
     }
   }, [user, sessionId, toast]);
 
-  // Save audio draft
+  // Save audio draft (replaces existing one)
   const saveAudioDraft = useCallback(async (audioBlob: Blob, duration?: number) => {
     if (!user || !sessionId) return null;
 
     setIsSavingDraft(true);
     try {
+      // Delete existing draft first (if any)
+      if (audioDraft) {
+        await deleteAudioDraft(audioDraft.id);
+      }
+
       // Generate unique file path
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.webm`;
       const filePath = `${user.id}/${fileName}`;
@@ -66,16 +71,18 @@ export const useAudioDraft = (sessionId?: string) => {
 
       if (uploadError) throw uploadError;
 
-      // Save metadata to database
+      // Save metadata to database (upsert to replace existing)
       const { data, error } = await supabase
         .from('user_audio_drafts')
-        .insert({
+        .upsert({
           user_id: user.id,
           session_id: sessionId,
           audio_path: filePath,
           audio_duration: duration,
           audio_size: audioBlob.size,
           mime_type: audioBlob.type || 'audio/webm'
+        }, {
+          onConflict: 'user_id,session_id'
         })
         .select()
         .single();
@@ -83,7 +90,7 @@ export const useAudioDraft = (sessionId?: string) => {
       if (error) throw error;
 
       // Update local state
-      setAudioDrafts(prev => [data, ...prev]);
+      setAudioDraft(data);
       
       toast({
         title: 'Rascunho salvo',
@@ -102,13 +109,13 @@ export const useAudioDraft = (sessionId?: string) => {
     } finally {
       setIsSavingDraft(false);
     }
-  }, [user, sessionId, toast]);
+  }, [user, sessionId, toast, audioDraft]);
 
   // Delete audio draft
   const deleteAudioDraft = useCallback(async (draftId: string) => {
     try {
-      const draft = audioDrafts.find(d => d.id === draftId);
-      if (!draft) return;
+      const draft = audioDraft;
+      if (!draft || draft.id !== draftId) return;
 
       // Delete from storage
       const { error: storageError } = await supabase.storage
@@ -128,7 +135,7 @@ export const useAudioDraft = (sessionId?: string) => {
       if (error) throw error;
 
       // Update local state
-      setAudioDrafts(prev => prev.filter(d => d.id !== draftId));
+      setAudioDraft(null);
       
       toast({
         title: 'Rascunho excluído',
@@ -142,7 +149,14 @@ export const useAudioDraft = (sessionId?: string) => {
         variant: 'destructive',
       });
     }
-  }, [audioDrafts, toast]);
+  }, [audioDraft, toast]);
+
+  // Clear audio draft (used when sending message)
+  const clearAudioDraft = useCallback(async () => {
+    if (audioDraft) {
+      await deleteAudioDraft(audioDraft.id);
+    }
+  }, [audioDraft, deleteAudioDraft]);
 
   // Get audio URL for playback
   const getAudioUrl = useCallback(async (audioPath: string) => {
@@ -159,12 +173,13 @@ export const useAudioDraft = (sessionId?: string) => {
   }, []);
 
   return {
-    audioDrafts,
-    isLoadingDrafts,
+    audioDraft,
+    isLoadingDraft,
     isSavingDraft,
-    loadAudioDrafts,
+    loadAudioDraft,
     saveAudioDraft,
     deleteAudioDraft,
+    clearAudioDraft,
     getAudioUrl
   };
 };

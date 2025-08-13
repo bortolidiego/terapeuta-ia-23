@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, Bot, User, Settings, Power, Search, Mic, Square, NotebookPen, FileText, Pause, Play } from "lucide-react";
+import { Loader2, Send, Bot, User, Settings, Power, Search, Mic, Square, NotebookPen, Pause, Play } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +14,7 @@ import { NotesDialog } from "./NotesDialog";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import { useDraftMessage } from "@/hooks/useDraftMessage";
 import { useAudioDraft } from "@/hooks/useAudioDraft";
-import { DraftsDialog } from "./DraftsDialog";
+
 
 interface Message {
   id: string;
@@ -32,7 +32,7 @@ export const SimplifiedChat = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showSentimentosPopup, setShowSentimentosPopup] = useState(false);
-  const [showDraftsDialog, setShowDraftsDialog] = useState(false);
+  
   const [pendingResponse, setPendingResponse] = useState<string>("");
   const [currentContext, setCurrentContext] = useState<string>("");
   const [currentConsultationId, setCurrentConsultationId] = useState<string | null>(null);
@@ -63,7 +63,7 @@ export const SimplifiedChat = () => {
     clearDraft,
   } = useDraftMessage(currentConsultationId);
 
-  const { audioDrafts } = useAudioDraft(currentConsultationId);
+  const { audioDraft, clearAudioDraft } = useAudioDraft(currentConsultationId);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -290,8 +290,9 @@ export const SimplifiedChat = () => {
       };
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Clear draft only after successful send
+      // Clear drafts only after successful send
       clearDraft();
+      clearAudioDraft();
 
     } catch (error) {
       console.error("Erro ao enviar mensagem:", error);
@@ -673,20 +674,6 @@ export const SimplifiedChat = () => {
               >
                 <NotebookPen className="h-4 w-4" />
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setShowDraftsDialog(true)}
-                className="border-primary/30 text-primary hover:bg-primary/10"
-                title="Rascunhos salvos"
-              >
-                <FileText className="h-4 w-4" />
-                {(hasDraft || audioDrafts.length > 0) && (
-                  <Badge variant="secondary" className="ml-1 h-4 w-4 p-0 text-xs">
-                    {(hasDraft ? 1 : 0) + audioDrafts.length}
-                  </Badge>
-                )}
-              </Button>
             {currentConsultationId && (
               <Button 
                 variant="outline" 
@@ -851,7 +838,7 @@ export const SimplifiedChat = () => {
                   }
                 }}
                 onKeyPress={handleKeyPress}
-                placeholder={hasDraft ? "Continuando seu rascunho..." : "Digite sua mensagem..."}
+                placeholder={hasDraft ? "Continuando seu rascunho..." : audioDraft ? "Há um áudio pausado" : "Digite sua mensagem..."}
                 disabled={isLoading || isRecording || isProcessing}
                 className="flex-1 border-primary/30 focus:border-primary h-10 sm:h-11 text-sm"
               />
@@ -978,20 +965,6 @@ export const SimplifiedChat = () => {
           onOpenChange={setNotesDialogOpen}
         />
 
-        <DraftsDialog
-          open={showDraftsDialog}
-          onOpenChange={setShowDraftsDialog}
-          sessionId={currentConsultationId}
-          textDraft={draftContent}
-          onRestoreTextDraft={() => {
-            setInput(draftContent);
-            setShowDraftsDialog(false);
-          }}
-          onClearTextDraft={() => {
-            clearDraft();
-            setShowDraftsDialog(false);
-          }}
-        />
     </div>
   );
 };
