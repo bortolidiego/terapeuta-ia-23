@@ -701,11 +701,11 @@ export const SimplifiedChat = () => {
   };
 
   return (
-    <div className="h-dvh bg-background flex flex-col">
+    <div className="h-full bg-background flex flex-col">
       {/* Messages area - scrollable */}
       <div className="flex-1 min-h-0">
         <ScrollArea className="h-full">
-        <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">
+          <div className="p-3 space-y-3">
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground py-4 sm:py-6">
               <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
