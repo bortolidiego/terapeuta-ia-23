@@ -837,7 +837,6 @@ export const SimplifiedChat = () => {
                   title="Minhas anotações"
                 >
                   <NotebookPen className="h-3 w-3" />
-                  <span className="hidden sm:inline ml-1">Notas</span>
                 </Button>
                 {currentConsultationId && (
                   <>
@@ -849,7 +848,6 @@ export const SimplifiedChat = () => {
                       title="Pausar consulta"
                     >
                       <Pause className="h-3 w-3" />
-                      <span className="hidden sm:inline ml-1">Pausar</span>
                     </Button>
                     <Button 
                       variant="destructive" 
@@ -859,7 +857,6 @@ export const SimplifiedChat = () => {
                       title="Cancelar consulta"
                     >
                       <X className="h-3 w-3" />
-                      <span className="hidden sm:inline ml-1">Cancelar</span>
                     </Button>
                   </>
                 )}
