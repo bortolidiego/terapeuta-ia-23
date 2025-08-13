@@ -701,60 +701,50 @@ export const SimplifiedChat = () => {
   };
 
   return (
-    <div className="h-dvh bg-background grid grid-rows-[auto_1fr_auto] gap-2 sm:gap-3 p-2 sm:p-3 overflow-hidden">
-      {/* Header Fixo */}
-      <div className="flex-shrink-0">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 p-2 sm:p-3 bg-card rounded-lg sm:rounded-xl border border-border shadow-sm">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-2xl font-bold text-primary truncate">
-              MyHealing Chat
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1">Seu espaço de cura e bem-estar</p>
-          </div>
-          <div className="flex gap-2 flex-shrink-0">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setNotesDialogOpen(true)}
-                className="border-primary/30 text-primary hover:bg-primary/10"
-                title="Minhas anotações"
-              >
-                <NotebookPen className="h-4 w-4" />
-              </Button>
-            {currentConsultationId && (
-              <>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={pauseCurrentConsultation}
-                  className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
-                  title="Pausar consulta"
-                >
-                  <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="sr-only">Pausar Consulta</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={cancelCurrentConsultation}
-                  className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
-                  title="Cancelar consulta"
-                >
-                  <X className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="sr-only">Cancelar Consulta</span>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Área de Mensagens - Ocupa todo o espaço restante */}
+    <div className="h-dvh bg-background grid grid-rows-[1fr_auto] gap-2 sm:gap-3 p-2 sm:p-3 overflow-hidden">
+      {/* Área de Mensagens - Ocupa todo o espaço */}
       <div className="min-h-0 flex-1">
         <Card className="h-full bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
           <CardContent className="p-0 h-full">
-            <ScrollArea className="h-full p-2 sm:p-3">
-              <div className="space-y-2 sm:space-y-3">
+            <ScrollArea className="h-full">
+              {/* Botões no topo da área de mensagens */}
+              <div className="flex justify-end gap-2 p-3 border-b bg-card/50 sticky top-0 z-10">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setNotesDialogOpen(true)}
+                  className="border-primary/30 text-primary hover:bg-primary/10"
+                  title="Minhas anotações"
+                >
+                  <NotebookPen className="h-4 w-4" />
+                </Button>
+                {currentConsultationId && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={pauseCurrentConsultation}
+                      className="border-primary/30 text-primary hover:bg-primary/10"
+                      title="Pausar consulta"
+                    >
+                      <Pause className="h-4 w-4" />
+                      <span className="sr-only">Pausar Consulta</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={cancelCurrentConsultation}
+                      className="border-primary/30 text-primary hover:bg-primary/10"
+                      title="Cancelar consulta"
+                    >
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Cancelar Consulta</span>
+                    </Button>
+                  </>
+                )}
+              </div>
+              
+              <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">
                 {messages.length === 0 && (
                   <div className="text-center text-muted-foreground py-4 sm:py-6">
                     <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
