@@ -27,7 +27,7 @@ const App = () => (
               path="/" 
               element={
                 <ProtectedRoute>
-                  <div className="h-screen flex flex-col">
+                  <div className="min-h-screen flex flex-col">
                     <GlobalHeader />
                     <div className="flex-1">
                       <Index />
@@ -40,7 +40,7 @@ const App = () => (
               path="/chat/:id?" 
               element={
                 <ProtectedRoute>
-                  <div className="h-screen flex flex-col">
+                  <div className="min-h-screen flex flex-col">
                     <GlobalHeader />
                     <div className="flex-1">
                       <Chat />
@@ -53,7 +53,7 @@ const App = () => (
               path="/admin" 
               element={
                 <ProtectedRoute requireAdmin={true}>
-                  <div className="h-screen flex flex-col">
+                  <div className="min-h-screen flex flex-col">
                     <GlobalHeader />
                     <div className="flex-1">
                       <Admin />
