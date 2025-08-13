@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Play, Clock, MessageCircle } from "lucide-react";
@@ -10,31 +10,8 @@ import { PendingConsultations } from "./PendingConsultations";
 export const LandingPage = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [showPending, setShowPending] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  useEffect(() => {
-    fetchPendingCount();
-  }, []);
-
-  const fetchPendingCount = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { count, error } = await supabase
-        .from("therapy_sessions")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("status", "paused");
-
-      if (error) throw error;
-      setPendingCount(count || 0);
-    } catch (error) {
-      console.error("Erro ao buscar consultas pendentes:", error);
-    }
-  };
 
   const createNewConsultation = async () => {
     setIsCreating(true);
@@ -81,12 +58,7 @@ export const LandingPage = () => {
 
   if (showPending) {
     return (
-      <PendingConsultations 
-        onBack={() => {
-          setShowPending(false);
-          fetchPendingCount(); // Atualiza a contagem quando volta
-        }} 
-      />
+      <PendingConsultations onBack={() => setShowPending(false)} />
     );
   }
 
@@ -118,16 +90,11 @@ export const LandingPage = () => {
             <Button
               onClick={() => setShowPending(true)}
               variant="outline"
-              className="w-full h-12 text-lg relative"
+              className="w-full h-12 text-lg"
               size="lg"
             >
               <Clock className="mr-2 h-5 w-5" />
               Consultas Pendentes
-              {pendingCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground text-xs rounded-full h-6 w-6 flex items-center justify-center font-semibold">
-                  {pendingCount}
-                </span>
-              )}
             </Button>
           </div>
         </CardContent>
