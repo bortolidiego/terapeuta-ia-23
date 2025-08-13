@@ -701,8 +701,10 @@ export const SimplifiedChat = () => {
   };
 
   return (
-    <div className="h-dvh bg-background">
-      <ScrollArea className="h-full">
+    <div className="h-dvh bg-background flex flex-col">
+      {/* Messages area - scrollable */}
+      <div className="flex-1 min-h-0">
+        <ScrollArea className="h-full">
         <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground py-4 sm:py-6">
@@ -809,178 +811,180 @@ export const SimplifiedChat = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input integrado no final da área de scroll */}
-        <div className="sticky bottom-0 bg-background p-2 sm:p-3 pt-0">
-          <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
-            <CardContent className="p-2 sm:p-3">
-              {/* Indicadores discretos */}
-              {(hasDraft || audioDraft) && (
-                <div className="mb-2 text-xs text-muted-foreground/60 flex items-center gap-2">
-                  {hasDraft && <span>📝</span>}
-                  {audioDraft && <span>🎤</span>}
-                </div>
-              )}
-              
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                {/* Botões de ação */}
-                <div className="flex gap-1">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setNotesDialogOpen(true)}
-                    className="h-8 px-2 text-xs"
-                    title="Minhas anotações"
-                  >
-                    <NotebookPen className="h-3 w-3" />
-                    <span className="hidden sm:inline ml-1">Notas</span>
-                  </Button>
-                  {currentConsultationId && (
-                    <>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={pauseCurrentConsultation}
-                        className="h-8 px-2 text-xs"
-                        title="Pausar consulta"
-                      >
-                        <Pause className="h-3 w-3" />
-                        <span className="hidden sm:inline ml-1">Pausar</span>
-                      </Button>
-                      <Button 
-                        variant="destructive" 
-                        size="sm" 
-                        onClick={cancelCurrentConsultation}
-                        className="h-8 px-2 text-xs"
-                        title="Cancelar consulta"
-                      >
-                        <X className="h-3 w-3" />
-                        <span className="hidden sm:inline ml-1">Cancelar</span>
-                      </Button>
-                    </>
-                  )}
-                </div>
+        </ScrollArea>
+      </div>
 
-                {/* Input e controles de áudio/envio */}
-                <div className="flex-1 flex gap-1 sm:gap-2 min-w-0">
-                  <Input
-                value={draftContent || input}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  console.log('SimplifiedChat: Input changed, value:', value);
-                  setInput(value);
-                  updateDraft(value);
-                  
-                  // Create session when user starts typing
-                  if (value.trim() && !currentConsultationId && !pendingSessionCreation) {
-                    console.log('SimplifiedChat: Creating session due to typing');
-                    setPendingSessionCreation(true);
-                    createNewConsultation().then((sessionId) => {
-                      if (sessionId) {
-                        setCurrentConsultationId(sessionId);
-                      }
-                      setPendingSessionCreation(false);
-                    }).catch(() => {
-                      setPendingSessionCreation(false);
-                    });
-                  }
-                }}
-                onKeyPress={handleKeyPress}
-                placeholder={hasDraft ? "Continuando seu rascunho..." : audioDraft ? "Há um áudio pausado" : "Digite sua mensagem..."}
-                disabled={isLoading || isRecording || isProcessing}
-                className="flex-1 border-primary/30 focus:border-primary h-10 sm:h-11 text-sm"
-              />
-              
-              {/* Botões de Áudio */}
-              {isRecording && !isPaused && (
+      {/* Input area - fixed at bottom */}
+      <div className="flex-shrink-0 bg-background p-2 sm:p-3 border-t border-border/20">
+        <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
+          <CardContent className="p-2 sm:p-3">
+            {/* Indicadores discretos */}
+            {(hasDraft || audioDraft) && (
+              <div className="mb-2 text-xs text-muted-foreground/60 flex items-center gap-2">
+                {hasDraft && <span>📝</span>}
+                {audioDraft && <span>🎤</span>}
+              </div>
+            )}
+            
+            <div className="flex flex-wrap gap-1 sm:gap-2">
+              {/* Botões de ação */}
+              <div className="flex gap-1">
                 <Button 
-                  onClick={pauseRecording}
-                  disabled={isLoading || isProcessing}
-                  variant="outline"
-                  size="icon"
-                  className="h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
-                  title="Pausar e salvar como rascunho"
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setNotesDialogOpen(true)}
+                  className="h-8 px-2 text-xs"
+                  title="Minhas anotações"
                 >
-                  <Pause className="h-4 w-4" />
+                  <NotebookPen className="h-3 w-3" />
+                  <span className="hidden sm:inline ml-1">Notas</span>
                 </Button>
-              )}
-              
-              {isPaused && (
-                <Button 
-                  onClick={resumeRecording}
-                  disabled={isLoading || isProcessing}
-                  variant="outline"
-                  size="icon"
-                  className="h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
-                  title="Continuar gravação"
-                >
-                  <Play className="h-4 w-4" />
-                </Button>
-              )}
-              
+                {currentConsultationId && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={pauseCurrentConsultation}
+                      className="h-8 px-2 text-xs"
+                      title="Pausar consulta"
+                    >
+                      <Pause className="h-3 w-3" />
+                      <span className="hidden sm:inline ml-1">Pausar</span>
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      onClick={cancelCurrentConsultation}
+                      className="h-8 px-2 text-xs"
+                      title="Cancelar consulta"
+                    >
+                      <X className="h-3 w-3" />
+                      <span className="hidden sm:inline ml-1">Cancelar</span>
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {/* Input e controles de áudio/envio */}
+              <div className="flex-1 flex gap-1 sm:gap-2 min-w-0">
+                <Input
+              value={draftContent || input}
+              onChange={(e) => {
+                const value = e.target.value;
+                console.log('SimplifiedChat: Input changed, value:', value);
+                setInput(value);
+                updateDraft(value);
+                
+                // Create session when user starts typing
+                if (value.trim() && !currentConsultationId && !pendingSessionCreation) {
+                  console.log('SimplifiedChat: Creating session due to typing');
+                  setPendingSessionCreation(true);
+                  createNewConsultation().then((sessionId) => {
+                    if (sessionId) {
+                      setCurrentConsultationId(sessionId);
+                    }
+                    setPendingSessionCreation(false);
+                  }).catch(() => {
+                    setPendingSessionCreation(false);
+                  });
+                }
+              }}
+              onKeyPress={handleKeyPress}
+              placeholder={hasDraft ? "Continuando seu rascunho..." : audioDraft ? "Há um áudio pausado" : "Digite sua mensagem..."}
+              disabled={isLoading || isRecording || isProcessing}
+              className="flex-1 border-primary/30 focus:border-primary h-10 sm:h-11 text-sm"
+            />
+            
+            {/* Botões de Áudio */}
+            {isRecording && !isPaused && (
               <Button 
-                onClick={isRecording ? handleStopRecording : handleStartRecording}
+                onClick={pauseRecording}
                 disabled={isLoading || isProcessing}
-                variant={isRecording ? "destructive" : "outline"}
+                variant="outline"
                 size="icon"
                 className="h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
+                title="Pausar e salvar como rascunho"
               >
-                {isRecording ? (
-                  <Square className="h-4 w-4" />
-                ) : (
-                  <Mic className="h-4 w-4" />
-                )}
+                <Pause className="h-4 w-4" />
               </Button>
-              
-              <Button 
-                onClick={() => sendMessage()} 
-                disabled={isLoading || !(draftContent || input).trim() || (isRecording && !isPaused) || isProcessing}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
-                size="icon"
-              >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            
-            {/* Indicadores de estado */}
-            {isRecording && !isPaused && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-destructive">
-                <div className="w-2 h-2 bg-destructive rounded-full animate-pulse"></div>
-                Gravando... {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
-              </div>
             )}
             
             {isPaused && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-amber-600">
-                <div className="w-2 h-2 bg-amber-600 rounded-full"></div>
-                Gravação pausada - salva como rascunho
-              </div>
+              <Button 
+                onClick={resumeRecording}
+                disabled={isLoading || isProcessing}
+                variant="outline"
+                size="icon"
+                className="h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
+                title="Continuar gravação"
+              >
+                <Play className="h-4 w-4" />
+              </Button>
             )}
             
-            {isProcessing && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-primary">
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                Processando áudio...
-              </div>
-            )}
+            <Button 
+              onClick={isRecording ? handleStopRecording : handleStartRecording}
+              disabled={isLoading || isProcessing}
+              variant={isRecording ? "destructive" : "outline"}
+              size="icon"
+              className="h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
+            >
+              {isRecording ? (
+                <Square className="h-4 w-4" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
+            </Button>
             
-            {isDraftSaving && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-primary">
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                Salvando rascunho...
+            <Button 
+              onClick={() => sendMessage()} 
+              disabled={isLoading || !(draftContent || input).trim() || (isRecording && !isPaused) || isProcessing}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
+              size="icon"
+            >
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
-            )}
-            
-            {hasDraft && !isDraftSaving && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
-                <div className="w-2 h-2 bg-green-600 rounded-full"></div>
-                Rascunho salvo automaticamente
-              </div>
-            )}
-            </CardContent>
-          </Card>
-        </div>
-      </ScrollArea>
+            </div>
+          
+          {/* Indicadores de estado */}
+          {isRecording && !isPaused && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-destructive">
+              <div className="w-2 h-2 bg-destructive rounded-full animate-pulse"></div>
+              Gravando... {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
+            </div>
+          )}
+          
+          {isPaused && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-amber-600">
+              <div className="w-2 h-2 bg-amber-600 rounded-full"></div>
+              Gravação pausada - salva como rascunho
+            </div>
+          )}
+          
+          {isProcessing && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-primary">
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+              Processando áudio...
+            </div>
+          )}
+          
+          {isDraftSaving && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-primary">
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+              Salvando rascunho...
+            </div>
+          )}
+          
+          {hasDraft && !isDraftSaving && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+              Rascunho salvo automaticamente
+            </div>
+          )}
+          </CardContent>
+        </Card>
+      </div>
 
       <SentimentosPopup
         isOpen={showSentimentosPopup}
