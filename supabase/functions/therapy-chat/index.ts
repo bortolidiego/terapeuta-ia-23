@@ -268,10 +268,19 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
           
           assistantReply = [`ROUTER: FATO_ESPECIFICO | step=choose_fact`, preamble, '', buttonsLine].join('\n').trim();
         }
-        // Se não tem itens suficientes mas menciona problema específico, forçar ROUTER
-        else if (/(?:problem|situação|evento|brig|discus|conflict|dificuldade)/i.test(assistantReply)) {
+        // MELHORADA: Detecção mais robusta de problemas específicos
+        else if (/(?:brig|conflict|discus|problem|situação|evento|dificuldade|pai|mãe|amig|trabalh|escola|casa|familia|namorad|esposa|marido|chefe|colega)/i.test(message)) {
+          console.log('Detectado problema específico no contexto, ativando modo FATO_ESPECIFICO');
           if (!assistantReply.startsWith('ROUTER:')) {
-            assistantReply = `ROUTER: FATO_ESPECIFICO | step=choose_fact\n${assistantReply}`;
+            // Gerar 3 variações do fato baseadas na mensagem do usuário
+            const baseFact = message.replace(/^\s*(?:oi|olá|então|bem|hoje|ontem|eu|tive|teve)\s*/i, '').trim();
+            const variations = [
+              `Ontem ${baseFact}`,
+              `Eu ${baseFact}`,
+              `Aconteceu que ${baseFact}`
+            ];
+            const buttonsLine = variations.map((v, i) => `[BTN:fato${i+1}:${v}]`).join(' ');
+            assistantReply = `ROUTER: FATO_ESPECIFICO | step=choose_fact\nVejo que você passou por uma situação específica. Vamos trabalhar com isso. Escolha a descrição que melhor representa o fato:\n\n${buttonsLine}`;
           }
         }
       }

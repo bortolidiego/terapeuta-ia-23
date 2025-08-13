@@ -22,6 +22,10 @@ serve(async (req) => {
     const { context } = await req.json();
     console.log('Generating sentiments for context:', context);
 
+    // Gerar sentimentos específicos baseados no contexto
+    let usedFallback = false;
+    let generatedSentiments = [];
+    
     // Buscar o prompt da base de conhecimento
     const { data: knowledgeBase, error: kbError } = await supabase
       .from('knowledge_base')
@@ -30,13 +34,12 @@ serve(async (req) => {
       .eq('is_active', true)
       .single();
 
+    if (kbError) {
       console.warn('Base de conhecimento não encontrada ou inativa; seguindo com fallback.', kbError);
       usedFallback = true;
+    }
 
-      // Gerar sentimentos específicos baseados no contexto
-      let usedFallback = false;
-      let generatedSentiments = [];
-      if (context && context.trim()) {
+    if (context && context.trim()) {
       console.log('Chamando OpenAI para gerar sentimentos...');
       
       const response = await fetch('https://api.openai.com/v1/chat/completions', {

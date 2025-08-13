@@ -185,14 +185,15 @@ export const SimplifiedChat = () => {
       };
       setMessages(prev => [...prev, newUserMessage]);
 
-      // Chamar edge function
+      // Chamar edge function com histórico ATUALIZADO incluindo a mensagem atual
+      const updatedHistory = [...messages, newUserMessage].filter(m => m.role !== "consultation_end" && m.metadata?.type !== 'consultation_end');
       const { data: response, error: apiError } = await supabase.functions.invoke(
         "therapy-chat",
         {
           body: {
             message: userMessage,
             sessionId: consultationId,
-            history: messages.filter(m => m.role !== "consultation_end" && m.metadata?.type !== 'consultation_end'),
+            history: updatedHistory,
           },
         }
       );
