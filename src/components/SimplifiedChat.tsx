@@ -701,167 +701,168 @@ export const SimplifiedChat = () => {
   };
 
   return (
-    <div className="h-dvh bg-background flex flex-col p-2 sm:p-3 overflow-hidden">
-      {/* Botões Fixos - Sempre visíveis */}
-      <div className="flex-shrink-0 mb-2 sm:mb-3 relative z-20">
-        <div className="flex justify-end gap-2 p-3 bg-card rounded-xl border border-border shadow-sm">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setNotesDialogOpen(true)}
-            className="border-primary/30 text-primary hover:bg-primary/10"
-            title="Minhas anotações"
-          >
-            <NotebookPen className="h-4 w-4" />
-          </Button>
-          {currentConsultationId && (
-            <>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={pauseCurrentConsultation}
-                className="border-primary/30 text-primary hover:bg-primary/10"
-                title="Pausar consulta"
-              >
-                <Pause className="h-4 w-4" />
-                <span className="sr-only">Pausar Consulta</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={cancelCurrentConsultation}
-                className="border-primary/30 text-primary hover:bg-primary/10"
-                title="Cancelar consulta"
-              >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Cancelar Consulta</span>
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Área de Mensagens - Scroll isolado */}
-      <div className="flex-1 min-h-0 mb-2 sm:mb-3 relative">
-        <Card className="h-full bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
-          <CardContent className="p-0 h-full">
-            <ScrollArea className="h-full">
-              <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">
-                {messages.length === 0 && (
-                  <div className="text-center text-muted-foreground py-4 sm:py-6">
-                    <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
-                      <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary-foreground" />
-                    </div>
-                    <p className="text-lg sm:text-xl font-medium mb-2 sm:mb-3 text-primary">
-                      Bem-vindo ao MyHealing Chat
-                    </p>
-                    <p className="text-xs sm:text-sm max-w-xs sm:max-w-md mx-auto leading-relaxed px-4">
-                      Sou seu terapeuta virtual. Pode compartilhar seus sentimentos e pensamentos comigo.
-                      Estou aqui para escutar e ajudar em sua jornada de cura.
-                    </p>
-                  </div>
-                )}
-                
-                {messages.map((message) => {
-                  if (message.role === "consultation_end" || message.metadata?.type === 'consultation_end') {
-                    return (
-                      <div key={message.id} className="flex justify-center my-4 sm:my-6">
-                        <div className="flex items-center w-full max-w-md">
-                          <div className="flex-1 h-px bg-border"></div>
-                          <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground">
-                            {message.content}
-                          </div>
-                          <div className="flex-1 h-px bg-border"></div>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={message.id}
-                      className={`flex gap-2 sm:gap-3 ${
-                        message.role === "user" ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      {message.role === "assistant" && (
-                        <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
-                          <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-                        </div>
-                      )}
-                      
-                      <div
-                        className={`max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-xl sm:rounded-2xl ${
-                          message.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground border border-border"
-                        }`}
-                      >
-                        {message.buttonMessage && (
-                          <p className="text-xs sm:text-sm mb-2 sm:mb-3 font-medium">{message.buttonMessage}</p>
-                        )}
-                        <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                        
-                        {message.buttons && message.buttons.length > 0 && (
-                          <div className="mt-2 sm:mt-3 flex flex-wrap gap-1 sm:gap-2">
-                            {message.buttons.map((button) => (
-                              <Button
-                                key={button.id}
-                                variant="outline"
-                                size="sm"
-                                className="text-xs sm:text-sm border-primary/30 text-primary hover:bg-primary/10 h-8 sm:h-9"
-                                onClick={() => handleButtonClick(button.id, button.text)}
-                                disabled={isLoading}
-                              >
-                                {button.text}
-                              </Button>
-                            ))}
-                          </div>
-                        )}
-                        
-                        <div className={`text-xs mt-1 sm:mt-2 ${
-                          message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
-                        }`}>
-                          {new Date(message.created_at).toLocaleTimeString()}
-                        </div>
-                      </div>
-                      
-                      {message.role === "user" && (
-                        <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent flex items-center justify-center border border-border">
-                          <User className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                
-                {isLoading && (
-                  <div className="flex gap-2 sm:gap-3 justify-start">
-                    <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
-                      <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-                    </div>
-                    <div className="bg-muted p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin text-primary" />
-                        <span className="text-xs sm:text-sm text-muted-foreground">Pensando com carinho...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div ref={messagesEndRef} />
+    <div className="h-dvh bg-background">
+      <ScrollArea className="h-full">
+        <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">
+          {messages.length === 0 && (
+            <div className="text-center text-muted-foreground py-4 sm:py-6">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
+                <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary-foreground" />
               </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
+              <p className="text-lg sm:text-xl font-medium mb-2 sm:mb-3 text-primary">
+                Bem-vindo ao MyHealing Chat
+              </p>
+              <p className="text-xs sm:text-sm max-w-xs sm:max-w-md mx-auto leading-relaxed px-4">
+                Sou seu terapeuta virtual. Pode compartilhar seus sentimentos e pensamentos comigo.
+                Estou aqui para escutar e ajudar em sua jornada de cura.
+              </p>
+            </div>
+          )}
+          
+          {messages.map((message) => {
+            if (message.role === "consultation_end" || message.metadata?.type === 'consultation_end') {
+              return (
+                <div key={message.id} className="flex justify-center my-4 sm:my-6">
+                  <div className="flex items-center w-full max-w-md">
+                    <div className="flex-1 h-px bg-border"></div>
+                    <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground">
+                      {message.content}
+                    </div>
+                    <div className="flex-1 h-px bg-border"></div>
+                  </div>
+                </div>
+              );
+            }
 
-      {/* Input Fixo - Sempre visível */}
-      <div className="flex-shrink-0 relative z-10">
-        <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
-          <CardContent className="p-2 sm:p-3">
-            <div className="flex gap-2 sm:gap-3">
-              <Input
+            return (
+              <div
+                key={message.id}
+                className={`flex gap-2 sm:gap-3 ${
+                  message.role === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                {message.role === "assistant" && (
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
+                    <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                  </div>
+                )}
+                
+                <div
+                  className={`max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-xl sm:rounded-2xl ${
+                    message.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-foreground border border-border"
+                  }`}
+                >
+                  {message.buttonMessage && (
+                    <p className="text-xs sm:text-sm mb-2 sm:mb-3 font-medium">{message.buttonMessage}</p>
+                  )}
+                  <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                  
+                  {message.buttons && message.buttons.length > 0 && (
+                    <div className="mt-2 sm:mt-3 flex flex-wrap gap-1 sm:gap-2">
+                      {message.buttons.map((button) => (
+                        <Button
+                          key={button.id}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs sm:text-sm border-primary/30 text-primary hover:bg-primary/10 h-8 sm:h-9"
+                          onClick={() => handleButtonClick(button.id, button.text)}
+                          disabled={isLoading}
+                        >
+                          {button.text}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <div className={`text-xs mt-1 sm:mt-2 ${
+                    message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
+                  }`}>
+                    {new Date(message.created_at).toLocaleTimeString()}
+                  </div>
+                </div>
+                
+                {message.role === "user" && (
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent flex items-center justify-center border border-border">
+                    <User className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          
+          {isLoading && (
+            <div className="flex gap-2 sm:gap-3 justify-start">
+              <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
+                <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+              </div>
+              <div className="bg-muted p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin text-primary" />
+                  <span className="text-xs sm:text-sm text-muted-foreground">Pensando com carinho...</span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input integrado no final da área de scroll */}
+        <div className="sticky bottom-0 bg-background p-2 sm:p-3 pt-0">
+          <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
+            <CardContent className="p-2 sm:p-3">
+              {/* Indicadores discretos */}
+              {(hasDraft || audioDraft) && (
+                <div className="mb-2 text-xs text-muted-foreground/60 flex items-center gap-2">
+                  {hasDraft && <span>📝</span>}
+                  {audioDraft && <span>🎤</span>}
+                </div>
+              )}
+              
+              <div className="flex flex-wrap gap-1 sm:gap-2">
+                {/* Botões de ação */}
+                <div className="flex gap-1">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setNotesDialogOpen(true)}
+                    className="h-8 px-2 text-xs"
+                    title="Minhas anotações"
+                  >
+                    <NotebookPen className="h-3 w-3" />
+                    <span className="hidden sm:inline ml-1">Notas</span>
+                  </Button>
+                  {currentConsultationId && (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={pauseCurrentConsultation}
+                        className="h-8 px-2 text-xs"
+                        title="Pausar consulta"
+                      >
+                        <Pause className="h-3 w-3" />
+                        <span className="hidden sm:inline ml-1">Pausar</span>
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        onClick={cancelCurrentConsultation}
+                        className="h-8 px-2 text-xs"
+                        title="Cancelar consulta"
+                      >
+                        <X className="h-3 w-3" />
+                        <span className="hidden sm:inline ml-1">Cancelar</span>
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                {/* Input e controles de áudio/envio */}
+                <div className="flex-1 flex gap-1 sm:gap-2 min-w-0">
+                  <Input
                 value={draftContent || input}
                 onChange={(e) => {
                   const value = e.target.value;
@@ -936,9 +937,10 @@ export const SimplifiedChat = () => {
                 className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
                 size="icon"
               >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             
             {/* Indicadores de estado */}
             {isRecording && !isPaused && (
@@ -975,9 +977,10 @@ export const SimplifiedChat = () => {
                 Rascunho salvo automaticamente
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      </ScrollArea>
 
       <SentimentosPopup
         isOpen={showSentimentosPopup}

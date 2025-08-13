@@ -25,10 +25,12 @@ const GlobalHeader = () => {
       <div className="container flex h-14 items-center justify-between">
         {/* Logo/Título à esquerda */}
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold text-primary">MyHealing Chat</h1>
-          <span className="text-sm text-muted-foreground hidden sm:inline">
-            Seu assistente de autocura
-          </span>
+          <h1 
+            className="text-lg font-semibold text-primary cursor-pointer hover:text-primary/80 transition-colors"
+            onClick={() => navigate('/')}
+          >
+            MyHealing Chat
+          </h1>
         </div>
 
         {/* Botões à direita */}
