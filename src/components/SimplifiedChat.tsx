@@ -3,12 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, Bot, User, Settings, Power, Search, Mic, Square } from "lucide-react";
+import { Loader2, Send, Bot, User, Settings, Power, Search, Mic, Square, NotebookPen } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import SentimentosPopup from "./SentimentosPopup";
 import { SearchDialog } from "./SearchDialog";
+import { NotesDialog } from "./NotesDialog";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 
 interface Message {
@@ -32,6 +33,7 @@ export const SimplifiedChat = () => {
   const [currentConsultationId, setCurrentConsultationId] = useState<string | null>(null);
   const [selectedFactText, setSelectedFactText] = useState<string | null>(null);
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -640,6 +642,15 @@ export const SimplifiedChat = () => {
             >
               <Search className="h-4 w-4" />
             </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setNotesDialogOpen(true)}
+              className="border-primary/30 text-primary hover:bg-primary/10"
+              title="Minhas anotações"
+            >
+              <NotebookPen className="h-4 w-4" />
+            </Button>
             {currentConsultationId && (
               <Button 
                 variant="outline" 
@@ -858,6 +869,11 @@ export const SimplifiedChat = () => {
               }
             }, 100);
           }}
+        />
+
+        <NotesDialog 
+          open={notesDialogOpen} 
+          onOpenChange={setNotesDialogOpen}
         />
     </div>
   );
