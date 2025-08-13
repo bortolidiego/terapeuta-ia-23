@@ -340,7 +340,14 @@ serve(async (req) => {
       }
     }
 
-    // Analisar a mensagem para possíveis gatilhos de conhecimento (usando keywords)
+    // Guardrail: remover popup de sentimentos indevido se não for 'autocura_agora'
+    const userLower = (message || '').trim().toLowerCase();
+    if (assistantReply && assistantReply.includes('[POPUP:sentimentos]') && userLower !== 'autocura_agora') {
+      console.log('Guardrail: removendo [POPUP:sentimentos] não solicitado');
+      assistantReply = assistantReply.replace('[POPUP:sentimentos]', '');
+      assistantReply = assistantReply.replace(/ROUTER:\s*FATO_ESPECIFICO\s*\|\s*step=sentiments_popup/gi, 'ROUTER: FATO_ESPECIFICO | step=next_action');
+    }
+
     const messageNorm = haystack;
     let triggeredKnowledge = '';
     
