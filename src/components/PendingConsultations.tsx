@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Play, Clock, MessageCircle, Search, X } from "lucide-react";
+import { ArrowLeft, Play, Clock, MessageCircle, Search, X, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,6 +85,32 @@ export const PendingConsultations = ({ onBack }: PendingConsultationsProps) => {
       toast({
         title: "Erro",
         description: "Não foi possível retomar a consulta",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const cancelConsultation = async (consultationId: string, consultationTitle: string) => {
+    try {
+      const { error } = await supabase
+        .from("therapy_sessions")
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("id", consultationId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Consulta cancelada",
+        description: `A consulta "${consultationTitle}" foi cancelada com sucesso.`,
+      });
+
+      // Recarregar a lista de consultas pendentes
+      loadPendingConsultations();
+    } catch (error) {
+      console.error("Erro ao cancelar consulta:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível cancelar a consulta",
         variant: "destructive",
       });
     }
@@ -349,14 +375,23 @@ export const PendingConsultations = ({ onBack }: PendingConsultationsProps) => {
                                 Criada em: {formatDate(consultation.created_at)}
                               </p>
                             </div>
-                            <Button
-                              onClick={() => resumeConsultation(consultation.id)}
-                              size="sm"
-                              className="ml-4"
-                            >
-                              <Play className="h-4 w-4 mr-1" />
-                              Continuar
-                            </Button>
+                             <div className="flex gap-2 ml-4">
+                               <Button
+                                 onClick={() => resumeConsultation(consultation.id)}
+                                 size="sm"
+                               >
+                                 <Play className="h-4 w-4 mr-1" />
+                                 Continuar
+                               </Button>
+                               <Button
+                                 onClick={() => cancelConsultation(consultation.id, consultation.title)}
+                                 size="sm"
+                                 variant="destructive"
+                               >
+                                 <Trash2 className="h-4 w-4 mr-1" />
+                                 Cancelar
+                               </Button>
+                             </div>
                           </div>
                         </CardContent>
                       </Card>
