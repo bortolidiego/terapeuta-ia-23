@@ -44,13 +44,14 @@ serve(async (req) => {
     const { data: knowledge } = await supabase
       .from('knowledge_base')
       .select('*')
-      .eq('active', true);
+      .eq('is_active', true);
 
     // Buscar fatos pendentes
     const { data: therapyFacts } = await supabase
       .from('therapy_facts')
       .select('*')
       .eq('status', 'pending')
+      .eq('session_id', sessionId)
       .order('created_at', { ascending: false });
 
     // Construir o system prompt
@@ -71,7 +72,7 @@ ${knowledge && knowledge.length > 0 ? knowledge.map(k => `
 ${k.keywords ? `Palavras-chave: ${k.keywords}` : ''}
 `).join('\n') : ''}
 
-FATOS PENDENTES DE OUTRAS SESSÕES:
+FATOS PENDENTES DESTA SESSÃO:
 ${therapyFacts && therapyFacts.length > 0 ? therapyFacts.map(f => `- ${f.fact_text} (ID: ${f.id})`).join('\n') : 'Nenhum fato pendente.'}
 
 PROTOCOLO DE ROTEAMENTO:
@@ -83,7 +84,7 @@ Sempre que você identificar uma conversa sobre um problema específico, siga o 
 
 2. ROUTER: FATO_ESPECIFICO | step=pending_facts  
    - Use quando há fatos pendentes após seleção de fato
-   - Liste fatos pendentes como botões + opção "novo problema"
+   - Liste os fatos pendentes como botões e inclua o botão "Recomeçar consulta"
 
 3. ROUTER: FATO_ESPECIFICO | step=next_action
    - Use após seleção de fato quando não há pendentes
@@ -168,33 +169,35 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
     // **CORREÇÃO CRÍTICA**: Tratamento especial para seleção de fato específico
     const fatoSelecionadoMatch = message.match(/^\s*Fato selecionado:\s*(.+)/i);
     if (fatoSelecionadoMatch) {
-      const chosenFact = fatoSelecionadoMatch[1].replace(/["""]/g, '').trim();
+      const chosenFact = fatoSelecionadoMatch[1].replace(/["”“]/g, '').trim();
       console.log('Fato específico selecionado - ETAPA 2:', chosenFact);
-      
-      // Buscar fatos pendentes diretamente na base de dados para garantir dados atualizados
-      const { data: fatosPendentes, error: fatosError } = await supabase
+
+      // Garantir que o fato selecionado esteja salvo como pendente nesta sessão (sem duplicar)
+      const normalize = (t: string) => t.toLowerCase().trim();
+      const { data: pendBefore, error: pendBeforeErr } = await supabase
         .from('therapy_facts')
-        .select('*')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
-      
-      if (fatosError) {
-        console.error('Erro ao buscar fatos pendentes:', fatosError);
+        .select('id, fact_text')
+        .eq('session_id', sessionId)
+        .eq('status', 'pending');
+      if (pendBeforeErr) console.error('Erro ao buscar pendentes (antes):', pendBeforeErr);
+
+      const alreadyExists = (pendBefore || []).some((f: any) => normalize(f.fact_text) === normalize(chosenFact));
+      if (!alreadyExists) {
+        const { error: insertErr } = await supabase
+          .from('therapy_facts')
+          .insert({ session_id: sessionId, fact_text: chosenFact, status: 'pending' });
+        if (insertErr) console.error('Erro ao inserir fato pendente:', insertErr);
       }
-      
-      console.log(`Fatos pendentes encontrados: ${fatosPendentes?.length || 0}`);
-      
-      if (fatosPendentes && fatosPendentes.length > 0) {
-        let fatosPendentesText = '\n\nVocê tem outros fatos pendentes para autocura:\n';
-        fatosPendentes.forEach((fato: any) => {
-          fatosPendentesText += `[BTN:pending_fact_${fato.id}:${fato.fact_text}]\n`;
-        });
-        fatosPendentesText += '\n[BTN:new_problem:Trabalhar novo problema]';
-        assistantReply = `ROUTER: FATO_ESPECIFICO | step=pending_facts\nPerfeito. Fato específico fixado: ${chosenFact}.${fatosPendentesText}`;
-      } else {
-        console.log('Nenhum fato pendente, mostrando opções de autocura para o fato atual');
-        assistantReply = `ROUTER: FATO_ESPECIFICO | step=next_action\nPerfeito. Fato específico fixado: ${chosenFact}.\n\nAgora escolha como deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
-      }
+
+      // Contar pendentes desta sessão
+      const { count: pendCount, error: countErr } = await supabase
+        .from('therapy_facts')
+        .select('id', { count: 'exact', head: true })
+        .eq('session_id', sessionId)
+        .eq('status', 'pending');
+      if (countErr) console.error('Erro ao contar pendentes:', countErr);
+
+      assistantReply = `ROUTER: FATO_ESPECIFICO | step=next_action\nPerfeito. Fato específico fixado: ${chosenFact}.\n\nComo deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois] [BTN:show_pending_facts:Fatos pendentes (${pendCount || 0})] [BTN:recomecar_consulta:Recomeçar consulta]`;
     } else if (message.trim().toLowerCase() === 'autocura_agora') {
       console.log('Fluxo: autocura agora');
       assistantReply = 'ROUTER: FATO_ESPECIFICO | step=sentiments_popup\nÓtimo. Vamos selecionar os sentimentos principais deste fato.\n\n[POPUP:sentimentos]';
@@ -207,10 +210,19 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
       const lastFactMsg = [...history].reverse().find((m: Message) => /^(?:Fato selecionado:)/i.test(m.content));
       const factText = lastFactMsg ? lastFactMsg.content.split(':').slice(1).join(':').trim() : 'fato específico desta sessão';
       try {
-        const { error: insertError } = await supabase
+        const { data: existing, error: existingErr } = await supabase
           .from('therapy_facts')
-          .insert({ session_id: sessionId, fact_text: factText, status: 'pending' });
-        if (insertError) console.error('Erro ao salvar fato pendente:', insertError);
+          .select('id, fact_text')
+          .eq('session_id', sessionId)
+          .eq('status', 'pending');
+        if (existingErr) console.error('Erro ao verificar duplicidade:', existingErr);
+        const exists = (existing || []).some((f: any) => normalize(f.fact_text) === normalize(factText));
+        if (!exists) {
+          const { error: insertError } = await supabase
+            .from('therapy_facts')
+            .insert({ session_id: sessionId, fact_text: factText, status: 'pending' });
+          if (insertError) console.error('Erro ao salvar fato pendente:', insertError);
+        }
       } catch (e) {
         console.error('Exceção ao salvar fato pendente:', e);
       }
