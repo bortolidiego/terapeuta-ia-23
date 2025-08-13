@@ -849,15 +849,6 @@ export const SimplifiedChat = () => {
                     >
                       <Pause className="h-3 w-3" />
                     </Button>
-                    <Button 
-                      variant="destructive" 
-                      size="sm" 
-                      onClick={cancelCurrentConsultation}
-                      className="h-8 px-2 text-xs"
-                      title="Cancelar consulta"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
                   </>
                 )}
               </div>
