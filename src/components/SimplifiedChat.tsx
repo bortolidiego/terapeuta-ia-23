@@ -701,9 +701,9 @@ export const SimplifiedChat = () => {
   };
 
   return (
-    <div className="h-dvh bg-background grid grid-rows-[auto_1fr_auto] gap-2 sm:gap-3 p-2 sm:p-3 overflow-hidden">
-      {/* Botões Fixos */}
-      <div className="flex-shrink-0">
+    <div className="h-dvh bg-background flex flex-col p-2 sm:p-3 overflow-hidden">
+      {/* Botões Fixos - Sempre visíveis */}
+      <div className="flex-shrink-0 mb-2 sm:mb-3 relative z-20">
         <div className="flex justify-end gap-2 p-3 bg-card rounded-xl border border-border shadow-sm">
           <Button 
             variant="outline" 
@@ -741,8 +741,8 @@ export const SimplifiedChat = () => {
         </div>
       </div>
 
-      {/* Área de Mensagens - Apenas scroll das mensagens */}
-      <div className="min-h-0 flex-1">
+      {/* Área de Mensagens - Scroll isolado */}
+      <div className="flex-1 min-h-0 mb-2 sm:mb-3 relative">
         <Card className="h-full bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
           <CardContent className="p-0 h-full">
             <ScrollArea className="h-full">
@@ -856,8 +856,8 @@ export const SimplifiedChat = () => {
         </Card>
       </div>
 
-      {/* Input Fixo Separado */}
-      <div className="flex-shrink-0">
+      {/* Input Fixo - Sempre visível */}
+      <div className="flex-shrink-0 relative z-10">
         <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
           <CardContent className="p-2 sm:p-3">
             <div className="flex gap-2 sm:gap-3">
