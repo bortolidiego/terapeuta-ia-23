@@ -636,8 +636,9 @@ export const SimplifiedChat = () => {
               size="sm" 
               onClick={() => setSearchDialogOpen(true)}
               className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
+              title="Pesquisar mensagens"
             >
-              <Search className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+              <Search className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Pesquisar</span>
             </Button>
             {currentConsultationId && (
