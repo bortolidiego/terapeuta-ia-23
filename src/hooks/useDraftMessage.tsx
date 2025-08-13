@@ -9,41 +9,74 @@ export const useDraftMessage = (sessionId?: string) => {
   const { user } = useAuth();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentDraftId = useRef<string | null>(null);
+  const tempSessionId = useRef<string | null>(null);
+
+  // Create temp session if none exists
+  const getOrCreateTempSession = useCallback(() => {
+    if (sessionId) return sessionId;
+    if (!tempSessionId.current) {
+      tempSessionId.current = crypto.randomUUID();
+      console.log('useDraftMessage: Created temp session:', tempSessionId.current);
+    }
+    return tempSessionId.current;
+  }, [sessionId]);
 
   // Load existing draft on mount or session change
   const loadDraft = useCallback(async () => {
-    if (!user || !sessionId) return;
+    if (!user) return;
+
+    // Try localStorage first as fallback
+    const localKey = `draft_${user.id}_${sessionId || 'temp'}`;
+    const localDraft = localStorage.getItem(localKey);
+    if (localDraft) {
+      console.log('useDraftMessage: Loaded from localStorage');
+      setDraftContent(localDraft);
+      setHasDraft(true);
+    }
+
+    const currentSessionId = getOrCreateTempSession();
+    console.log('useDraftMessage: Loading draft for session:', currentSessionId);
 
     try {
       const { data, error } = await supabase
         .from('user_drafts')
         .select('*')
         .eq('user_id', user.id)
-        .eq('session_id', sessionId)
+        .eq('session_id', currentSessionId)
         .order('updated_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading draft:', error);
+      if (error) {
+        console.error('useDraftMessage: Error loading draft:', error);
         return;
       }
 
       if (data) {
+        console.log('useDraftMessage: Loaded draft from Supabase');
         setDraftContent(data.draft_content);
         setHasDraft(true);
         currentDraftId.current = data.id;
+        // Sync with localStorage
+        localStorage.setItem(localKey, data.draft_content);
       }
     } catch (error) {
-      console.error('Error loading draft:', error);
+      console.error('useDraftMessage: Error loading draft:', error);
     }
-  }, [user, sessionId]);
+  }, [user, sessionId, getOrCreateTempSession]);
 
   // Save draft with debounce
   const saveDraft = useCallback(async (content: string) => {
-    if (!user || !sessionId || !content.trim()) return;
+    if (!user || !content.trim()) return;
 
+    const currentSessionId = getOrCreateTempSession();
+    console.log('useDraftMessage: Saving draft for session:', currentSessionId);
+    
     setIsDraftSaving(true);
+
+    // Save to localStorage immediately as fallback
+    const localKey = `draft_${user.id}_${sessionId || 'temp'}`;
+    localStorage.setItem(localKey, content);
 
     try {
       if (currentDraftId.current) {
@@ -57,13 +90,14 @@ export const useDraftMessage = (sessionId?: string) => {
           .eq('id', currentDraftId.current);
 
         if (error) throw error;
+        console.log('useDraftMessage: Updated existing draft');
       } else {
         // Create new draft
         const { data, error } = await supabase
           .from('user_drafts')
           .insert({
             user_id: user.id,
-            session_id: sessionId,
+            session_id: currentSessionId,
             draft_content: content
           })
           .select()
@@ -71,15 +105,17 @@ export const useDraftMessage = (sessionId?: string) => {
 
         if (error) throw error;
         currentDraftId.current = data.id;
+        console.log('useDraftMessage: Created new draft');
       }
 
       setHasDraft(true);
     } catch (error) {
-      console.error('Error saving draft:', error);
+      console.error('useDraftMessage: Error saving draft:', error);
+      // Keep localStorage as fallback
     } finally {
       setIsDraftSaving(false);
     }
-  }, [user, sessionId]);
+  }, [user, sessionId, getOrCreateTempSession]);
 
   // Debounced save function
   const debouncedSave = useCallback((content: string) => {
@@ -105,8 +141,15 @@ export const useDraftMessage = (sessionId?: string) => {
 
   // Clear draft
   const clearDraft = useCallback(async () => {
+    console.log('useDraftMessage: Clearing draft');
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
+    }
+
+    // Clear localStorage
+    if (user) {
+      const localKey = `draft_${user.id}_${sessionId || 'temp'}`;
+      localStorage.removeItem(localKey);
     }
 
     if (currentDraftId.current) {
@@ -115,15 +158,16 @@ export const useDraftMessage = (sessionId?: string) => {
           .from('user_drafts')
           .delete()
           .eq('id', currentDraftId.current);
+        console.log('useDraftMessage: Deleted draft from Supabase');
       } catch (error) {
-        console.error('Error clearing draft:', error);
+        console.error('useDraftMessage: Error clearing draft:', error);
       }
     }
 
     setDraftContent('');
     setHasDraft(false);
     currentDraftId.current = null;
-  }, []);
+  }, [user, sessionId]);
 
   // Load draft when sessionId changes
   useEffect(() => {

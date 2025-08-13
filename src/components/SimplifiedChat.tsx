@@ -36,6 +36,7 @@ export const SimplifiedChat = () => {
   const [pendingResponse, setPendingResponse] = useState<string>("");
   const [currentContext, setCurrentContext] = useState<string>("");
   const [currentConsultationId, setCurrentConsultationId] = useState<string | null>(null);
+  const [pendingSessionCreation, setPendingSessionCreation] = useState(false);
   const [selectedFactText, setSelectedFactText] = useState<string | null>(null);
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
@@ -194,7 +195,6 @@ export const SimplifiedChat = () => {
 
     const userMessage = actualMessage;
     setInput("");
-    clearDraft(); // Limpar rascunho após envio bem-sucedido
     setIsLoading(true);
 
     try {
@@ -289,6 +289,9 @@ export const SimplifiedChat = () => {
         buttonMessage: processedResponse.buttonMessage,
       };
       setMessages(prev => [...prev, assistantMessage]);
+      
+      // Clear draft only after successful send
+      clearDraft();
 
     } catch (error) {
       console.error("Erro ao enviar mensagem:", error);
@@ -828,8 +831,24 @@ export const SimplifiedChat = () => {
               <Input
                 value={draftContent || input}
                 onChange={(e) => {
-                  setInput(e.target.value);
-                  updateDraft(e.target.value);
+                  const value = e.target.value;
+                  console.log('SimplifiedChat: Input changed, value:', value);
+                  setInput(value);
+                  updateDraft(value);
+                  
+                  // Create session when user starts typing
+                  if (value.trim() && !currentConsultationId && !pendingSessionCreation) {
+                    console.log('SimplifiedChat: Creating session due to typing');
+                    setPendingSessionCreation(true);
+                    createNewConsultation().then((sessionId) => {
+                      if (sessionId) {
+                        setCurrentConsultationId(sessionId);
+                      }
+                      setPendingSessionCreation(false);
+                    }).catch(() => {
+                      setPendingSessionCreation(false);
+                    });
+                  }
                 }}
                 onKeyPress={handleKeyPress}
                 placeholder={hasDraft ? "Continuando seu rascunho..." : "Digite sua mensagem..."}
