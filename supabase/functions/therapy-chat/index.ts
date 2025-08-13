@@ -38,8 +38,13 @@ serve(async (req) => {
     // OTIMIZAÇÃO: Executar consultas em paralelo
     const dbStartTime = performance.now();
     const [therapistConfigResult, knowledgeResult, therapyFactsResult] = await Promise.all([
-      supabase.from('therapist_config').select('*').single(),
-      supabase.from('knowledge_base').select('*'), // Removido .eq('active', true) - coluna não existe
+      supabase.from('therapist_config').select('*').eq('is_active', true).maybeSingle(),
+      supabase
+        .from('knowledge_base')
+        .select('*')
+        .eq('is_active', true)
+        .order('priority', { ascending: false })
+        .limit(20),
       supabase.from('therapy_facts').select('*').eq('status', 'pending').order('created_at', { ascending: false })
     ]);
     
@@ -106,69 +111,25 @@ serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Construir o system prompt
-    let systemPrompt = `Você é um assistente de psicoterapia compassivo baseado em Análise de Bioenergia de Alexander Lowen. Seu objetivo principal é ajudar o usuário a processar experiências específicas através da autocura quântica.
+    // Construir o system prompt com configurações do Admin e conhecimento relevante
+    const cfgModel = (therapistConfig?.model_name && therapistConfig.model_name.trim()) || 'gpt-4.1-2025-04-14';
+    const cfgTemp = typeof therapistConfig?.temperature === 'number' ? therapistConfig.temperature : 0.7;
+    const cfgMaxTokens = typeof therapistConfig?.max_tokens === 'number' ? therapistConfig.max_tokens : 1500;
+    const mainPrompt = (therapistConfig?.main_prompt || '').trim();
 
-CONFIGURAÇÃO PERSONALIZADA:
-${therapistConfig ? `
-Nome: ${therapistConfig.name || 'Assistente'}
-Especialidade: ${therapistConfig.specialty || 'Análise de Bioenergia'}
-Abordagem: ${therapistConfig.approach || 'Terapêutica e acolhedora'}
-Estilo: ${therapistConfig.style || 'Direto e empático'}
-Personalidade: ${therapistConfig.personality || 'Compassiva e assertiva'}
-` : ''}
+    const knowledgeItems = Array.isArray(knowledge) ? knowledge : [];
+    const norm = (s: string) => (s || '').toLowerCase();
+    const haystack = norm(`${message} ${recentHistory}`);
+    const matchedKnowledge = knowledgeItems.filter((k: any) => {
+      const kws = Array.isArray(k.keywords) ? k.keywords : [];
+      return kws.some((kw: any) => haystack.includes(norm(String(kw))));
+    });
+    const selectedKnowledge = (matchedKnowledge.length ? matchedKnowledge.slice(0, 10) : knowledgeItems.slice(0, 5));
+    const knowledgeSection = selectedKnowledge.map((k: any) => `- ${k.title}: ${k.content}`).join('\n');
 
-CONHECIMENTO ESPECIALIZADO:
-${knowledge && knowledge.length > 0 ? knowledge.map(k => `
-- ${k.title}: ${k.content}
-${k.keywords ? `Palavras-chave: ${k.keywords}` : ''}
-`).join('\n') : ''}
+    console.log(`[CONFIG] Modelo=${cfgModel} Temp=${cfgTemp} MaxTokens=${cfgMaxTokens} main_prompt=${mainPrompt ? mainPrompt.length : 0} chars, knowledge(sel/total)=${selectedKnowledge.length}/${knowledgeItems.length}`);
 
-FATOS PENDENTES DE OUTRAS SESSÕES:
-${therapyFacts && therapyFacts.length > 0 ? therapyFacts.map(f => `- ${f.fact_text} (ID: ${f.id})`).join('\n') : 'Nenhum fato pendente.'}
-
-DECISÃO DO ROTEADOR (classificação semântica):
-- Intent: ${routerIntent} (confiança: ${routerConfidence.toFixed(2)})
-- Diretriz:
-  • Se FATO_ESPECIFICO: inicie ou mantenha o protocolo FATO_ESPECIFICO e ofereça 3 variações objetivas quando apropriado.
-  • Se CRISE_RISCO: priorize acolhimento e avaliação de risco, use linguagem simples e recursos de segurança.
-  • Se FOLLOW_UP: retome o tema anterior de forma objetiva antes de avançar.
-  • Se EXPLORACAO_GERAL: conduza exploração até identificar um fato concreto.
-
-PROTOCOLO DE ROTEAMENTO:
-Sempre que você identificar uma conversa sobre um problema específico, siga o protocolo ROUTER. Prefixe sua resposta com uma das opções:
-
-1. ROUTER: FATO_ESPECIFICO | step=choose_fact
-   - Use quando o usuário mencionar um problema/situação específica
-   - Ofereça 3 variações da situação como lista numerada para o usuário escolher
-
-2. ROUTER: FATO_ESPECIFICO | step=pending_facts  
-   - Use quando há fatos pendentes após seleção de fato
-   - Liste fatos pendentes como botões + opção "novo problema"
-
-3. ROUTER: FATO_ESPECIFICO | step=next_action
-   - Use após seleção de fato quando não há pendentes
-   - Ofereça: "Trabalhar sentimentos agora" ou "Autocurar depois"
-
-4. ROUTER: FATO_ESPECIFICO | step=sentiments_popup
-   - Use quando usuário escolher "trabalhar sentimentos agora"
-   - Inclua [POPUP:sentimentos] para abrir seleção
-
-5. ROUTER: POST_AUTOCURA | step=complete
-   - Use após finalização da autocura
-   - Pergunte se quer trabalhar outro problema ou encerrar
-
-DIRETRIZES ESPECÍFICAS:
-- Seja direto e eficiente
-- Foque em fatos específicos, não teorias gerais
-- Quando detectar um problema específico, entre no modo FATO_ESPECIFICO
-- Transforme qualquer lista de situações em 3 variações numeradas
-- Mantenha foco na experiência concreta do usuário
-- Use linguagem acessível e acolhedora
-
-FORMATAÇÃO DE BOTÕES:
-Use o formato: [BTN:id:texto] para criar botões interativos
-Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentimentos agora]`;
+    let systemPrompt = `${mainPrompt ? mainPrompt + '\n\n' : ''}CONHECIMENTO RELEVANTE:\n${knowledgeSection || 'Sem conhecimento relevante disponível.'}\n\nFATOS PENDENTES DE OUTRAS SESSÕES:\n${therapyFacts && therapyFacts.length > 0 ? therapyFacts.map((f: any) => `- ${f.fact_text} (ID: ${f.id})`).join('\n') : 'Nenhum fato pendente.'}\n\nDECISÃO DO ROTEADOR (classificação semântica):\n- Intent: ${routerIntent} (confiança: ${routerConfidence.toFixed(2)})\n- Diretriz:\n  • Se FATO_ESPECIFICO: inicie ou mantenha o protocolo FATO_ESPECIFICO e ofereça 3 variações objetivas quando apropriado.\n  • Se CRISE_RISCO: priorize acolhimento e avaliação de risco, use linguagem simples e recursos de segurança.\n  • Se FOLLOW_UP: retome o tema anterior de forma objetiva antes de avançar.\n  • Se EXPLORACAO_GERAL: conduza exploração até identificar um fato concreto.\n\nPROTOCOLO DE ROTEAMENTO:\nSempre que você identificar uma conversa sobre um problema específico, siga o protocolo ROUTER. Prefixe sua resposta com uma das opções:\n\n1. ROUTER: FATO_ESPECIFICO | step=choose_fact\n   - Use quando o usuário mencionar um problema/situação específica\n   - Ofereça 3 variações da situação como lista numerada para o usuário escolher\n\n2. ROUTER: FATO_ESPECIFICO | step=pending_facts  \n   - Use quando há fatos pendentes após seleção de fato\n   - Liste fatos pendentes como botões + opção "novo problema"\n\n3. ROUTER: FATO_ESPECIFICO | step=next_action\n   - Use após seleção de fato quando não há pendentes\n   - Ofereça: "Trabalhar sentimentos agora" ou "Autocurar depois"\n\n4. ROUTER: FATO_ESPECIFICO | step=sentiments_popup\n   - Use quando usuário escolher "trabalhar sentimentos agora"\n   - Inclua [POPUP:sentimentos] para abrir seleção\n\n5. ROUTER: POST_AUTOCURA | step=complete\n   - Use após finalização da autocura\n   - Pergunte se quer trabalhar outro problema ou encerrar\n\nDIRETRIZES ESPECÍFICAS:\n- Seja direto e eficiente\n- Foque em fatos específicos, não teorias gerais\n- Quando detectar um problema específico, entre no modo FATO_ESPECIFICO\n- Transforme qualquer lista de situações em 3 variações numeradas\n- Mantenha foco na experiência concreta do usuário\n- Use linguagem acessível e acolhedora\n\nFORMATAÇÃO DE BOTÕES:\nUse o formato: [BTN:id:texto] para criar botões interativos\nExemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentimentos agora]`;
 
     // OTIMIZAÇÃO: Limitar histórico para as últimas 20 mensagens
     const limitedHistory = history.slice(-20);
@@ -182,10 +143,10 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
     ];
 
     console.log(`[PERFORMANCE] Enviando para OpenAI: {
-  model: "gpt-4o-mini",
+  model: "${cfgModel}",
   messagesCount: ${messages.length} (limitado de ${history.length}),
-  temperature: 0.7,
-  max_tokens: 1500,
+  temperature: ${cfgTemp},
+  max_tokens: ${cfgMaxTokens},
   pendingFacts: ${therapyFacts?.length || 0}
 }`);
 
@@ -205,10 +166,10 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: cfgModel,
           messages: messages,
-          temperature: 0.7,
-          max_tokens: 1500, // Reduzido de 10000 para 1500
+          temperature: cfgTemp,
+          max_tokens: cfgMaxTokens,
         }),
         signal: controller.signal
       });
@@ -379,16 +340,14 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
       }
     }
 
-    // Analisar a mensagem para possíveis gatilhos de conhecimento
-    const messageWords = message.toLowerCase().split(' ');
+    // Analisar a mensagem para possíveis gatilhos de conhecimento (usando keywords)
+    const messageNorm = haystack;
     let triggeredKnowledge = '';
     
-    if (knowledge) {
-      for (const item of knowledge) {
-        const keywords = item.title.toLowerCase().split(' ');
-        const hasKeywordMatch = keywords.some(keyword => 
-          messageWords.some(word => word.includes(keyword) || keyword.includes(word))
-        );
+    if (Array.isArray(knowledgeItems)) {
+      for (const item of knowledgeItems) {
+        const kws = Array.isArray(item.keywords) ? item.keywords.map((k: any) => String(k).toLowerCase()) : [];
+        const hasKeywordMatch = kws.some((kw: string) => messageNorm.includes(kw));
         
         if (hasKeywordMatch) {
           triggeredKnowledge += `\n\n**${item.title}:**\n${item.content}`;

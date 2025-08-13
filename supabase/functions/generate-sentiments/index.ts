@@ -32,7 +32,7 @@ serve(async (req) => {
       .select('content')
       .eq('category', 'fato_especifico')
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
     if (kbError) {
       console.warn('Base de conhecimento não encontrada ou inativa; seguindo com fallback.', kbError);
