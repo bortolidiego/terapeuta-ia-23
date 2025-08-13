@@ -40,7 +40,7 @@ const App = () => (
               path="/chat/:id?" 
               element={
                 <ProtectedRoute>
-                  <div className="min-h-screen flex flex-col">
+                  <div className="h-screen flex flex-col">
                     <GlobalHeader />
                     <div className="flex-1">
                       <Chat />
