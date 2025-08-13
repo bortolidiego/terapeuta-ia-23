@@ -27,26 +27,40 @@ export const SearchDialog = ({ open, onOpenChange, consultationId }: SearchDialo
   const { toast } = useToast();
 
   const performSearch = async (query: string) => {
-    if (!query.trim() || !consultationId) {
+    if (!query.trim()) {
       setResults([]);
       return;
     }
 
     setIsSearching(true);
     try {
-      const { data, error } = await supabase
+      let searchQuery = supabase
         .from('session_messages')
         .select('id, content, role, created_at')
-        .eq('session_id', consultationId)
         .ilike('content', `%${query}%`)
         .order('created_at', { ascending: false })
         .limit(50);
+
+      // Se há uma consulta ativa, filtrar por ela; senão, buscar em todas
+      if (consultationId) {
+        searchQuery = searchQuery.eq('session_id', consultationId);
+      }
+
+      const { data, error } = await searchQuery;
 
       if (error) {
         throw error;
       }
 
       setResults(data || []);
+      
+      if (data && data.length === 0) {
+        const scope = consultationId ? "nesta conversa" : "em suas mensagens";
+        toast({
+          title: "Nenhum resultado encontrado",
+          description: `Não foram encontradas mensagens contendo "${query}" ${scope}.`,
+        });
+      }
     } catch (error) {
       console.error('Error searching messages:', error);
       toast({
@@ -124,11 +138,7 @@ export const SearchDialog = ({ open, onOpenChange, consultationId }: SearchDialo
         </div>
 
         <div className="flex-1 min-h-0">
-          {!consultationId ? (
-            <div className="flex items-center justify-center h-32 text-muted-foreground">
-              Inicie uma conversa para pesquisar mensagens
-            </div>
-          ) : searchQuery && !isSearching && results.length === 0 ? (
+          {searchQuery && !isSearching && results.length === 0 ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground">
               Nenhum resultado encontrado para "{searchQuery}"
             </div>

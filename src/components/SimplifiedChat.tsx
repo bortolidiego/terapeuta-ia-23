@@ -631,17 +631,15 @@ export const SimplifiedChat = () => {
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">Seu espaço de cura e bem-estar</p>
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            {currentConsultationId && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setSearchDialogOpen(true)}
-                className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
-              >
-                <Search className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Pesquisar</span>
-              </Button>
-            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setSearchDialogOpen(true)}
+              className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
+            >
+              <Search className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Pesquisar</span>
+            </Button>
             {currentConsultationId && (
               <Button 
                 variant="outline" 
