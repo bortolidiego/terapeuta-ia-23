@@ -50,6 +50,62 @@ serve(async (req) => {
     const knowledge = knowledgeResult.data;
     const therapyFacts = therapyFactsResult.data;
 
+    // Classificação semântica inicial (roteador)
+    const clfStartTime = performance.now();
+    const recentHistory = (history || []).slice(-6).map((h: any) => `${h.role}: ${h.content}`).join(' | ');
+    let routerIntent = 'UNKNOWN';
+    let routerConfidence = 0;
+    let routerJustification = '';
+    let factVariations: string[] = [];
+    let classificationUsage: any = null;
+
+    try {
+      const clfResp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          temperature: 0,
+          max_tokens: 200,
+          messages: [
+            { role: 'system', content: 'Você é um roteador terapêutico. Analise a mensagem e o contexto e classifique a intenção. Responda APENAS com JSON válido: {"intent":"FATO_ESPECIFICO|EXPLORACAO_GERAL|CRISE_RISCO|FOLLOW_UP","confidence":0-1,"justification":"...","fact_variations":["...","...","..."]}. Inclua fact_variations somente se intent="FATO_ESPECIFICO". Os textos devem ser curtos, concretos e em PT-BR.' },
+            { role: 'user', content: `Mensagem: ${message}\nContexto recente: ${recentHistory}` }
+          ]
+        })
+      });
+      const clfData = await clfResp.json();
+      classificationUsage = clfData?.usage || null;
+      const raw = clfData?.choices?.[0]?.message?.content || '{}';
+      const parsed = JSON.parse(raw);
+      routerIntent = String(parsed.intent || 'UNKNOWN').toUpperCase();
+      routerConfidence = Number(parsed.confidence || 0);
+      routerJustification = String(parsed.justification || '');
+      if (Array.isArray(parsed.fact_variations)) {
+        factVariations = parsed.fact_variations.filter((s: any) => typeof s === 'string').slice(0,3);
+      }
+    } catch (e) {
+      console.warn('Falha na classificação semântica, prosseguindo sem ela.', e);
+    }
+    const clfTime = performance.now() - clfStartTime;
+    console.log(`[PERFORMANCE] Classificação inicial em ${clfTime.toFixed(2)}ms -> intent=${routerIntent} conf=${routerConfidence}`);
+
+    // Se for fato específico com alta confiança, curto-circuitar com botões
+    if (routerIntent === 'FATO_ESPECIFICO' && routerConfidence >= 0.6 && !/Fato selecionado:/i.test(message) && !/^(autocura_|autocura finalizada|Selecionado fato pendente)/i.test(message.trim().toLowerCase())) {
+      const variations = factVariations.length >= 3 ? factVariations : [
+        `Eu ${message}`,
+        `Aconteceu que ${message}`,
+        `Ontem/hoje ${message}`
+      ];
+      const buttonsLine = variations.slice(0,3).map((v, i) => `[BTN:fato${i+1}:${v}]`).join(' ');
+      const quickReply = `ROUTER: FATO_ESPECIFICO | step=choose_fact\nVejo que você trouxe um fato específico. Por favor, escolha a melhor descrição do evento:\n\n${buttonsLine}`;
+      const totalTime = performance.now() - startTime;
+      console.log(`[PERFORMANCE] Resposta gerada via roteador em ${totalTime.toFixed(2)}ms`);
+      return new Response(JSON.stringify({
+        reply: quickReply,
+        usage: classificationUsage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // Construir o system prompt
     let systemPrompt = `Você é um assistente de psicoterapia compassivo baseado em Análise de Bioenergia de Alexander Lowen. Seu objetivo principal é ajudar o usuário a processar experiências específicas através da autocura quântica.
 
@@ -70,6 +126,14 @@ ${k.keywords ? `Palavras-chave: ${k.keywords}` : ''}
 
 FATOS PENDENTES DE OUTRAS SESSÕES:
 ${therapyFacts && therapyFacts.length > 0 ? therapyFacts.map(f => `- ${f.fact_text} (ID: ${f.id})`).join('\n') : 'Nenhum fato pendente.'}
+
+DECISÃO DO ROTEADOR (classificação semântica):
+- Intent: ${routerIntent} (confiança: ${routerConfidence.toFixed(2)})
+- Diretriz:
+  • Se FATO_ESPECIFICO: inicie ou mantenha o protocolo FATO_ESPECIFICO e ofereça 3 variações objetivas quando apropriado.
+  • Se CRISE_RISCO: priorize acolhimento e avaliação de risco, use linguagem simples e recursos de segurança.
+  • Se FOLLOW_UP: retome o tema anterior de forma objetiva antes de avançar.
+  • Se EXPLORACAO_GERAL: conduza exploração até identificar um fato concreto.
 
 PROTOCOLO DE ROTEAMENTO:
 Sempre que você identificar uma conversa sobre um problema específico, siga o protocolo ROUTER. Prefixe sua resposta com uma das opções:
@@ -268,21 +332,9 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
           
           assistantReply = [`ROUTER: FATO_ESPECIFICO | step=choose_fact`, preamble, '', buttonsLine].join('\n').trim();
         }
-        // MELHORADA: Detecção mais robusta de problemas específicos
-        else if (/(?:brig|conflict|discus|problem|situação|evento|dificuldade|pai|mãe|amig|trabalh|escola|casa|familia|namorad|esposa|marido|chefe|colega)/i.test(message)) {
-          console.log('Detectado problema específico no contexto, ativando modo FATO_ESPECIFICO');
-          if (!assistantReply.startsWith('ROUTER:')) {
-            // Gerar 3 variações do fato baseadas na mensagem do usuário
-            const baseFact = message.replace(/^\s*(?:oi|olá|então|bem|hoje|ontem|eu|tive|teve)\s*/i, '').trim();
-            const variations = [
-              `Ontem ${baseFact}`,
-              `Eu ${baseFact}`,
-              `Aconteceu que ${baseFact}`
-            ];
-            const buttonsLine = variations.map((v, i) => `[BTN:fato${i+1}:${v}]`).join(' ');
-            assistantReply = `ROUTER: FATO_ESPECIFICO | step=choose_fact\nVejo que você passou por uma situação específica. Vamos trabalhar com isso. Escolha a descrição que melhor representa o fato:\n\n${buttonsLine}`;
-          }
-        }
+        // Heurística de detecção baseada em palavras-chave removida em favor do roteador semântico
+        // (mantemos apenas a conversão de listas em botões como fallback)
+
       }
     }
 
