@@ -3,11 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, Bot, User, Settings, Power } from "lucide-react";
+import { Loader2, Send, Bot, User, Settings, Power, Search, Mic, Square } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import SentimentosPopup from "./SentimentosPopup";
+import { SearchDialog } from "./SearchDialog";
+import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 
 interface Message {
   id: string;
@@ -29,8 +31,18 @@ export const SimplifiedChat = () => {
   const [currentContext, setCurrentContext] = useState<string>("");
   const [currentConsultationId, setCurrentConsultationId] = useState<string | null>(null);
   const [selectedFactText, setSelectedFactText] = useState<string | null>(null);
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  const {
+    isRecording,
+    isProcessing,
+    recordingTime,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+  } = useVoiceRecording();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -588,6 +600,25 @@ export const SimplifiedChat = () => {
     }
   };
 
+  const handleStartRecording = async () => {
+    try {
+      await startRecording();
+    } catch (error) {
+      console.error('Error starting recording:', error);
+    }
+  };
+
+  const handleStopRecording = async () => {
+    try {
+      const transcribedText = await stopRecording();
+      if (transcribedText.trim()) {
+        setInput(transcribedText);
+      }
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+    }
+  };
+
   return (
     <div className="h-dvh bg-background grid grid-rows-[auto_1fr_auto] gap-2 sm:gap-3 p-2 sm:p-3 overflow-hidden">
       {/* Header Fixo */}
@@ -600,6 +631,17 @@ export const SimplifiedChat = () => {
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">Seu espaço de cura e bem-estar</p>
           </div>
           <div className="flex gap-2 flex-shrink-0">
+            {currentConsultationId && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setSearchDialogOpen(true)}
+                className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
+              >
+                <Search className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Pesquisar</span>
+              </Button>
+            )}
             {currentConsultationId && (
               <Button 
                 variant="outline" 
@@ -746,18 +788,49 @@ export const SimplifiedChat = () => {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Digite sua mensagem..."
-                disabled={isLoading}
+                disabled={isLoading || isRecording || isProcessing}
                 className="flex-1 border-primary/30 focus:border-primary h-10 sm:h-11 text-sm"
               />
+              
+              {/* Botão do Microfone */}
+              <Button 
+                onClick={isRecording ? handleStopRecording : handleStartRecording}
+                disabled={isLoading || isProcessing}
+                variant={isRecording ? "destructive" : "outline"}
+                size="icon"
+                className="h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
+              >
+                {isRecording ? (
+                  <Square className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </Button>
+              
               <Button 
                 onClick={() => sendMessage()} 
-                disabled={isLoading || !input.trim()}
+                disabled={isLoading || !input.trim() || isRecording || isProcessing}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
                 size="icon"
               >
                 <Send className="h-4 w-4" />
               </Button>
             </div>
+            
+            {/* Indicador de gravação */}
+            {isRecording && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-destructive">
+                <div className="w-2 h-2 bg-destructive rounded-full animate-pulse"></div>
+                Gravando... {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
+              </div>
+            )}
+            
+            {isProcessing && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-primary">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                Processando áudio...
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -767,6 +840,12 @@ export const SimplifiedChat = () => {
         onClose={() => setShowSentimentosPopup(false)}
         onConfirm={handleSentimentosConfirm}
         context={currentContext}
+      />
+      
+      <SearchDialog
+        open={searchDialogOpen}
+        onOpenChange={setSearchDialogOpen}
+        consultationId={currentConsultationId}
       />
     </div>
   );
