@@ -37,16 +37,22 @@ serve(async (req) => {
 
     // OTIMIZAÇÃO: Executar consultas em paralelo
     const dbStartTime = performance.now();
-    const [therapistConfigResult, knowledgeResult, therapyFactsResult] = await Promise.all([
-      supabase.from('therapist_config').select('*').eq('is_active', true).maybeSingle(),
-      supabase
-        .from('knowledge_base')
-        .select('*')
-        .eq('is_active', true)
-        .order('priority', { ascending: false })
-        .limit(20),
-      supabase.from('therapy_facts').select('*').eq('status', 'pending').order('created_at', { ascending: false })
-    ]);
+      const [therapistConfigResult, knowledgeResult, therapyFactsResult] = await Promise.all([
+        supabase.from('therapist_config').select('*').eq('is_active', true).maybeSingle(),
+        supabase
+          .from('knowledge_base')
+          .select('*')
+          .eq('is_active', true)
+          .order('priority', { ascending: false })
+          .limit(20),
+        supabase
+          .from('therapy_facts')
+          .select('*')
+          .eq('status', 'pending')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: false })
+      ]);
+
     
     const dbTime = performance.now() - dbStartTime;
     console.log(`[PERFORMANCE] Consultas DB completadas em ${dbTime.toFixed(2)}ms`);
@@ -229,7 +235,9 @@ serve(async (req) => {
         .from('therapy_facts')
         .select('*')
         .eq('status', 'pending')
+        .eq('session_id', sessionId)
         .order('created_at', { ascending: false });
+
       
       if (fatosError) {
         console.error('Erro ao buscar fatos pendentes:', fatosError);
@@ -248,6 +256,24 @@ serve(async (req) => {
         console.log('Nenhum fato pendente, mostrando opções de autocura para o fato atual');
         assistantReply = `ROUTER: FATO_ESPECIFICO | step=next_action\nPerfeito. Fato específico fixado: ${chosenFact}.\n\nAgora escolha como deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
       }
+    } else if (/^Selecionado fato pendente ID:\s*([0-9a-fA-F-]+)/i.test(message.trim())) {
+      const idMatch = message.trim().match(/^Selecionado fato pendente ID:\s*([0-9a-fA-F-]+)/i);
+      const pendingId = idMatch ? idMatch[1] : '';
+      console.log('Fluxo: seleção de fato pendente', pendingId);
+      let chosenFactText = '';
+      try {
+        const { data: factRow, error: factError } = await supabase
+          .from('therapy_facts')
+          .select('*')
+          .eq('id', pendingId)
+          .eq('session_id', sessionId)
+          .maybeSingle();
+        if (factError) console.error('Erro ao buscar fato pendente por ID:', factError);
+        chosenFactText = factRow?.fact_text || '';
+      } catch (e) {
+        console.error('Exceção ao buscar fato pendente por ID:', e);
+      }
+      assistantReply = `ROUTER: FATO_ESPECIFICO | step=next_action\nPerfeito. Fato específico fixado: ${chosenFactText || 'fato desta sessão'}.\n\nAgora escolha como deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois]`;
     } else if (message.trim().toLowerCase() === 'autocura_agora') {
       console.log('Fluxo: autocura agora');
       assistantReply = 'ROUTER: FATO_ESPECIFICO | step=sentiments_popup\nÓtimo. Vamos selecionar os sentimentos principais deste fato.\n\n[POPUP:sentimentos]';
