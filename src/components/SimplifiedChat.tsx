@@ -701,49 +701,51 @@ export const SimplifiedChat = () => {
   };
 
   return (
-    <div className="h-dvh bg-background grid grid-rows-[1fr_auto] gap-2 sm:gap-3 p-2 sm:p-3 overflow-hidden">
-      {/* Área de Mensagens - Ocupa todo o espaço */}
+    <div className="h-dvh bg-background grid grid-rows-[auto_1fr_auto] gap-2 sm:gap-3 p-2 sm:p-3 overflow-hidden">
+      {/* Botões Fixos */}
+      <div className="flex-shrink-0">
+        <div className="flex justify-end gap-2 p-3 bg-card rounded-xl border border-border shadow-sm">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setNotesDialogOpen(true)}
+            className="border-primary/30 text-primary hover:bg-primary/10"
+            title="Minhas anotações"
+          >
+            <NotebookPen className="h-4 w-4" />
+          </Button>
+          {currentConsultationId && (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={pauseCurrentConsultation}
+                className="border-primary/30 text-primary hover:bg-primary/10"
+                title="Pausar consulta"
+              >
+                <Pause className="h-4 w-4" />
+                <span className="sr-only">Pausar Consulta</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={cancelCurrentConsultation}
+                className="border-primary/30 text-primary hover:bg-primary/10"
+                title="Cancelar consulta"
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Cancelar Consulta</span>
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Área de Mensagens - Apenas scroll das mensagens */}
       <div className="min-h-0 flex-1">
         <Card className="h-full bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
           <CardContent className="p-0 h-full">
             <ScrollArea className="h-full">
-              {/* Botões no topo da área de mensagens */}
-              <div className="flex justify-end gap-2 p-3 border-b bg-card/50 sticky top-0 z-10">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setNotesDialogOpen(true)}
-                  className="border-primary/30 text-primary hover:bg-primary/10"
-                  title="Minhas anotações"
-                >
-                  <NotebookPen className="h-4 w-4" />
-                </Button>
-                {currentConsultationId && (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={pauseCurrentConsultation}
-                      className="border-primary/30 text-primary hover:bg-primary/10"
-                      title="Pausar consulta"
-                    >
-                      <Pause className="h-4 w-4" />
-                      <span className="sr-only">Pausar Consulta</span>
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={cancelCurrentConsultation}
-                      className="border-primary/30 text-primary hover:bg-primary/10"
-                      title="Cancelar consulta"
-                    >
-                      <X className="h-4 w-4" />
-                      <span className="sr-only">Cancelar Consulta</span>
-                    </Button>
-                  </>
-                )}
-              </div>
-              
               <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">
                 {messages.length === 0 && (
                   <div className="text-center text-muted-foreground py-4 sm:py-6">
