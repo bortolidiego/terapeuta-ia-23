@@ -445,6 +445,25 @@ export const TherapyChat = () => {
       return;
     }
 
+    // Botões de fatos pendentes
+    if (buttonId.startsWith('pending_fact_')) {
+      const factId = buttonId.replace('pending_fact_', '');
+      await sendMessage(`Selecionado fato pendente ID: ${factId}`);
+      return;
+    }
+
+    // Listar fatos pendentes
+    if (buttonId === 'show_pending_facts') {
+      await sendMessage('show_pending_facts');
+      return;
+    }
+
+    // Recomeçar consulta
+    if (buttonId === 'recomecar_consulta') {
+      await endCurrentSession();
+      return;
+    }
+
     // Qualquer outro botão: enviar ID para o backend
     await sendMessage(buttonId);
   };

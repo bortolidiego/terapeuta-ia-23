@@ -492,7 +492,19 @@ export const SimplifiedChat = () => {
       return;
     }
 
-    // Botão de novo problema
+    // Listar fatos pendentes
+    if (buttonId === 'show_pending_facts') {
+      await sendMessage('show_pending_facts');
+      return;
+    }
+
+    // Recomeçar consulta
+    if (buttonId === 'recomecar_consulta') {
+      await endCurrentConsultation();
+      return;
+    }
+
+    // Botão de novo problema (legado)
     if (buttonId === 'new_problem') {
       await sendMessage('Quero trabalhar um novo problema');
       return;
