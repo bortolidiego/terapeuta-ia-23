@@ -402,6 +402,10 @@ export type Database = {
         Args: { session_uuid: string }
         Returns: boolean
       }
+      pause_consultation: {
+        Args: { consultation_uuid: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "user"

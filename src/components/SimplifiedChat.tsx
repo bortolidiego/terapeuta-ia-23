@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, Bot, User, Settings, Power, Search, Mic, Square, NotebookPen, Pause, Play } from "lucide-react";
+import { Loader2, Send, Bot, User, Settings, X, Search, Mic, Square, NotebookPen, Pause, Play } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,7 +74,15 @@ export const SimplifiedChat = () => {
   }, [messages]);
 
   useEffect(() => {
-    loadAllMessages();
+    const urlPath = window.location.pathname;
+    const sessionIdFromUrl = urlPath.split('/chat/')[1];
+    
+    if (sessionIdFromUrl) {
+      setCurrentConsultationId(sessionIdFromUrl);
+      loadSessionMessages(sessionIdFromUrl);
+    } else {
+      loadAllMessages();
+    }
   }, []);
 
   const loadAllMessages = async () => {
@@ -96,6 +104,29 @@ export const SimplifiedChat = () => {
       setMessages(typedMessages);
     } catch (error) {
       console.error("Erro ao carregar mensagens:", error);
+    }
+  };
+
+  const loadSessionMessages = async (sessionId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("session_messages")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      
+      const typedMessages = (data || []).map(msg => ({
+        id: msg.id,
+        role: msg.role as "user" | "assistant" | "consultation_end",
+        content: msg.content,
+        created_at: msg.created_at,
+        metadata: (msg as any).metadata
+      }));
+      setMessages(typedMessages);
+    } catch (error) {
+      console.error("Erro ao carregar mensagens da sessão:", error);
     }
   };
 
@@ -141,40 +172,65 @@ export const SimplifiedChat = () => {
     }
   };
 
-  const endCurrentConsultation = async () => {
+  const pauseCurrentConsultation = async () => {
     if (!currentConsultationId) return;
 
     try {
-      // Inserir marcador de fim de consulta
-      const consultationEndMessage = {
-        session_id: currentConsultationId,
-        role: "assistant",
-        content: `Consulta encerrada em ${new Date().toLocaleString()}`,
-        metadata: { type: "consultation_end" }
-      } as const;
-
-      const { error } = await supabase
-        .from("session_messages")
-        .insert(consultationEndMessage);
+      const { error } = await supabase.rpc('pause_consultation', {
+        consultation_uuid: currentConsultationId
+      });
 
       if (error) throw error;
 
-      // Atualizar estado local
-      const newEndMessage: Message = {
-        id: Date.now().toString(),
-        role: "consultation_end",
-        content: consultationEndMessage.content,
-        created_at: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, newEndMessage]);
+      setCurrentConsultationId(null);
+      setMessages([]);
+      
+      toast({
+        title: "Consulta pausada",
+        description: "Você pode retomá-la na tela inicial.",
+      });
+
+      // Navigate to landing page
+      window.location.href = '/';
+    } catch (error) {
+      console.error("Erro ao pausar consulta:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível pausar a consulta.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const cancelCurrentConsultation = async () => {
+    if (!currentConsultationId) return;
+
+    try {
+      // Update consultation status to ended
+      const { error } = await supabase
+        .from("therapy_sessions")
+        .update({ status: "ended" })
+        .eq("id", currentConsultationId);
+
+      if (error) throw error;
 
       setCurrentConsultationId(null);
+      setMessages([]);
+      
       toast({
-        title: "Consulta encerrada",
-        description: "Uma nova consulta será iniciada na próxima mensagem.",
+        title: "Consulta cancelada",
+        description: "A consulta foi encerrada definitivamente.",
       });
+
+      // Navigate to landing page
+      window.location.href = '/';
     } catch (error) {
-      console.error("Erro ao encerrar consulta:", error);
+      console.error("Erro ao cancelar consulta:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível cancelar a consulta.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -512,7 +568,7 @@ export const SimplifiedChat = () => {
     
     // Botão de encerrar consulta
     if (buttonId === 'encerrar') {
-      await endCurrentConsultation();
+      await cancelCurrentConsultation();
       return;
     }
     
@@ -537,7 +593,7 @@ export const SimplifiedChat = () => {
 
     // Recomeçar consulta
     if (buttonId === 'recomecar_consulta') {
-      await endCurrentConsultation();
+      await cancelCurrentConsultation();
       return;
     }
 
@@ -675,15 +731,28 @@ export const SimplifiedChat = () => {
                 <NotebookPen className="h-4 w-4" />
               </Button>
             {currentConsultationId && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={endCurrentConsultation}
-                className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
-              >
-                <Power className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Encerrar Sessão</span>
-              </Button>
+              <>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={pauseCurrentConsultation}
+                  className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
+                  title="Pausar consulta"
+                >
+                  <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="sr-only">Pausar Consulta</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={cancelCurrentConsultation}
+                  className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
+                  title="Cancelar consulta"
+                >
+                  <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="sr-only">Cancelar Consulta</span>
+                </Button>
+              </>
             )}
             <Link to="/admin">
               <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm">

@@ -1,4 +1,4 @@
-import { SimplifiedChat } from "@/components/SimplifiedChat";
+import { LandingPage } from "@/components/LandingPage";
 import UserHeader from "@/components/UserHeader";
 
 const Index = () => {
@@ -6,7 +6,7 @@ const Index = () => {
     <div className="min-h-screen flex flex-col">
       <UserHeader />
       <div className="flex-1">
-        <SimplifiedChat />
+        <LandingPage />
       </div>
     </div>
   );
