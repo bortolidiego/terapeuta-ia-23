@@ -217,6 +217,66 @@ export type Database = {
         }
         Relationships: []
       }
+      user_audio_drafts: {
+        Row: {
+          audio_duration: number | null
+          audio_path: string
+          audio_size: number | null
+          created_at: string
+          id: string
+          mime_type: string | null
+          session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          audio_duration?: number | null
+          audio_path: string
+          audio_size?: number | null
+          created_at?: string
+          id?: string
+          mime_type?: string | null
+          session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          audio_duration?: number | null
+          audio_path?: string
+          audio_size?: number | null
+          created_at?: string
+          id?: string
+          mime_type?: string | null
+          session_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_drafts: {
+        Row: {
+          created_at: string
+          draft_content: string
+          id: string
+          session_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          draft_content: string
+          id?: string
+          session_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          draft_content?: string
+          id?: string
+          session_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_notes: {
         Row: {
           content: string

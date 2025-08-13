@@ -1,11 +1,13 @@
 import { useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { useAudioDraft } from './useAudioDraft';
 
-export const useVoiceRecording = () => {
+export const useVoiceRecording = (sessionId?: string) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -13,6 +15,7 @@ export const useVoiceRecording = () => {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const { toast } = useToast();
+  const { saveAudioDraft } = useAudioDraft(sessionId);
 
   const startRecording = useCallback(async () => {
     try {
@@ -159,12 +162,51 @@ export const useVoiceRecording = () => {
     }
   }, [isRecording]);
 
+  const pauseRecording = useCallback(async () => {
+    if (!mediaRecorderRef.current || !isRecording || isPaused) return;
+
+    setIsPaused(true);
+    setIsProcessing(true);
+
+    try {
+      // Create audio blob from current chunks
+      const audioBlob = new Blob(audioChunksRef.current, { 
+        type: 'audio/webm;codecs=opus' 
+      });
+
+      // Save as draft
+      await saveAudioDraft(audioBlob, recordingTime);
+      
+      toast({
+        title: 'Gravação pausada',
+        description: 'Áudio salvo como rascunho. Você pode continuar ou enviar depois.',
+      });
+    } catch (error) {
+      console.error('Error saving audio draft:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível salvar o rascunho.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [isRecording, isPaused, recordingTime, saveAudioDraft, toast]);
+
+  const resumeRecording = useCallback(() => {
+    if (!isPaused) return;
+    setIsPaused(false);
+  }, [isPaused]);
+
   return {
     isRecording,
     isProcessing,
     recordingTime,
+    isPaused,
     startRecording,
     stopRecording,
     cancelRecording,
+    pauseRecording,
+    resumeRecording,
   };
 };

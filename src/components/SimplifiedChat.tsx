@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, Bot, User, Settings, Power, Search, Mic, Square, NotebookPen } from "lucide-react";
+import { Loader2, Send, Bot, User, Settings, Power, Search, Mic, Square, NotebookPen, FileText, Pause, Play } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +12,9 @@ import SentimentosPopup from "./SentimentosPopup";
 import { SearchDialog } from "./SearchDialog";
 import { NotesDialog } from "./NotesDialog";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
+import { useDraftMessage } from "@/hooks/useDraftMessage";
+import { useAudioDraft } from "@/hooks/useAudioDraft";
+import { DraftsDialog } from "./DraftsDialog";
 
 interface Message {
   id: string;
@@ -28,6 +32,7 @@ export const SimplifiedChat = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showSentimentosPopup, setShowSentimentosPopup] = useState(false);
+  const [showDraftsDialog, setShowDraftsDialog] = useState(false);
   const [pendingResponse, setPendingResponse] = useState<string>("");
   const [currentContext, setCurrentContext] = useState<string>("");
   const [currentConsultationId, setCurrentConsultationId] = useState<string | null>(null);
@@ -41,10 +46,23 @@ export const SimplifiedChat = () => {
     isRecording,
     isProcessing,
     recordingTime,
+    isPaused,
     startRecording,
     stopRecording,
     cancelRecording,
-  } = useVoiceRecording();
+    pauseRecording,
+    resumeRecording,
+  } = useVoiceRecording(currentConsultationId);
+
+  const {
+    draftContent,
+    isDraftSaving,
+    hasDraft,
+    updateDraft,
+    clearDraft,
+  } = useDraftMessage(currentConsultationId);
+
+  const { audioDrafts } = useAudioDraft(currentConsultationId);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -162,7 +180,7 @@ export const SimplifiedChat = () => {
   const sendMessage = async (messageText?: string) => {
     console.log('sendMessage: Iniciando envio de mensagem');
     console.log('currentConsultationId:', currentConsultationId);
-    const actualMessage = messageText || input;
+    const actualMessage = messageText || draftContent || input;
     if (!actualMessage.trim()) return;
 
     // Se não há consulta ativa, criar uma nova
@@ -176,6 +194,7 @@ export const SimplifiedChat = () => {
 
     const userMessage = actualMessage;
     setInput("");
+    clearDraft(); // Limpar rascunho após envio bem-sucedido
     setIsLoading(true);
 
     try {
@@ -642,15 +661,29 @@ export const SimplifiedChat = () => {
             >
               <Search className="h-4 w-4" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setNotesDialogOpen(true)}
-              className="border-primary/30 text-primary hover:bg-primary/10"
-              title="Minhas anotações"
-            >
-              <NotebookPen className="h-4 w-4" />
-            </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setNotesDialogOpen(true)}
+                className="border-primary/30 text-primary hover:bg-primary/10"
+                title="Minhas anotações"
+              >
+                <NotebookPen className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowDraftsDialog(true)}
+                className="border-primary/30 text-primary hover:bg-primary/10"
+                title="Rascunhos salvos"
+              >
+                <FileText className="h-4 w-4" />
+                {(hasDraft || audioDrafts.length > 0) && (
+                  <Badge variant="secondary" className="ml-1 h-4 w-4 p-0 text-xs">
+                    {(hasDraft ? 1 : 0) + audioDrafts.length}
+                  </Badge>
+                )}
+              </Button>
             {currentConsultationId && (
               <Button 
                 variant="outline" 
@@ -793,15 +826,44 @@ export const SimplifiedChat = () => {
           <CardContent className="p-2 sm:p-3">
             <div className="flex gap-2 sm:gap-3">
               <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
+                value={draftContent || input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  updateDraft(e.target.value);
+                }}
                 onKeyPress={handleKeyPress}
-                placeholder="Digite sua mensagem..."
+                placeholder={hasDraft ? "Continuando seu rascunho..." : "Digite sua mensagem..."}
                 disabled={isLoading || isRecording || isProcessing}
                 className="flex-1 border-primary/30 focus:border-primary h-10 sm:h-11 text-sm"
               />
               
-              {/* Botão do Microfone */}
+              {/* Botões de Áudio */}
+              {isRecording && !isPaused && (
+                <Button 
+                  onClick={pauseRecording}
+                  disabled={isLoading || isProcessing}
+                  variant="outline"
+                  size="icon"
+                  className="h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
+                  title="Pausar e salvar como rascunho"
+                >
+                  <Pause className="h-4 w-4" />
+                </Button>
+              )}
+              
+              {isPaused && (
+                <Button 
+                  onClick={resumeRecording}
+                  disabled={isLoading || isProcessing}
+                  variant="outline"
+                  size="icon"
+                  className="h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
+                  title="Continuar gravação"
+                >
+                  <Play className="h-4 w-4" />
+                </Button>
+              )}
+              
               <Button 
                 onClick={isRecording ? handleStopRecording : handleStartRecording}
                 disabled={isLoading || isProcessing}
@@ -818,7 +880,7 @@ export const SimplifiedChat = () => {
               
               <Button 
                 onClick={() => sendMessage()} 
-                disabled={isLoading || !input.trim() || isRecording || isProcessing}
+                disabled={isLoading || !(draftContent || input).trim() || (isRecording && !isPaused) || isProcessing}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
                 size="icon"
               >
@@ -826,11 +888,18 @@ export const SimplifiedChat = () => {
               </Button>
             </div>
             
-            {/* Indicador de gravação */}
-            {isRecording && (
+            {/* Indicadores de estado */}
+            {isRecording && !isPaused && (
               <div className="mt-2 flex items-center gap-2 text-sm text-destructive">
                 <div className="w-2 h-2 bg-destructive rounded-full animate-pulse"></div>
                 Gravando... {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
+              </div>
+            )}
+            
+            {isPaused && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-amber-600">
+                <div className="w-2 h-2 bg-amber-600 rounded-full"></div>
+                Gravação pausada - salva como rascunho
               </div>
             )}
             
@@ -838,6 +907,20 @@ export const SimplifiedChat = () => {
               <div className="mt-2 flex items-center gap-2 text-sm text-primary">
                 <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
                 Processando áudio...
+              </div>
+            )}
+            
+            {isDraftSaving && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-primary">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                Salvando rascunho...
+              </div>
+            )}
+            
+            {hasDraft && !isDraftSaving && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+                <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+                Rascunho salvo automaticamente
               </div>
             )}
           </CardContent>
@@ -874,6 +957,21 @@ export const SimplifiedChat = () => {
         <NotesDialog 
           open={notesDialogOpen} 
           onOpenChange={setNotesDialogOpen}
+        />
+
+        <DraftsDialog
+          open={showDraftsDialog}
+          onOpenChange={setShowDraftsDialog}
+          sessionId={currentConsultationId}
+          textDraft={draftContent}
+          onRestoreTextDraft={() => {
+            setInput(draftContent);
+            setShowDraftsDialog(false);
+          }}
+          onClearTextDraft={() => {
+            clearDraft();
+            setShowDraftsDialog(false);
+          }}
         />
     </div>
   );
