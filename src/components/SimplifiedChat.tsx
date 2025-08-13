@@ -635,11 +635,10 @@ export const SimplifiedChat = () => {
               variant="outline" 
               size="sm" 
               onClick={() => setSearchDialogOpen(true)}
-              className="border-primary/30 text-primary hover:bg-primary/10 text-xs sm:text-sm"
+              className="border-primary/30 text-primary hover:bg-primary/10"
               title="Pesquisar mensagens"
             >
-              <Search className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Pesquisar</span>
+              <Search className="h-4 w-4" />
             </Button>
             {currentConsultationId && (
               <Button 
@@ -841,11 +840,25 @@ export const SimplifiedChat = () => {
         context={currentContext}
       />
       
-      <SearchDialog
-        open={searchDialogOpen}
-        onOpenChange={setSearchDialogOpen}
-        consultationId={currentConsultationId}
-      />
+        <SearchDialog 
+          open={searchDialogOpen} 
+          onOpenChange={setSearchDialogOpen}
+          consultationId={currentConsultationId}
+          onResultClick={(messageId) => {
+            setSearchDialogOpen(false);
+            // Scroll to message and highlight it
+            setTimeout(() => {
+              const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+              if (messageElement) {
+                messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                messageElement.classList.add('bg-primary/10', 'border-primary/30');
+                setTimeout(() => {
+                  messageElement.classList.remove('bg-primary/10', 'border-primary/30');
+                }, 2000);
+              }
+            }, 100);
+          }}
+        />
     </div>
   );
 };

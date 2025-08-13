@@ -18,9 +18,10 @@ interface SearchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   consultationId?: string;
+  onResultClick?: (messageId: string) => void;
 }
 
-export const SearchDialog = ({ open, onOpenChange, consultationId }: SearchDialogProps) => {
+export const SearchDialog = ({ open, onOpenChange, consultationId, onResultClick }: SearchDialogProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -158,6 +159,7 @@ export const SearchDialog = ({ open, onOpenChange, consultationId }: SearchDialo
                     <div
                       key={result.id}
                       className="p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
+                      onClick={() => onResultClick?.(result.id)}
                     >
                       <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
                         <span className="font-medium">
