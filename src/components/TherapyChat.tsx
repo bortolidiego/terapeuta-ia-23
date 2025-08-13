@@ -198,13 +198,8 @@ export const TherapyChat = () => {
 
       if (apiError) throw apiError;
 
-      // Verificar se é comando de popup de sentimentos (com guardrail)
-      const routerHeaderMatch = response.reply.match(/^\s*ROUTER:\s*([A-Z_]+)(?:\s*\|\s*step=([a-z0-9_:-]+))?/i);
-      const routerStep = routerHeaderMatch ? (routerHeaderMatch[2] || '') : '';
-      const isAutocuraAgora = userMessage.trim().toLowerCase() === 'autocura_agora';
-      const isReopenPopup = /preciso que você escolha pelo menos 40/i.test(response.reply);
-
-      if (response.reply.includes('[POPUP:sentimentos]') && (routerStep === 'sentiments_popup' || isAutocuraAgora || isReopenPopup)) {
+      // Verificar se é comando de popup de sentimentos
+      if (response.reply.includes('[POPUP:sentimentos]')) {
         setPendingResponse(response.reply.replace('[POPUP:sentimentos]', '').trim());
         
         // Extrair contexto das últimas 3 mensagens do usuário

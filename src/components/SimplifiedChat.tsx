@@ -185,28 +185,22 @@ export const SimplifiedChat = () => {
       };
       setMessages(prev => [...prev, newUserMessage]);
 
-      // Chamar edge function com histórico ATUALIZADO incluindo a mensagem atual
-      const updatedHistory = [...messages, newUserMessage].filter(m => m.role !== "consultation_end" && m.metadata?.type !== 'consultation_end');
+      // Chamar edge function
       const { data: response, error: apiError } = await supabase.functions.invoke(
         "therapy-chat",
         {
           body: {
             message: userMessage,
             sessionId: consultationId,
-            history: updatedHistory,
+            history: messages.filter(m => m.role !== "consultation_end" && m.metadata?.type !== 'consultation_end'),
           },
         }
       );
 
       if (apiError) throw apiError;
 
-      // Verificar se é comando de popup de sentimentos (com guardrail)
-      const routerHeaderMatch = response.reply.match(/^\s*ROUTER:\s*([A-Z_]+)(?:\s*\|\s*step=([a-z0-9_:-]+))?/i);
-      const routerStep = routerHeaderMatch ? (routerHeaderMatch[2] || '') : '';
-      const isAutocuraAgora = userMessage.trim().toLowerCase() === 'autocura_agora';
-      const isReopenPopup = /preciso que você escolha pelo menos 40/i.test(response.reply);
-
-      if (response.reply.includes('[POPUP:sentimentos]') && (routerStep === 'sentiments_popup' || isAutocuraAgora || isReopenPopup)) {
+      // Verificar se é comando de popup de sentimentos
+      if (response.reply.includes('[POPUP:sentimentos]')) {
         setPendingResponse(response.reply.replace('[POPUP:sentimentos]', '').trim());
         
         // Extrair contexto das últimas 3 mensagens do usuário
