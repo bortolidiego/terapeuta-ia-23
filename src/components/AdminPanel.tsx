@@ -288,18 +288,43 @@ export const AdminPanel = () => {
                       onChange={e => setConfig({ ...config, model_name: e.target.value })}
                       className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <option value="gpt-4.1-2025-04-14">GPT-4.1 (2025) - Mais Recente ⭐</option>
-                      <option value="gpt-4o-mini">GPT-4o Mini - Rápido e Econômico</option>
-                      <option value="gpt-4o">GPT-4o - Poderoso (Caro)</option>
-                      <option value="o3-2025-04-16">O3 - Raciocínio Avançado</option>
-                      <option value="o4-mini-2025-04-16">O4 Mini - Raciocínio Rápido</option>
+                      <optgroup label="🚀 GPT-5 Series (Mais Novos)">
+                        <option value="gpt-5-2025-08-07">GPT-5 - Flagship ⭐⭐⭐</option>
+                        <option value="gpt-5-mini-2025-08-07">GPT-5 Mini - Eficiente</option>
+                        <option value="gpt-5-nano-2025-08-07">GPT-5 Nano - Ultra Rápido</option>
+                      </optgroup>
+                      <optgroup label="🧠 Reasoning Models (O3 Series)">
+                        <option value="o3-2025-04-16">O3 - Raciocínio Avançado</option>
+                        <option value="o3-mini-2025-04-16">O3 Mini - Raciocínio Compacto</option>
+                        <option value="o4-mini-2025-04-16">O4 Mini - Raciocínio Rápido</option>
+                      </optgroup>
+                      <optgroup label="📝 GPT-4 Series (Estáveis)">
+                        <option value="gpt-4.1-2025-04-14">GPT-4.1 (2025) - Confiável</option>
+                        <option value="gpt-4.1-mini-2025-04-14">GPT-4.1 Mini - Rápido</option>
+                      </optgroup>
+                      <optgroup label="🔧 Legacy Models">
+                        <option value="gpt-4o-mini">GPT-4o Mini (Legacy)</option>
+                        <option value="gpt-4o">GPT-4o (Legacy - Caro)</option>
+                      </optgroup>
                     </select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {config.model_name === 'gpt-4.1-2025-04-14' && 'Modelo flagship mais recente da OpenAI'}
-                      {config.model_name === 'gpt-4o-mini' && 'Ótima relação custo-benefício, rápido'}
-                      {config.model_name === 'gpt-4o' && 'Modelo anterior, mais caro'}
-                      {config.model_name === 'o3-2025-04-16' && 'Excelente para problemas complexos'}
-                      {config.model_name === 'o4-mini-2025-04-16' && 'Raciocínio eficiente'}
+                      {/* GPT-5 Series */}
+                      {config.model_name === 'gpt-5-2025-08-07' && '🚀 Modelo mais avançado da OpenAI com raciocínio integrado'}
+                      {config.model_name === 'gpt-5-mini-2025-08-07' && '⚡ GPT-5 otimizado para eficiência e velocidade'}
+                      {config.model_name === 'gpt-5-nano-2025-08-07' && '🏃 Versão ultra-rápida do GPT-5 para tarefas simples'}
+                      
+                      {/* O3 Series */}
+                      {config.model_name === 'o3-2025-04-16' && '🧠 Raciocínio avançado para problemas complexos'}
+                      {config.model_name === 'o3-mini-2025-04-16' && '🔬 Raciocínio compacto e eficiente'}
+                      {config.model_name === 'o4-mini-2025-04-16' && '⚡ Raciocínio rápido para análises'}
+                      
+                      {/* GPT-4 Series */}
+                      {config.model_name === 'gpt-4.1-2025-04-14' && '📝 Modelo confiável e estável'}
+                      {config.model_name === 'gpt-4.1-mini-2025-04-14' && '⚡ Versão rápida do GPT-4.1'}
+                      
+                      {/* Legacy */}
+                      {config.model_name === 'gpt-4o-mini' && '🔧 Modelo legacy - boa relação custo-benefício'}
+                      {config.model_name === 'gpt-4o' && '🔧 Modelo legacy - mais caro, considere upgrade'}
                     </p>
                   </div>
 
