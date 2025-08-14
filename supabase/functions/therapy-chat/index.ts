@@ -89,18 +89,32 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
 }`);
 
     // Fazer chamada para OpenAI
+    const modelName = therapistConfig?.model_name || 'gpt-4o-mini';
+    
+    // Detectar se é um modelo novo (GPT-5, O3, O4) que precisa de parâmetros diferentes
+    const isNewModel = modelName.includes('gpt-5') || modelName.includes('o3-') || modelName.includes('o4-');
+    
+    let requestBody: any = {
+      model: modelName,
+      messages: messages,
+    };
+
+    if (isNewModel) {
+      // Modelos novos: usar max_completion_tokens e não incluir temperature
+      requestBody.max_completion_tokens = therapistConfig?.max_tokens || 1000;
+    } else {
+      // Modelos legacy: usar max_tokens e temperature
+      requestBody.max_tokens = therapistConfig?.max_tokens || 1000;
+      requestBody.temperature = therapistConfig?.temperature || 0.7;
+    }
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: therapistConfig?.model_name || 'gpt-4o-mini',
-        messages: messages,
-        temperature: therapistConfig?.temperature || 0.7,
-        max_tokens: therapistConfig?.max_tokens || 1000,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
