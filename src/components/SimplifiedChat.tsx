@@ -292,14 +292,17 @@ export const SimplifiedChat = () => {
       if (response.reply.includes('[POPUP:sentimentos]')) {
         setPendingResponse(response.reply.replace('[POPUP:sentimentos]', '').trim());
         
-        // Extrair contexto das últimas 3 mensagens do usuário
-        const recentUserMessages = messages
-          .filter(msg => msg.role === 'user')
-          .slice(-3)
-          .map(msg => msg.content)
-          .join(' ');
+        // Se não temos contexto definido (não veio de clique de botão de fato), extrair das mensagens
+        if (!currentContext) {
+          const recentUserMessages = messages
+            .filter(msg => msg.role === 'user')
+            .slice(-3)
+            .map(msg => msg.content)
+            .join(' ');
+          
+          setCurrentContext(recentUserMessages);
+        }
         
-        setCurrentContext(recentUserMessages);
         setShowSentimentosPopup(true);
         setIsLoading(false);
         return;
@@ -462,6 +465,8 @@ export const SimplifiedChat = () => {
     // Seleção de uma variação de fato específico
     if (buttonId.startsWith('fato')) {
       setSelectedFactText(buttonText);
+      // Definir o contexto como o texto do fato selecionado ANTES de enviar mensagem
+      setCurrentContext(buttonText);
       // Enviar mensagem para edge function processar a seleção e verificar fatos pendentes
       await sendMessage(`Fato selecionado: ${buttonText}`);
       return;
@@ -667,6 +672,8 @@ export const SimplifiedChat = () => {
         
         // Limpar estado pendente
         setPendingResponse("");
+        // Limpar contexto após uso
+        setCurrentContext("");
         
         // Enviar automaticamente os sentimentos selecionados
         sendMessage(sentimentosMessage);
