@@ -38,6 +38,7 @@ serve(async (req) => {
     const { data: therapistConfig } = await supabase
       .from('therapist_config')
       .select('*')
+      .eq('is_active', true)
       .single();
 
     // Buscar base de conhecimento
@@ -56,15 +57,6 @@ serve(async (req) => {
 
     // Construir o system prompt usando therapist_config
     let systemPrompt = therapistConfig?.main_prompt || `Você é um assistente de psicoterapia compassivo e objetivo.
-
-CONHECIMENTO ESPECIALIZADO:
-${knowledge && knowledge.length > 0 ? knowledge.map(k => `
-- ${k.title}: ${k.content}
-${k.keywords ? `Palavras-chave: ${k.keywords}` : ''}
-`).join('\n') : ''}
-
-FATOS PENDENTES DESTA SESSÃO:
-${therapyFacts && therapyFacts.length > 0 ? therapyFacts.map(f => `- ${f.fact_text} (ID: ${f.id})`).join('\n') : 'Nenhum fato pendente.'}
 
 FORMATAÇÃO DE BOTÕES:
 Use o formato: [BTN:id:texto] para criar botões interativos
@@ -90,9 +82,9 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
     ];
 
     console.log(`Enviando para OpenAI: {
-  model: "gpt-4o-mini",
+  model: "${therapistConfig?.model_name || 'gpt-4o-mini'}",
   messagesCount: ${messages.length},
-  temperature: 0.7,
+  temperature: ${therapistConfig?.temperature || 0.7},
   pendingFacts: ${therapyFacts?.length || 0}
 }`);
 
@@ -124,104 +116,6 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
   choices: ${data.choices?.length || 0},
   usage: ${JSON.stringify(data.usage)}
 }`);
-
-    // Detectar ROUTER na resposta do modelo
-    let routerProtocol = 'UNKNOWN';
-    let routerStep = '';
-    const routerMatch = assistantReply.match(/^\s*ROUTER:\s*([A-Z_]+)(?:\s*\|\s*step=([a-z0-9_:-]+))?/i);
-    if (routerMatch) {
-      routerProtocol = (routerMatch[1] || '').toUpperCase();
-      routerStep = routerMatch[2] || '';
-      console.log('Router detectado:', { routerProtocol, routerStep });
-    }
-
-    // **CORREÇÃO CRÍTICA**: Tratamento especial para seleção de fato específico
-    const fatoSelecionadoMatch = message.match(/^\s*Fato selecionado:\s*(.+)/i);
-    if (fatoSelecionadoMatch) {
-      const chosenFact = fatoSelecionadoMatch[1].replace(/["”“]/g, '').trim();
-      console.log('Fato específico selecionado - ETAPA 2:', chosenFact);
-
-      // Garantir que o fato selecionado esteja salvo como pendente nesta sessão (sem duplicar)
-      const normalize = (t: string) => t.toLowerCase().trim();
-      const { data: pendBefore, error: pendBeforeErr } = await supabase
-        .from('therapy_facts')
-        .select('id, fact_text')
-        .eq('session_id', sessionId)
-        .eq('status', 'pending');
-      if (pendBeforeErr) console.error('Erro ao buscar pendentes (antes):', pendBeforeErr);
-
-      const alreadyExists = (pendBefore || []).some((f: any) => normalize(f.fact_text) === normalize(chosenFact));
-      if (!alreadyExists) {
-        const { error: insertErr } = await supabase
-          .from('therapy_facts')
-          .insert({ session_id: sessionId, fact_text: chosenFact, status: 'pending' });
-        if (insertErr) console.error('Erro ao inserir fato pendente:', insertErr);
-      }
-
-      // Contar pendentes desta sessão
-      const { count: pendCount, error: countErr } = await supabase
-        .from('therapy_facts')
-        .select('id', { count: 'exact', head: true })
-        .eq('session_id', sessionId)
-        .eq('status', 'pending');
-      if (countErr) console.error('Erro ao contar pendentes:', countErr);
-
-      assistantReply = `ROUTER: FATO_ESPECIFICO | step=next_action\nPerfeito. Fato específico fixado: ${chosenFact}.\n\nComo deseja prosseguir:\n[BTN:autocura_agora:Trabalhar sentimentos agora] [BTN:autocura_depois:Autocurar depois] [BTN:show_pending_facts:Fatos pendentes (${pendCount || 0})] [BTN:recomecar_consulta:Recomeçar consulta]`;
-    } else if (message.trim().toLowerCase() === 'autocura_agora') {
-      console.log('Fluxo: autocura agora');
-      assistantReply = 'ROUTER: FATO_ESPECIFICO | step=sentiments_popup\nÓtimo. Vamos selecionar os sentimentos principais deste fato.\n\n[POPUP:sentimentos]';
-    } else if (message.trim().toLowerCase() === 'autocura finalizada, retornar ao início') {
-      console.log('Fluxo: retornando ao router após autocura');
-      assistantReply = 'ROUTER: POST_AUTOCURA | step=complete\nSua autocura foi finalizada com sucesso! ✨\n\nPosso ajudá-lo com algo mais hoje?\n\n[BTN:sim:Sim, quero trabalhar outro problema] [BTN:encerrar:Encerrar consulta]';
-    } else if (message.trim().toLowerCase() === 'autocura_depois') {
-      console.log('Fluxo: autocura depois');
-      // Encontrar último fato selecionado no histórico recente
-      const lastFactMsg = [...history].reverse().find((m: Message) => /^(?:Fato selecionado:)/i.test(m.content));
-      const factText = lastFactMsg ? lastFactMsg.content.split(':').slice(1).join(':').trim() : 'fato específico desta sessão';
-      try {
-        const { data: existing, error: existingErr } = await supabase
-          .from('therapy_facts')
-          .select('id, fact_text')
-          .eq('session_id', sessionId)
-          .eq('status', 'pending');
-        if (existingErr) console.error('Erro ao verificar duplicidade:', existingErr);
-        const exists = (existing || []).some((f: any) => normalize(f.fact_text) === normalize(factText));
-        if (!exists) {
-          const { error: insertError } = await supabase
-            .from('therapy_facts')
-            .insert({ session_id: sessionId, fact_text: factText, status: 'pending' });
-          if (insertError) console.error('Erro ao salvar fato pendente:', insertError);
-        }
-      } catch (e) {
-        console.error('Exceção ao salvar fato pendente:', e);
-      }
-      assistantReply = 'ROUTER: FATO_ESPECIFICO | step=saved_pending\nFato salvo para trabalharmos depois. Quando desejar, retomamos a autocura deste evento.';
-    } else {
-      // Normalização: converter listas numeradas/simples em botões de fato + opções de autocura
-      const hasButtons = /\[BTN:[^:]+:[^\]]+\]/.test(assistantReply);
-      const hasRouterHeader = !!routerMatch;
-      if (!hasButtons) {
-        const lines = assistantReply.split('\n');
-        const itemRegex = /^\s*(?:\d+[)\.-]?\s+|[-*•]\s+)(.+)$/;
-        const items = lines
-          .map((l: string) => {
-            const m = l.match(itemRegex);
-            return m ? m[1].trim() : null;
-          })
-          .filter(Boolean) as string[];
-        if (items.length >= 3) {
-          const clean = (t: string) => t.replace(/[""\"]/g, '').trim().replace(/\.$/, '');
-          const top3 = items.slice(0, 3).map(clean);
-          const preamble = lines.filter(l => !itemRegex.test(l)).join('\n').trim();
-          const buttonsLine = `[BTN:fato1:${top3[0]}] [BTN:fato2:${top3[1]}] [BTN:fato3:${top3[2]}]`;
-          if (routerProtocol === 'FATO_ESPECIFICO') {
-            assistantReply = [preamble, '', buttonsLine].join('\n').trim();
-          } else if (!hasRouterHeader) {
-            assistantReply = [`ROUTER: FATO_ESPECIFICO | step=choose_fact`, preamble, '', buttonsLine].join('\n').trim();
-          }
-        }
-      }
-    }
 
     // Detecta se o usuário está enviando sentimentos selecionados
     if (message.includes('Sentimentos selecionados:')) {
