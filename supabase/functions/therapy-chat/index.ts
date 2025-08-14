@@ -54,17 +54,8 @@ serve(async (req) => {
       .eq('session_id', sessionId)
       .order('created_at', { ascending: false });
 
-    // Construir o system prompt
-    let systemPrompt = `Você é um assistente de psicoterapia compassivo baseado em Análise de Bioenergia de Alexander Lowen. Seu objetivo principal é ajudar o usuário a processar experiências específicas através da autocura quântica.
-
-CONFIGURAÇÃO PERSONALIZADA:
-${therapistConfig ? `
-Nome: ${therapistConfig.name || 'Assistente'}
-Especialidade: ${therapistConfig.specialty || 'Análise de Bioenergia'}
-Abordagem: ${therapistConfig.approach || 'Terapêutica e acolhedora'}
-Estilo: ${therapistConfig.style || 'Direto e empático'}
-Personalidade: ${therapistConfig.personality || 'Compassiva e assertiva'}
-` : ''}
+    // Construir o system prompt usando therapist_config
+    let systemPrompt = therapistConfig?.main_prompt || `Você é um assistente de psicoterapia compassivo e objetivo.
 
 CONHECIMENTO ESPECIALIZADO:
 ${knowledge && knowledge.length > 0 ? knowledge.map(k => `
@@ -75,40 +66,18 @@ ${k.keywords ? `Palavras-chave: ${k.keywords}` : ''}
 FATOS PENDENTES DESTA SESSÃO:
 ${therapyFacts && therapyFacts.length > 0 ? therapyFacts.map(f => `- ${f.fact_text} (ID: ${f.id})`).join('\n') : 'Nenhum fato pendente.'}
 
-PROTOCOLO DE ROTEAMENTO:
-Sempre que você identificar uma conversa sobre um problema específico, siga o protocolo ROUTER. Prefixe sua resposta com uma das opções:
-
-1. ROUTER: FATO_ESPECIFICO | step=choose_fact
-   - Use quando o usuário mencionar um problema/situação específica
-   - Ofereça 3 variações da situação como lista numerada para o usuário escolher
-
-2. ROUTER: FATO_ESPECIFICO | step=pending_facts  
-   - Use quando há fatos pendentes após seleção de fato
-   - Liste os fatos pendentes como botões e inclua o botão "Recomeçar consulta"
-
-3. ROUTER: FATO_ESPECIFICO | step=next_action
-   - Use após seleção de fato quando não há pendentes
-   - Ofereça: "Trabalhar sentimentos agora" ou "Autocurar depois"
-
-4. ROUTER: FATO_ESPECIFICO | step=sentiments_popup
-   - Use quando usuário escolher "trabalhar sentimentos agora"
-   - Inclua [POPUP:sentimentos] para abrir seleção
-
-5. ROUTER: POST_AUTOCURA | step=complete
-   - Use após finalização da autocura
-   - Pergunte se quer trabalhar outro problema ou encerrar
-
-DIRETRIZES ESPECÍFICAS:
-- Seja direto e eficiente
-- Foque em fatos específicos, não teorias gerais
-- Quando detectar um problema específico, entre no modo FATO_ESPECIFICO
-- Transforme qualquer lista de situações em 3 variações numeradas
-- Mantenha foco na experiência concreta do usuário
-- Use linguagem acessível e acolhedora
-
 FORMATAÇÃO DE BOTÕES:
 Use o formato: [BTN:id:texto] para criar botões interativos
 Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentimentos agora]`;
+
+    // Adicionar conhecimento e fatos pendentes ao prompt configurável
+    if (knowledge && knowledge.length > 0) {
+      systemPrompt += `\n\nCONHECIMENTO ESPECIALIZADO:\n${knowledge.map(k => `- ${k.title}: ${k.content}${k.keywords ? `\nPalavras-chave: ${k.keywords}` : ''}`).join('\n')}`;
+    }
+
+    if (therapyFacts && therapyFacts.length > 0) {
+      systemPrompt += `\n\nFATOS PENDENTES DESTA SESSÃO:\n${therapyFacts.map(f => `- ${f.fact_text} (ID: ${f.id})`).join('\n')}`;
+    }
 
     // Preparar mensagens para OpenAI
     const messages = [
@@ -135,10 +104,10 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: therapistConfig?.model_name || 'gpt-4o-mini',
         messages: messages,
-        temperature: 0.7,
-        max_tokens: 1000,
+        temperature: therapistConfig?.temperature || 0.7,
+        max_tokens: therapistConfig?.max_tokens || 1000,
       }),
     });
 
