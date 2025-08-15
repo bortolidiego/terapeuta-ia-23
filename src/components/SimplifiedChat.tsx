@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import SentimentosPopup from "./SentimentosPopup";
 import { SearchDialog } from "./SearchDialog";
 import { NotesDialog } from "./NotesDialog";
+import { ProtocolExecutor } from "@/components/ProtocolExecutor";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import { useDraftMessage } from "@/hooks/useDraftMessage";
 import { useAudioDraft } from "@/hooks/useAudioDraft";

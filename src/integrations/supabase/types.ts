@@ -7,13 +7,43 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.4"
   }
   public: {
     Tables: {
+      audio_templates: {
+        Row: {
+          audio_url: string | null
+          created_at: string
+          id: string
+          is_fixed: boolean
+          template_key: string
+          template_text: string
+          updated_at: string
+        }
+        Insert: {
+          audio_url?: string | null
+          created_at?: string
+          id?: string
+          is_fixed?: boolean
+          template_key: string
+          template_text: string
+          updated_at?: string
+        }
+        Update: {
+          audio_url?: string | null
+          created_at?: string
+          id?: string
+          is_fixed?: boolean
+          template_key?: string
+          template_text?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       knowledge_base: {
         Row: {
           category: string
@@ -47,6 +77,36 @@ export type Database = {
           priority?: number
           title?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      protocol_steps: {
+        Row: {
+          content: Json
+          created_at: string
+          id: string
+          next_conditions: Json | null
+          protocol_id: string
+          step_number: number
+          step_type: string
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          id?: string
+          next_conditions?: Json | null
+          protocol_id: string
+          step_number: number
+          step_type: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          id?: string
+          next_conditions?: Json | null
+          protocol_id?: string
+          step_number?: number
+          step_type?: string
         }
         Relationships: []
       }
@@ -121,6 +181,39 @@ export type Database = {
           },
         ]
       }
+      session_protocols: {
+        Row: {
+          created_at: string
+          current_step: number
+          id: string
+          protocol_data: Json
+          protocol_id: string
+          session_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_step?: number
+          id?: string
+          protocol_data?: Json
+          protocol_id: string
+          session_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_step?: number
+          id?: string
+          protocol_data?: Json
+          protocol_id?: string
+          session_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       therapist_config: {
         Row: {
           created_at: string
@@ -183,6 +276,39 @@ export type Database = {
           sentiments?: Json | null
           session_id?: string | null
           status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      therapy_protocols: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          is_active: boolean
+          name: string
+          steps_config: Json
+          trigger_keywords: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          is_active?: boolean
+          name: string
+          steps_config?: Json
+          trigger_keywords?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          steps_config?: Json
+          trigger_keywords?: string[]
           updated_at?: string
         }
         Relationships: []
@@ -387,10 +513,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      classify_protocol: {
+        Args: { user_message: string }
+        Returns: string
+      }
       has_role: {
         Args: {
-          _user_id: string
           _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
         }
         Returns: boolean
       }

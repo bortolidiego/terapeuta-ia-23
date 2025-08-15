@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { SimplifiedChat } from "@/components/SimplifiedChat";
+import { SimplifiedChatNew } from "@/components/SimplifiedChatNew";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -53,5 +53,5 @@ export const Chat = () => {
     );
   }
 
-  return <SimplifiedChat />;
+  return <SimplifiedChatNew />;
 };
