@@ -32,7 +32,7 @@ serve(async (req) => {
         response = await normalizeEvent(userMessage);
         break;
       case 'generate_commands':
-        response = await generateQuantumCommands(actionData.selectedEvent, actionData.selectedSentiments);
+        response = await generateQuantumCommands(actionData.selectedEvent, actionData.selectedSentiments, supabase);
         break;
       default:
         throw new Error(`Unknown action: ${action}`);
@@ -166,30 +166,59 @@ Mantenha o evento original, apenas ajuste para cada padrão. Seja preciso e natu
   };
 }
 
-async function generateQuantumCommands(selectedEvent: string, selectedSentiments: string[]) {
+async function generateQuantumCommands(selectedEvent: string, selectedSentiments: string[], supabase: any) {
   console.log(`Generating commands for event: "${selectedEvent}", sentiments: ${selectedSentiments.length}`);
   
-  // Extrair essência do evento (remover aspas e normalizar)
+  // Extrair essência do evento
   const eventEssence = extractEventEssence(selectedEvent);
   console.log(`Event essence extracted: "${eventEssence}"`);
-  
-  const commands = [];
-  
-  // Gerar uma linha para cada sentimento com template correto
-  for (const sentiment of selectedSentiments) {
-    commands.push(`Código ALMA, a minha consciência escolhe: ${sentiment} que eu senti ${eventEssence}, ACABARAM!`);
+
+  // Buscar templates do banco de dados
+  const { data: templates, error } = await supabase
+    .from('audio_templates')
+    .select('template_key, template_text');
+
+  if (error) {
+    console.error('Erro ao buscar templates:', error);
+    throw new Error('Falha ao carregar templates do banco');
   }
-  
-  // Adicionar as 4 linhas fixas com template correto
-  commands.push(`Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu recebi ${eventEssence}, ACABARAM!`);
-  commands.push(`Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu senti ${eventEssence}, ACABARAM!`);
-  commands.push(`Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu gerei ${eventEssence}, ACABARAM!`);
-  commands.push(`Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu recebi ${eventEssence}, ACABARAM!`);
-  
-  return { 
-    commands: commands,
+
+  // Converter array para objeto para facilitar acesso
+  const templateMap = templates.reduce((acc: any, template: any) => {
+    acc[template.template_key] = template.template_text;
+    return acc;
+  }, {});
+
+  const commands = [];
+
+  // Comandos específicos para cada sentimento
+  selectedSentiments.forEach(sentiment => {
+    const template = templateMap['quantum_alma_senti'];
+    if (template) {
+      commands.push(template.replace('[SENTIMENT]', sentiment).replace('[EVENT]', eventEssence));
+    }
+  });
+
+  // Comandos gerais ALMA
+  if (templateMap['quantum_alma_recebi']) {
+    commands.push(templateMap['quantum_alma_recebi'].replace('[EVENT]', eventEssence));
+  }
+  if (templateMap['quantum_alma_senti_geral']) {
+    commands.push(templateMap['quantum_alma_senti_geral'].replace('[EVENT]', eventEssence));
+  }
+
+  // Comandos ESPÍRITO
+  if (templateMap['quantum_espirito_gerou_completo']) {
+    commands.push(templateMap['quantum_espirito_gerou_completo'].replace('[EVENT]', eventEssence));
+  }
+  if (templateMap['quantum_espirito_recebi_completo']) {
+    commands.push(templateMap['quantum_espirito_recebi_completo'].replace('[EVENT]', eventEssence));
+  }
+
+  return {
+    commands,
     event: selectedEvent,
-    eventEssence: eventEssence,
+    eventEssence,
     sentimentCount: selectedSentiments.length
   };
 }
