@@ -30,7 +30,13 @@ export const ProtocolExecutor = ({ sessionId, userMessage, onComplete }: Protoco
 
       if (error) throw error;
       
-      setProtocolType(data?.protocol || 'evento_traumatico_especifico');
+      const protocol = data?.protocol;
+      if (!protocol || protocol === 'none') {
+        // Não é um protocolo, retornar para chat normal
+        onComplete({ type: 'no_protocol', message: 'Esta mensagem não requer um protocolo específico.' });
+        return;
+      }
+      setProtocolType(protocol);
     } catch (error) {
       console.error('Erro ao classificar protocolo:', error);
       toast({

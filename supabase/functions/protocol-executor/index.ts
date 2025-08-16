@@ -53,16 +53,66 @@ serve(async (req) => {
 async function classifyProtocol(supabase: any, userMessage: string) {
   console.log(`Classifying message: "${userMessage}"`);
   
-  const { data, error } = await supabase.rpc('classify_protocol', { 
-    user_message: userMessage 
-  });
-
-  if (error) {
-    console.error('Error classifying protocol:', error);
-    throw error;
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openaiApiKey) {
+    throw new Error('OpenAI API key not configured');
   }
 
-  return { protocol: data };
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `Você é um classificador especializado em protocolos terapêuticos. 
+
+Analise a mensagem do usuário e determine se ela descreve um evento específico que necessita de protocolo.
+
+PROTOCOLOS DISPONÍVEIS:
+- evento_traumatico_especifico: Para eventos específicos, traumas, situações particulares que aconteceram ("quando...", "primeira vez que...", "última vez que...", etc.)
+
+MENSAGENS QUE NÃO PRECISAM DE PROTOCOLO:
+- Saudações simples (oi, olá, bom dia)
+- Perguntas genéricas (como funciona?, o que você faz?)
+- Conversas casuais sem evento específico
+- Mensagens vagas ou muito curtas sem contexto
+
+RESPOSTA: Retorne apenas uma palavra:
+- "evento_traumatico_especifico" se detectar descrição de evento específico
+- "none" se for mensagem casual/saudação/pergunta genérica
+
+Seja criterioso - só classifique como protocolo se realmente houver descrição de um evento específico.`
+        },
+        {
+          role: 'user',
+          content: userMessage
+        }
+      ],
+      max_tokens: 50,
+      temperature: 0.1,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const classification = data.choices[0].message.content.trim().toLowerCase();
+  
+  console.log(`Classification result: "${classification}"`);
+  
+  // Normalizar resposta
+  if (classification.includes('none') || classification.includes('nenhum')) {
+    return { protocol: null };
+  }
+  
+  return { protocol: classification };
 }
 
 async function normalizeEvent(userMessage: string) {

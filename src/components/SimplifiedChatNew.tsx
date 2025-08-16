@@ -162,6 +162,31 @@ export const SimplifiedChatNew = () => {
 
     console.log('Protocolo completo:', result);
     
+    // Se não for protocolo, responder normalmente
+    if (result.type === 'no_protocol') {
+      setProtocolActive(false);
+      // Criar resposta explicativa para mensagens simples
+      const helpMessage: Message = {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: "Olá! 👋 Sou seu assistente terapêutico.\n\nPara eu ajudá-lo melhor, me conte sobre um evento específico que você gostaria de processar, como:\n\n• \"Quando perdi meu emprego...\"\n• \"A primeira vez que senti ansiedade...\"\n• \"Quando discuti com minha família...\"\n\nDescreva o que aconteceu e como se sentiu. Estou aqui para ajudar!",
+        created_at: new Date().toISOString(),
+        metadata: { type: 'help_message' }
+      };
+      
+      setMessages(prev => [...prev, helpMessage]);
+      
+      // Salvar no banco
+      await supabase.from("session_messages").insert({
+        session_id: currentConsultationId,
+        role: "assistant",
+        content: helpMessage.content,
+        metadata: helpMessage.metadata
+      });
+      
+      return;
+    }
+    
     // Salvar resultado como mensagem
     const { error } = await supabase
       .from("session_messages")
