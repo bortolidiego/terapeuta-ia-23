@@ -169,22 +169,40 @@ Mantenha o evento original, apenas ajuste para cada padrão. Seja preciso e natu
 async function generateQuantumCommands(selectedEvent: string, selectedSentiments: string[]) {
   console.log(`Generating commands for event: "${selectedEvent}", sentiments: ${selectedSentiments.length}`);
   
+  // Extrair essência do evento (remover aspas e normalizar)
+  const eventEssence = extractEventEssence(selectedEvent);
+  console.log(`Event essence extracted: "${eventEssence}"`);
+  
   const commands = [];
   
-  // Gerar uma linha para cada sentimento
+  // Gerar uma linha para cada sentimento com template correto
   for (const sentiment of selectedSentiments) {
-    commands.push(`${sentiment} que eu senti ${selectedEvent} ACABARAM!`);
+    commands.push(`Código ALMA, a minha consciência escolhe: ${sentiment} que eu senti ${eventEssence}, ACABARAM!`);
   }
   
-  // Adicionar as 4 linhas fixas
-  commands.push(`Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu recebi ${selectedEvent} ACABARAM!`);
-  commands.push(`Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu senti ${selectedEvent} ACABARAM!`);
-  commands.push(`Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu gerei ${selectedEvent} ACABARAM!`);
-  commands.push(`Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu recebi ${selectedEvent} ACABARAM!`);
+  // Adicionar as 4 linhas fixas com template correto
+  commands.push(`Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu recebi ${eventEssence}, ACABARAM!`);
+  commands.push(`Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu senti ${eventEssence}, ACABARAM!`);
+  commands.push(`Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu gerei ${eventEssence}, ACABARAM!`);
+  commands.push(`Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu recebi ${eventEssence}, ACABARAM!`);
   
   return { 
     commands: commands,
     event: selectedEvent,
+    eventEssence: eventEssence,
     sentimentCount: selectedSentiments.length
   };
+}
+
+function extractEventEssence(event: string): string {
+  // Remover aspas no início e fim
+  let essence = event.replace(/^["']|["']$/g, '');
+  
+  // Remover prefixos comuns e normalizar
+  essence = essence
+    .replace(/^(quando|a primeira vez que|a última vez que)\s+/i, '')
+    .replace(/[,.]?\s*$/, '') // Remover pontuação final
+    .trim();
+  
+  return essence;
 }
