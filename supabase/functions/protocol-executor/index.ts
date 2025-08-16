@@ -195,14 +195,11 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
 }
 
 function extractEventEssence(event: string): string {
-  // Remover aspas no início e fim
+  // Remover apenas aspas no início e fim, mantendo o contexto temporal
   let essence = event.replace(/^["']|["']$/g, '');
   
-  // Remover prefixos comuns e normalizar
-  essence = essence
-    .replace(/^(quando|a primeira vez que|a última vez que)\s+/i, '')
-    .replace(/[,.]?\s*$/, '') // Remover pontuação final
-    .trim();
+  // Remover apenas pontuação final, mas manter prefixos temporais
+  essence = essence.replace(/[,.]?\s*$/, '').trim();
   
   return essence;
 }
