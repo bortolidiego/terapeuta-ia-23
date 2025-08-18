@@ -8,6 +8,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import SentimentosPopup from "./SentimentosPopup";
+import { AudioAssemblyProgress } from "@/components/AudioAssemblyProgress";
+import { useAudioAssembly } from "@/hooks/useAudioAssembly";
 
 interface Message {
   id: string;
@@ -35,8 +37,10 @@ export const TherapyChat = () => {
   const [pendingResponse, setPendingResponse] = useState<string>("");
   const [currentContext, setCurrentContext] = useState<string>("");
   const [selectedFactText, setSelectedFactText] = useState<string | null>(null);
+  const [lastAssemblyInstructions, setLastAssemblyInstructions] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { startAudioAssembly, currentJob, isProcessing } = useAudioAssembly(currentSession?.id);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -500,8 +504,52 @@ export const TherapyChat = () => {
         // Limpar estado pendente
         setPendingResponse("");
         
-        // Enviar automaticamente os sentimentos selecionados
-        sendMessage(sentimentosMessage);
+        // Iniciar processo de montagem de áudio
+        if (selectedFactText && currentSession) {
+          setIsLoading(true);
+          
+          try {
+            // Chamar protocol-executor para gerar instruções de montagem
+            const { data: assemblyData, error: assemblyError } = await supabase.functions.invoke('protocol-executor', {
+              body: {
+                sessionId: currentSession.id,
+                action: 'generate_commands',
+                actionData: {
+                  selectedEvent: selectedFactText,
+                  selectedSentiments: sentimentos
+                }
+              }
+            });
+
+            if (assemblyError) throw assemblyError;
+
+            // Verificar se retornou assembly instructions
+            if (assemblyData.type === 'assembly_instructions') {
+              await startAudioAssembly(assemblyData.assemblyInstructions);
+              
+              // Adicionar mensagem informativa sobre a montagem
+              const assemblyMessage: Message = {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: `Perfeito! Iniciei a montagem do seu áudio quântico com ${sentimentos.length} sentimentos específicos. A montagem será processada em segundo plano e você receberá notificações sobre o progresso.`,
+                created_at: new Date().toISOString(),
+              };
+              setMessages(prev => [...prev, assemblyMessage]);
+            } else {
+              // Fallback para sistema antigo se não houver assembly instructions
+              await sendMessage(sentimentosMessage);
+            }
+          } catch (error) {
+            console.error('Erro ao iniciar assembly de áudio:', error);
+            // Fallback para envio normal da mensagem
+            await sendMessage(sentimentosMessage);
+          } finally {
+            setIsLoading(false);
+          }
+        } else {
+          // Se não há fato selecionado, apenas enviar sentimentos
+          await sendMessage(sentimentosMessage);
+        }
       } catch (error) {
         console.error("Erro ao processar sentimentos:", error);
         toast({
@@ -695,6 +743,28 @@ export const TherapyChat = () => {
                         <span className="text-sm text-muted-foreground">Pensando com carinho...</span>
                       </div>
                     </div>
+                  </div>
+                )}
+                
+                {/* Progresso de Assembly de Áudio */}
+                {currentJob && (
+                  <div className="flex justify-center">
+                    <AudioAssemblyProgress
+                      jobId={currentJob.id}
+                      onComplete={(audioUrl) => {
+                        toast({
+                          title: 'Áudio Quântico Pronto!',
+                          description: 'Sua montagem foi concluída com sucesso.',
+                        });
+                      }}
+                      onError={(error) => {
+                        toast({
+                          title: 'Erro na Montagem',
+                          description: error,
+                          variant: 'destructive',
+                        });
+                      }}
+                    />
                   </div>
                 )}
                 

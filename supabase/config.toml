@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.voice-to-text]
 verify_jwt = false
+
+[functions.protocol-executor]
+verify_jwt = false
+
+[functions.audio-assembly]
+verify_jwt = false
