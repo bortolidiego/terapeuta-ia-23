@@ -14,6 +14,107 @@ export type Database = {
   }
   public: {
     Tables: {
+      assembly_jobs: {
+        Row: {
+          assembly_instructions: Json
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          progress_percentage: number | null
+          result_audio_path: string | null
+          session_id: string | null
+          started_at: string | null
+          status: string
+          total_duration_seconds: number | null
+          total_file_size_bytes: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assembly_instructions: Json
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          progress_percentage?: number | null
+          result_audio_path?: string | null
+          session_id?: string | null
+          started_at?: string | null
+          status?: string
+          total_duration_seconds?: number | null
+          total_file_size_bytes?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assembly_instructions?: Json
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          progress_percentage?: number | null
+          result_audio_path?: string | null
+          session_id?: string | null
+          started_at?: string | null
+          status?: string
+          total_duration_seconds?: number | null
+          total_file_size_bytes?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assembly_jobs_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "therapy_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audio_components: {
+        Row: {
+          audio_path: string | null
+          component_key: string
+          component_type: string
+          created_at: string
+          duration_seconds: number | null
+          file_size_bytes: number | null
+          id: string
+          is_available: boolean | null
+          protocol_type: string | null
+          text_content: string
+          updated_at: string
+        }
+        Insert: {
+          audio_path?: string | null
+          component_key: string
+          component_type: string
+          created_at?: string
+          duration_seconds?: number | null
+          file_size_bytes?: number | null
+          id?: string
+          is_available?: boolean | null
+          protocol_type?: string | null
+          text_content: string
+          updated_at?: string
+        }
+        Update: {
+          audio_path?: string | null
+          component_key?: string
+          component_type?: string
+          created_at?: string
+          duration_seconds?: number | null
+          file_size_bytes?: number | null
+          id?: string
+          is_available?: boolean | null
+          protocol_type?: string | null
+          text_content?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audio_templates: {
         Row: {
           audio_url: string | null

@@ -167,58 +167,88 @@ Mantenha o evento original, apenas ajuste para cada padrão. Seja preciso e natu
 }
 
 async function generateQuantumCommands(selectedEvent: string, selectedSentiments: string[], supabase: any) {
-  console.log(`Generating commands for event: "${selectedEvent}", sentiments: ${selectedSentiments.length}`);
+  console.log(`Generating assembly instructions for event: "${selectedEvent}", sentiments: ${selectedSentiments.length}`);
   
   // Extrair essência do evento
   const eventEssence = extractEventEssence(selectedEvent);
   console.log(`Event essence extracted: "${eventEssence}"`);
 
-  // Buscar templates do banco de dados
-  const { data: templates, error } = await supabase
-    .from('audio_templates')
-    .select('template_key, template_text');
+  // Buscar componentes de áudio do banco de dados
+  const { data: components, error } = await supabase
+    .from('audio_components')
+    .select('component_key, text_content, component_type, is_available')
+    .eq('protocol_type', 'evento_traumatico_especifico');
 
   if (error) {
-    console.error('Erro ao buscar templates:', error);
-    throw new Error('Falha ao carregar templates do banco');
+    console.error('Erro ao buscar componentes:', error);
+    throw new Error('Falha ao carregar componentes de áudio');
   }
 
   // Converter array para objeto para facilitar acesso
-  const templateMap = templates.reduce((acc: any, template: any) => {
-    acc[template.template_key] = template.template_text;
+  const componentMap = components.reduce((acc: any, component: any) => {
+    acc[component.component_key] = component;
     return acc;
   }, {});
 
-  const commands = [];
-
-  // Comandos específicos para cada sentimento
-  selectedSentiments.forEach(sentiment => {
-    const template = templateMap['quantum_alma_senti'];
-    if (template) {
-      commands.push(template.replace('[SENTIMENT]', sentiment).replace('[EVENT]', eventEssence));
-    }
-  });
-
-  // Comandos gerais ALMA
-  if (templateMap['quantum_alma_recebi']) {
-    commands.push(templateMap['quantum_alma_recebi'].replace('[EVENT]', eventEssence));
-  }
-  if (templateMap['quantum_alma_senti_geral']) {
-    commands.push(templateMap['quantum_alma_senti_geral'].replace('[EVENT]', eventEssence));
-  }
-
-  // Comandos ESPÍRITO
-  if (templateMap['quantum_espirito_gerou_completo']) {
-    commands.push(templateMap['quantum_espirito_gerou_completo'].replace('[EVENT]', eventEssence));
-  }
-  if (templateMap['quantum_espirito_recebi_completo']) {
-    commands.push(templateMap['quantum_espirito_recebi_completo'].replace('[EVENT]', eventEssence));
-  }
-
-  return {
-    commands,
+  // Criar instruções de montagem ao invés de texto final
+  const assemblyInstructions = {
     event: selectedEvent,
     eventEssence,
+    protocolType: 'evento_traumatico_especifico',
+    baseComponents: [
+      'quantum_alma_senti',
+      'quantum_alma_recebi', 
+      'quantum_alma_senti_geral',
+      'quantum_espirito_gerou_completo',
+      'quantum_espirito_recebi_completo'
+    ],
+    dynamicElements: {
+      selectedSentiments,
+      eventText: eventEssence
+    },
+    assemblyOrder: [
+      // Para cada sentimento: quantum_alma_senti + sentimento + evento
+      ...selectedSentiments.map(sentiment => ({
+        componentKey: 'quantum_alma_senti',
+        replacements: { '[SENTIMENT]': sentiment, '[EVENT]': eventEssence },
+        type: 'sentiment_specific'
+      })),
+      // Comandos gerais
+      {
+        componentKey: 'quantum_alma_recebi',
+        replacements: { '[EVENT]': eventEssence },
+        type: 'general_alma'
+      },
+      {
+        componentKey: 'quantum_alma_senti_geral', 
+        replacements: { '[EVENT]': eventEssence },
+        type: 'general_alma'
+      },
+      {
+        componentKey: 'quantum_espirito_gerou_completo',
+        replacements: { '[EVENT]': eventEssence },
+        type: 'general_espirito'
+      },
+      {
+        componentKey: 'quantum_espirito_recebi_completo',
+        replacements: { '[EVENT]': eventEssence },
+        type: 'general_espirito'
+      }
+    ],
+    estimatedDuration: (selectedSentiments.length + 4) * 15, // ~15 segundos por comando
+    totalComponents: selectedSentiments.length + 4
+  };
+
+  // Verificar disponibilidade dos componentes
+  const unavailableComponents = assemblyInstructions.baseComponents.filter(key => 
+    !componentMap[key] || !componentMap[key].is_available
+  );
+
+  return {
+    type: 'assembly_instructions',
+    assemblyInstructions,
+    unavailableComponents,
+    ready: unavailableComponents.length === 0,
     sentimentCount: selectedSentiments.length
   };
 }
