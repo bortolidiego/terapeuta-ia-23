@@ -157,10 +157,10 @@ serve(async (req) => {
       }
     }
 
-    // Contar resultados totais
-    const totalSuccessful = successfulBase.length + successfulSentiments.length;
-    const totalFailed = failedBase.length + failedSentiments.length;
-    const totalItems = baseFragments.length + limitedSentiments.length;
+    // Contar resultados totais - corrigindo o erro de length
+    const totalSuccessful = (successfulBase || []).length + (successfulSentiments || []).length;
+    const totalFailed = (failedBase || []).length + (failedSentiments || []).length;
+    const totalItems = (baseFragments || []).length + (limitedSentiments || []).length;
 
     console.log(`Batch generation completed: ${totalSuccessful} successful, ${totalFailed} failed`);
 

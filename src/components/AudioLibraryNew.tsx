@@ -89,41 +89,51 @@ export const AudioLibraryNew = () => {
       const { data: library, error: libraryError } = await supabase
         .from('user_audio_library')
         .select('*')
+        .eq('status', 'completed')  // Só buscar áudios completados
         .order('created_at', { ascending: false });
 
       if (libraryError) throw libraryError;
 
-      // Mapear fragmentos base
-      const mappedBaseWords: AudioItem[] = (fragments || []).map(fragment => ({
-        id: fragment.id,
-        key: fragment.component_key,
-        text: fragment.text_content,
-        type: 'base_word' as const,
-        status: library?.find(item => 
-          item.component_key === fragment.component_key && 
-          item.component_type === 'base_word'
-        ) ? 'completed' : 'pending',
-        audioPath: library?.find(item => 
-          item.component_key === fragment.component_key && 
-          item.component_type === 'base_word'
-        )?.audio_path
-      }));
+      console.log('🔍 Debug - Biblioteca do usuário:', library);
+      console.log('🔍 Debug - Fragmentos base:', fragments);
+      console.log('🔍 Debug - Sentimentos:', sentimentData);
 
-      // Mapear sentimentos
-      const mappedSentiments: AudioItem[] = (sentimentData || []).map(sentiment => ({
-        id: sentiment.id,
-        key: sentiment.nome,
-        text: sentiment.contexto || `${sentiment.nome}s que eu senti`,
-        type: 'sentiment' as const,
-        status: library?.find(item => 
+      // Mapear fragmentos base com lógica corrigida
+      const mappedBaseWords: AudioItem[] = (fragments || []).map(fragment => {
+        const userAudio = library?.find(item => 
+          item.component_key === fragment.component_key && 
+          item.status === 'completed'
+        );
+        
+        return {
+          id: fragment.id,
+          key: fragment.component_key,
+          text: fragment.text_content,
+          type: 'base_word' as const,
+          status: userAudio ? 'completed' : 'pending',
+          audioPath: userAudio?.audio_path
+        };
+      });
+
+      // Mapear sentimentos com lógica corrigida
+      const mappedSentiments: AudioItem[] = (sentimentData || []).map(sentiment => {
+        const userAudio = library?.find(item => 
           item.component_key === `sentiment_${sentiment.nome}` && 
-          item.component_type === 'sentiment'
-        ) ? 'completed' : 'pending',
-        audioPath: library?.find(item => 
-          item.component_key === `sentiment_${sentiment.nome}` && 
-          item.component_type === 'sentiment'
-        )?.audio_path
-      }));
+          item.status === 'completed'
+        );
+        
+        return {
+          id: sentiment.id,
+          key: sentiment.nome,
+          text: sentiment.contexto || `${sentiment.nome}s que eu senti`,
+          type: 'sentiment' as const,
+          status: userAudio ? 'completed' : 'pending',
+          audioPath: userAudio?.audio_path
+        };
+      });
+
+      console.log('🎵 Debug - Palavras base mapeadas:', mappedBaseWords);
+      console.log('🎵 Debug - Sentimentos mapeados:', mappedSentiments);
 
       setBaseWords(mappedBaseWords);
       setSentiments(mappedSentiments);
@@ -360,6 +370,14 @@ export const AudioLibraryNew = () => {
               </div>
 
               <div className="flex items-center gap-2">
+                <Button 
+                  onClick={loadAudioLibrary}
+                  size="sm"
+                  variant="outline"
+                  className="px-3"
+                >
+                  🔄 Recarregar
+                </Button>
                 {!generatingBase ? (
                   <Button 
                     onClick={() => generateAudioBatch('base_words')}
@@ -506,6 +524,14 @@ export const AudioLibraryNew = () => {
               </div>
 
               <div className="flex items-center gap-2">
+                <Button 
+                  onClick={loadAudioLibrary}
+                  size="sm"
+                  variant="outline"
+                  className="px-3"
+                >
+                  🔄 Recarregar
+                </Button>
                 {!generatingSentiments ? (
                   <Button 
                     onClick={() => generateAudioBatch('sentiments')}
