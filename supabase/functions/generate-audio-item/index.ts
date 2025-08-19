@@ -111,13 +111,19 @@ serve(async (req) => {
     const audioBuffer = await response.arrayBuffer();
     const audioBase64 = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
 
-    // Upload to Supabase Storage
-    const fileName = `${user.id}/${libraryItem.component_key}_${Date.now()}.mp3`;
+    // Upload to Supabase Storage with standardized path
+    const sanitizedKey = libraryItem.component_key
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove accents
+      .replace(/[^a-zA-Z0-9_]/g, '_')  // Replace special chars
+      .toLowerCase();
+    
+    const fileName = `user-audio-library/${user.id}/${Date.now()}/${sanitizedKey}.mp3`;
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('audio-assembly')
       .upload(fileName, audioBuffer, {
         contentType: 'audio/mpeg',
-        upsert: true
+        upsert: false
       });
 
     if (uploadError) {
