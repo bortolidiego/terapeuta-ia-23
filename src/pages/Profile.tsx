@@ -392,6 +392,9 @@ export const Profile = () => {
       console.log('✅ Voz rejeitada com sucesso');
       performReset();
       
+      // Reload profile to sync with database
+      await loadProfile();
+      
       toast({
         title: "Voz rejeitada",
         description: "Agora você pode gravar uma nova voz.",

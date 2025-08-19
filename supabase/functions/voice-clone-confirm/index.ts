@@ -75,6 +75,15 @@ serve(async (req) => {
         console.warn('Failed to delete voice from ElevenLabs:', voiceId);
       }
 
+      // Clear the cloned voice from user profile
+      await supabase
+        .from('user_profiles')
+        .update({ 
+          cloned_voice_id: null,
+          voice_library_status: 'not_started'
+        })
+        .eq('user_id', user.id);
+
       return new Response(JSON.stringify({ 
         success: true,
         message: 'Voice rejected and removed successfully'
