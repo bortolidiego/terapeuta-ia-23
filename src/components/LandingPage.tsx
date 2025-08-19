@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { PendingConsultations } from "./PendingConsultations";
+import { AudioPlayer } from "./AudioPlayer";
 
 export const LandingPage = () => {
   const [isCreating, setIsCreating] = useState(false);
@@ -91,47 +92,55 @@ export const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardContent className="p-8 space-y-6">
-          <div className="text-center space-y-2">
-            <MessageCircle className="h-16 w-16 mx-auto text-primary" />
-            <h1 className="text-2xl font-bold text-foreground">
-              Terapia Virtual
-            </h1>
-            <p className="text-muted-foreground">
-              Inicie uma nova consulta ou continue uma consulta pausada
-            </p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted p-4 space-y-6">
+      {/* Header with Actions */}
+      <div className="w-full max-w-6xl mx-auto">
+        <Card className="shadow-lg">
+          <CardContent className="p-8">
+            <div className="text-center space-y-2 mb-8">
+              <MessageCircle className="h-16 w-16 mx-auto text-primary" />
+              <h1 className="text-2xl font-bold text-foreground">
+                Terapia Virtual
+              </h1>
+              <p className="text-muted-foreground">
+                Inicie uma nova consulta ou continue uma consulta pausada
+              </p>
+            </div>
 
-          <div className="space-y-4">
-            <Button
-              onClick={createNewConsultation}
-              disabled={isCreating}
-              className="w-full h-12 text-lg font-semibold"
-              size="lg"
-            >
-              <Play className="mr-2 h-5 w-5" />
-              {isCreating ? "Iniciando..." : "Iniciar Consulta"}
-            </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+              <Button
+                onClick={createNewConsultation}
+                disabled={isCreating}
+                className="h-12 text-lg font-semibold"
+                size="lg"
+              >
+                <Play className="mr-2 h-5 w-5" />
+                {isCreating ? "Iniciando..." : "Iniciar Consulta"}
+              </Button>
 
-            <Button
-              onClick={() => setShowPending(true)}
-              variant="outline"
-              className="w-full h-12 text-lg relative"
-              size="lg"
-            >
-              <Clock className="mr-2 h-5 w-5" />
-              Consultas Pendentes
-              {pendingCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground text-xs rounded-full h-6 w-6 flex items-center justify-center font-semibold">
-                  {pendingCount}
-                </span>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <Button
+                onClick={() => setShowPending(true)}
+                variant="outline"
+                className="h-12 text-lg relative"
+                size="lg"
+              >
+                <Clock className="mr-2 h-5 w-5" />
+                Consultas Pendentes
+                {pendingCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground text-xs rounded-full h-6 w-6 flex items-center justify-center font-semibold">
+                    {pendingCount}
+                  </span>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Audio Player Section */}
+      <div className="w-full max-w-6xl mx-auto">
+        <AudioPlayer className="shadow-lg" />
+      </div>
     </div>
   );
 };
