@@ -339,30 +339,77 @@ export const Profile = () => {
   };
 
   const rejectVoice = async () => {
-    if (!tempVoiceId) return;
+    console.log('🔄 Iniciando rejeição da voz:', { tempVoiceId });
+    
+    // Validação prévia
+    if (!tempVoiceId) {
+      console.log('❌ Nenhum tempVoiceId encontrado');
+      toast({
+        title: "Erro",
+        description: "Nenhuma voz temporária encontrada para rejeitar.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Reset do estado SEMPRE acontece, independente do sucesso da exclusão
+    const performReset = () => {
+      console.log('🧹 Limpando estados da gravação');
+      resetRecording();
+      setIsCloning(false);
+      setIsTestingVoice(false);
+    };
     
     try {
-      const { error } = await supabase.functions.invoke('voice-clone-confirm', {
+      console.log('📡 Chamando voice-clone-confirm para rejeitar');
+      
+      // Timeout de 10 segundos para evitar travamentos
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout na conexão')), 10000)
+      );
+      
+      const rejectPromise = supabase.functions.invoke('voice-clone-confirm', {
         body: {
           voiceId: tempVoiceId,
           action: 'reject'
         }
       });
 
-      if (error) throw error;
+      const { error } = await Promise.race([rejectPromise, timeoutPromise]) as any;
 
-      // Reset all recording and testing state
-      resetRecording();
+      if (error) {
+        console.error('❌ Erro na rejeição da voz:', error);
+        throw error;
+      }
+
+      console.log('✅ Voz rejeitada com sucesso');
+      performReset();
       
       toast({
         title: "Voz rejeitada",
         description: "Agora você pode gravar uma nova voz.",
       });
+      
     } catch (error: any) {
+      console.error('❌ Falha na rejeição:', error);
+      
+      // IMPORTANTE: Fazer reset mesmo se a exclusão falhar
+      performReset();
+      
+      // Mensagem mais específica baseada no tipo de erro
+      let errorMessage = "Erro desconhecido";
+      if (error.message?.includes('Timeout')) {
+        errorMessage = "Conexão lenta. A interface foi resetada para você tentar novamente.";
+      } else if (error.message?.includes('Connection')) {
+        errorMessage = "Problema de conexão. A interface foi resetada para nova tentativa.";
+      } else {
+        errorMessage = "Falha na exclusão, mas você já pode gravar novamente.";
+      }
+      
       toast({
-        title: "Erro ao rejeitar voz",
-        description: error.message,
-        variant: "destructive",
+        title: "Reset realizado",
+        description: errorMessage,
+        variant: "default", // Não é destructive pois o reset funcionou
       });
     }
   };
