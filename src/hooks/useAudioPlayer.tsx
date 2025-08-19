@@ -53,12 +53,13 @@ export const useAudioPlayer = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Buscar áudios da biblioteca do usuário
+      // Buscar áudios da biblioteca do usuário (apenas o mais recente de cada component_key)
       const { data: libraryItems, error: libraryError } = await supabase
         .from("user_audio_library")
         .select("*")
         .eq("user_id", user.id)
         .eq("status", "completed")
+        .order("component_key", { ascending: true })
         .order("created_at", { ascending: false });
 
       if (libraryError) throw libraryError;
@@ -73,11 +74,20 @@ export const useAudioPlayer = () => {
 
       if (assemblyError) throw assemblyError;
 
+      // Filtrar duplicatas (manter apenas o mais recente por component_key)
+      const uniqueLibraryItems = libraryItems?.reduce((acc: any[], item: any) => {
+        const existing = acc.find(i => i.component_key === item.component_key);
+        if (!existing) {
+          acc.push(item);
+        }
+        return acc;
+      }, []) || [];
+
       // Combinar e formatar itens
       const formattedItems: AudioItem[] = [
-        ...libraryItems.map(item => ({
+        ...uniqueLibraryItems.map(item => ({
           id: item.id,
-          title: `${item.component_type || 'Áudio'} - ${item.sentiment_name || 'Personalizado'}`,
+          title: `${item.component_type || 'Áudio'} - ${item.sentiment_name || item.component_key}`,
           duration: 0, // Will be loaded when playing
           audioPath: item.audio_path,
           createdAt: item.created_at,
@@ -115,16 +125,46 @@ export const useAudioPlayer = () => {
 
       console.log("🔍 Tentando obter URL para:", audioPath);
 
-      // Primeiro, tentar obter a URL diretamente sem verificar existência
+      // Determinar bucket correto baseado no path
+      let bucket = "audio-assembly";
+      let fullPath = audioPath;
+
+      // Se o path contém user-audio-library, é um áudio da biblioteca
+      if (audioPath.includes("user-audio-library/")) {
+        bucket = "audio-assembly";
+        fullPath = audioPath;
+      } 
+      // Se é apenas userId/filename, assumir que é do audio-drafts
+      else if (audioPath.match(/^[a-f0-9-]+\/[^/]+\.(mp3|wav|m4a)$/)) {
+        bucket = "audio-drafts";
+        fullPath = audioPath;
+      }
+      // Se não tem estrutura de diretório, tentar adicionar prefixo
+      else if (!audioPath.includes("/")) {
+        // Tentar primeiro como audio-assembly
+        bucket = "audio-assembly";
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          fullPath = `user-audio-library/${user.id}/${audioPath}`;
+        }
+      }
+
+      console.log(`🎯 Tentando bucket: ${bucket}, path: ${fullPath}`);
+
+      // Tentar obter URL do bucket determinado
       const { data, error } = await supabase.storage
-        .from("audio-assembly")
-        .createSignedUrl(audioPath, 3600); // 1 hora
+        .from(bucket)
+        .createSignedUrl(fullPath, 3600);
 
       if (error) {
-        console.error("Erro ao criar URL assinada:", error);
-        // Tentar com bucket audio-drafts se não encontrar no audio-assembly
+        console.error(`Erro no bucket ${bucket}:`, error);
+        
+        // Fallback: tentar outros buckets
+        const fallbackBucket = bucket === "audio-assembly" ? "audio-drafts" : "audio-assembly";
+        console.log(`🔄 Tentando fallback no bucket: ${fallbackBucket}`);
+        
         const { data: altData, error: altError } = await supabase.storage
-          .from("audio-drafts")
+          .from(fallbackBucket)
           .createSignedUrl(audioPath, 3600);
         
         if (altError) {
@@ -132,6 +172,7 @@ export const useAudioPlayer = () => {
           throw altError;
         }
         
+        console.log("✅ URL obtida via fallback:", altData.signedUrl);
         return altData.signedUrl;
       }
 
