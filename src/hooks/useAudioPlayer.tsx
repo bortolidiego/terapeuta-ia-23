@@ -108,23 +108,34 @@ export const useAudioPlayer = () => {
 
   const getAudioUrl = async (audioPath: string): Promise<string | null> => {
     try {
-      // Verificar se o arquivo existe primeiro
-      const { data: fileExists, error: listError } = await supabase.storage
-        .from("audio-assembly")
-        .list(audioPath.split('/').slice(0, -1).join('/'), {
-          search: audioPath.split('/').pop()
-        });
-
-      if (listError || !fileExists || fileExists.length === 0) {
-        console.error("Arquivo não encontrado:", audioPath);
-        throw new Error("Arquivo de áudio não encontrado no storage");
+      if (!audioPath) {
+        console.error("Caminho do áudio não fornecido");
+        return null;
       }
 
+      console.log("🔍 Tentando obter URL para:", audioPath);
+
+      // Primeiro, tentar obter a URL diretamente sem verificar existência
       const { data, error } = await supabase.storage
         .from("audio-assembly")
         .createSignedUrl(audioPath, 3600); // 1 hora
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro ao criar URL assinada:", error);
+        // Tentar com bucket audio-drafts se não encontrar no audio-assembly
+        const { data: altData, error: altError } = await supabase.storage
+          .from("audio-drafts")
+          .createSignedUrl(audioPath, 3600);
+        
+        if (altError) {
+          console.error("Erro também no bucket alternativo:", altError);
+          throw altError;
+        }
+        
+        return altData.signedUrl;
+      }
+
+      console.log("✅ URL obtida com sucesso:", data.signedUrl);
       return data.signedUrl;
     } catch (error) {
       console.error("Erro ao obter URL do áudio:", error);

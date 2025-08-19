@@ -157,10 +157,17 @@ serve(async (req) => {
       }
     }
 
-    // Contar resultados totais - corrigindo o erro de length
-    const totalSuccessful = (successfulBase || []).length + (successfulSentiments || []).length;
-    const totalFailed = (failedBase || []).length + (failedSentiments || []).length;
-    const totalItems = (baseFragments || []).length + (limitedSentiments || []).length;
+    // Contar resultados totais - corrigindo o erro de length com validações robustas
+    const safeSuccessfulBase = Array.isArray(successfulBase) ? successfulBase : [];
+    const safeSuccessfulSentiments = Array.isArray(successfulSentiments) ? successfulSentiments : [];
+    const safeFailedBase = Array.isArray(failedBase) ? failedBase : [];
+    const safeFailedSentiments = Array.isArray(failedSentiments) ? failedSentiments : [];
+    const safeBaseFragments = Array.isArray(baseFragments) ? baseFragments : [];
+    const safeLimitedSentiments = Array.isArray(limitedSentiments) ? limitedSentiments : [];
+    
+    const totalSuccessful = safeSuccessfulBase.length + safeSuccessfulSentiments.length;
+    const totalFailed = safeFailedBase.length + safeFailedSentiments.length;
+    const totalItems = safeBaseFragments.length + safeLimitedSentiments.length;
 
     console.log(`Batch generation completed: ${totalSuccessful} successful, ${totalFailed} failed`);
 

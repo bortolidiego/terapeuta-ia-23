@@ -85,11 +85,10 @@ export const AudioLibraryNew = () => {
 
       if (sentimentsError) throw sentimentsError;
 
-      // Buscar biblioteca do usuário
+      // Buscar biblioteca do usuário - incluindo todos os status para debug
       const { data: library, error: libraryError } = await supabase
         .from('user_audio_library')
         .select('*')
-        .eq('status', 'completed')  // Só buscar áudios completados
         .order('created_at', { ascending: false });
 
       if (libraryError) throw libraryError;
@@ -101,16 +100,21 @@ export const AudioLibraryNew = () => {
       // Mapear fragmentos base com lógica corrigida
       const mappedBaseWords: AudioItem[] = (fragments || []).map(fragment => {
         const userAudio = library?.find(item => 
-          item.component_key === fragment.component_key && 
-          item.status === 'completed'
+          item.component_key === fragment.component_key
         );
+        
+        console.log(`🔍 Debug - Fragmento ${fragment.component_key}:`, {
+          found: !!userAudio,
+          status: userAudio?.status,
+          audioPath: userAudio?.audio_path
+        });
         
         return {
           id: fragment.id,
           key: fragment.component_key,
           text: fragment.text_content,
           type: 'base_word' as const,
-          status: userAudio ? 'completed' : 'pending',
+          status: userAudio?.status === 'completed' ? 'completed' : 'pending',
           audioPath: userAudio?.audio_path
         };
       });
