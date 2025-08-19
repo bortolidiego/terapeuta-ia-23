@@ -358,6 +358,7 @@ export const Profile = () => {
       resetRecording();
       setIsCloning(false);
       setIsTestingVoice(false);
+      setShowVoiceTest(false); // Volta para a tela inicial de clonagem
     };
     
     try {
@@ -761,7 +762,7 @@ export const Profile = () => {
 
                         <div className="flex gap-2">
                           <Button 
-                            onClick={resetRecording}
+                            onClick={rejectVoice}
                             variant="outline"
                             className="flex-1 border-orange-300 text-orange-700 hover:bg-orange-50"
                           >
