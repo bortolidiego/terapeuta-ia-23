@@ -55,19 +55,55 @@ export const Profile = () => {
   };
 
   const updateProfile = async () => {
+    if (!user?.id) return;
+    
     setIsSaving(true);
     try {
-      const { error } = await supabase
+      // Verificar se o perfil existe, se não, criar um
+      const { data: existingProfile } = await supabase
         .from('user_profiles')
-        .update(profile)
-        .eq('user_id', user?.id);
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (!existingProfile) {
+        // Criar perfil se não existir
+        const { error: insertError } = await supabase
+          .from('user_profiles')
+          .insert({
+            user_id: user.id,
+            display_name: user.email,
+            preferred_language: 'pt-BR',
+            full_name: profile.full_name,
+            gender: profile.gender,
+            birth_city: profile.birth_city,
+            birth_date: profile.birth_date,
+            cpf: profile.cpf,
+          });
+
+        if (insertError) throw insertError;
+      } else {
+        // Atualizar perfil existente
+        const { error } = await supabase
+          .from('user_profiles')
+          .update({
+            full_name: profile.full_name,
+            gender: profile.gender,
+            birth_city: profile.birth_city,
+            birth_date: profile.birth_date,
+            cpf: profile.cpf,
+          })
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      }
 
       toast({
         title: "Perfil salvo!",
         description: "Suas informações foram atualizadas com sucesso.",
       });
+      
+      await loadProfile();
     } catch (error: any) {
       toast({
         title: "Erro ao salvar",
