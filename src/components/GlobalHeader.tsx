@@ -36,29 +36,9 @@ const GlobalHeader = () => {
 
         {/* Botões à direita */}
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => navigate('/profile')}
-            className="gap-2"
-          >
-            <User className="h-4 w-4" />
-            <span className="hidden sm:inline">Perfil</span>
-          </Button>
-
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => navigate('/credits')}
-            className="gap-2"
-          >
-            <CreditCard className="h-4 w-4" />
-            <span className="hidden sm:inline">Créditos</span>
-          </Button>
-
           <NotificationDropdown />
 
-          {/* Botão Admin - apenas um, não duplicado */}
+          {/* Botão Admin - apenas se for admin */}
           {isAdmin() && (
             <Button 
               variant="outline" 
@@ -76,7 +56,7 @@ const GlobalHeader = () => {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
                 <User className="h-4 w-4" />
-                <span className="hidden sm:inline">Usuário</span>
+                <span className="hidden sm:inline">Menu</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
@@ -90,6 +70,15 @@ const GlobalHeader = () => {
                   </div>
                 </div>
               </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/profile')} className="gap-2">
+                <User className="h-4 w-4" />
+                Dados Pessoais
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/credits')} className="gap-2">
+                <CreditCard className="h-4 w-4" />
+                Créditos
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signOut} className="gap-2 text-destructive focus:text-destructive">
                 <LogOut className="h-4 w-4" />

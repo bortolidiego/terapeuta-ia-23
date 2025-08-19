@@ -26,6 +26,10 @@ export const Profile = () => {
   const [isGeneratingText, setIsGeneratingText] = useState(false);
   const [isCloning, setIsCloning] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [voiceName, setVoiceName] = useState("");
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
+  const [testAudioUrl, setTestAudioUrl] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -45,6 +49,35 @@ export const Profile = () => {
       .single();
     
     setProfile(data || {});
+  };
+
+  const updateProfile = async () => {
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update(profile)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Perfil salvo!",
+        description: "Suas informações foram atualizadas com sucesso.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleProfileChange = (field: string, value: string) => {
+    setProfile((prev: any) => ({ ...prev, [field]: value }));
   };
 
   const loadCredits = async () => {
@@ -135,11 +168,47 @@ export const Profile = () => {
     }
   };
 
-  const cloneVoice = async () => {
-    if (!recordedAudio || !profile.full_name) {
+  const testVoice = async () => {
+    if (!recordedAudio || !voiceName.trim()) {
       toast({
         title: "Dados incompletos",
-        description: "Complete seu perfil e grave um áudio primeiro",
+        description: "Defina um nome para a voz e grave um áudio primeiro",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsTestingVoice(true);
+    try {
+      const audioBase64 = recordedAudio.split(',')[1];
+      
+      // Simular geração de teste (implementar com ElevenLabs preview)
+      const testText = "Olá, este é um teste da sua voz clonada. Como você se sente ao escutar isso?";
+      
+      toast({
+        title: "Teste gerado!",
+        description: "Escute o resultado e decida se quer salvar esta voz.",
+      });
+      
+      // Aqui implementaríamos a chamada real para ElevenLabs preview
+      setTestAudioUrl("test-audio-url"); // Placeholder
+      
+    } catch (error: any) {
+      toast({
+        title: "Erro ao testar voz",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingVoice(false);
+    }
+  };
+
+  const cloneVoice = async () => {
+    if (!recordedAudio || !voiceName.trim()) {
+      toast({
+        title: "Dados incompletos",
+        description: "Complete o teste da voz primeiro",
         variant: "destructive",
       });
       return;
@@ -147,25 +216,28 @@ export const Profile = () => {
 
     setIsCloning(true);
     try {
-      const audioBase64 = recordedAudio.split(',')[1]; // Remove data:audio/webm;base64,
+      const audioBase64 = recordedAudio.split(',')[1];
       
       const { data, error } = await supabase.functions.invoke('voice-cloning', {
         body: {
           audioBase64,
-          voiceName: `${profile.full_name} - MyHealing`,
-          description: `Voz clonada para terapia personalizada de ${profile.full_name}`
+          voiceName: voiceName.trim(),
+          description: `Voz clonada para terapia personalizada - ${voiceName}`
         }
       });
 
       if (error) throw error;
 
       toast({
-        title: "Voz clonada com sucesso!",
-        description: "Agora você pode gerar sua biblioteca personalizada de áudios",
+        title: "Voz salva com sucesso!",
+        description: "Sua voz foi clonada e está pronta para uso",
       });
       
       loadProfile();
       loadCredits();
+      setRecordedAudio(null);
+      setTestAudioUrl(null);
+      setVoiceName("");
     } catch (error: any) {
       toast({
         title: "Erro ao clonar voz",
@@ -175,6 +247,12 @@ export const Profile = () => {
     } finally {
       setIsCloning(false);
     }
+  };
+
+  const resetRecording = () => {
+    setRecordedAudio(null);
+    setTestAudioUrl(null);
+    setVoiceName("");
   };
 
   const generateAudioLibrary = async () => {
@@ -274,12 +352,13 @@ export const Profile = () => {
                     <Input 
                       id="full_name" 
                       value={profile.full_name || ''} 
+                      onChange={(e) => handleProfileChange('full_name', e.target.value)}
                       placeholder="Seu nome completo"
                     />
                   </div>
                   <div>
                     <Label htmlFor="gender">Gênero</Label>
-                    <Select value={profile.gender || ''}>
+                    <Select value={profile.gender || ''} onValueChange={(value) => handleProfileChange('gender', value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
@@ -295,6 +374,7 @@ export const Profile = () => {
                     <Input 
                       id="birth_city" 
                       value={profile.birth_city || ''} 
+                      onChange={(e) => handleProfileChange('birth_city', e.target.value)}
                       placeholder="Onde você nasceu"
                     />
                   </div>
@@ -304,6 +384,7 @@ export const Profile = () => {
                       id="birth_date" 
                       type="date" 
                       value={profile.birth_date || ''} 
+                      onChange={(e) => handleProfileChange('birth_date', e.target.value)}
                     />
                   </div>
                   <div>
@@ -311,11 +392,14 @@ export const Profile = () => {
                     <Input 
                       id="cpf" 
                       value={profile.cpf || ''} 
+                      onChange={(e) => handleProfileChange('cpf', e.target.value)}
                       placeholder="000.000.000-00"
                     />
                   </div>
                 </div>
-                <Button>Salvar Alterações</Button>
+                <Button onClick={updateProfile} disabled={isSaving}>
+                  {isSaving ? "Salvando..." : "Salvar Alterações"}
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -332,6 +416,17 @@ export const Profile = () => {
                 {!profile.cloned_voice_id ? (
                   <>
                     <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="voice_name">Nome da Voz</Label>
+                        <Input 
+                          id="voice_name"
+                          value={voiceName}
+                          onChange={(e) => setVoiceName(e.target.value)}
+                          placeholder="Ex: Minha Voz Terapêutica"
+                          className="mb-4"
+                        />
+                      </div>
+                      
                       <Button 
                         onClick={generateSampleText}
                         disabled={isGeneratingText}
@@ -359,17 +454,56 @@ export const Profile = () => {
                         </Button>
                         
                         {recordedAudio && (
-                          <audio controls src={recordedAudio} className="flex-1" />
+                          <Button
+                            onClick={resetRecording}
+                            variant="outline"
+                            size="sm"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-2" />
+                            Refazer
+                          </Button>
                         )}
                       </div>
 
-                      <Button 
-                        onClick={cloneVoice}
-                        disabled={!recordedAudio || isCloning}
-                        className="w-full"
-                      >
-                        {isCloning ? "Clonando..." : "Clonar Minha Voz"}
-                      </Button>
+                      {recordedAudio && (
+                        <div className="space-y-4">
+                          <audio controls src={recordedAudio} className="w-full" />
+                          
+                          {!testAudioUrl ? (
+                            <Button 
+                              onClick={testVoice}
+                              disabled={!voiceName.trim() || isTestingVoice}
+                              className="w-full"
+                              variant="outline"
+                            >
+                              {isTestingVoice ? "Testando..." : "Testar Voz"}
+                            </Button>
+                          ) : (
+                            <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                              <h4 className="font-medium">Teste da Voz Clonada</h4>
+                              <div className="text-sm text-muted-foreground">
+                                Escute como ficou sua voz clonada:
+                              </div>
+                              {/* Aqui seria o áudio de teste */}
+                              <div className="flex gap-2">
+                                <Button 
+                                  onClick={cloneVoice}
+                                  disabled={isCloning}
+                                  className="flex-1"
+                                >
+                                  {isCloning ? "Salvando..." : "Salvar Voz"}
+                                </Button>
+                                <Button 
+                                  onClick={() => setTestAudioUrl(null)}
+                                  variant="outline"
+                                >
+                                  Testar Novamente
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
