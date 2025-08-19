@@ -53,14 +53,21 @@ serve(async (req) => {
       audioBuffer[i] = binaryAudio.charCodeAt(i);
     }
 
-    // Create FormData for ElevenLabs API
+    // Create FormData for ElevenLabs API with optimized settings
     const formData = new FormData();
     const audioBlob = new Blob([audioBuffer], { type: 'audio/wav' });
     formData.append('files', audioBlob, 'voice_sample.wav');
     formData.append('name', voiceName);
-    formData.append('description', description || `Voice cloned for ${user.email}`);
+    formData.append('description', description || `Voice cloned for ${user.email} - Portuguese Brazilian`);
+    formData.append('labels', JSON.stringify({
+      'language': 'Portuguese',
+      'accent': 'Brazilian',
+      'gender': 'auto-detect',
+      'age': 'adult',
+      'quality': 'high_fidelity'
+    }));
 
-    // Call ElevenLabs voice cloning API
+    // Call ElevenLabs voice cloning API with optimized settings
     const response = await fetch('https://api.elevenlabs.io/v1/voices/add', {
       method: 'POST',
       headers: {
@@ -76,14 +83,12 @@ serve(async (req) => {
 
     const voiceData = await response.json();
     
-    // Update user profile with cloned voice ID
-    await supabase
-      .from('user_profiles')
-      .update({ 
-        cloned_voice_id: voiceData.voice_id,
-        voice_library_status: 'voice_cloned'
-      })
-      .eq('user_id', user.id);
+    // Store voice ID temporarily for testing (don't update profile yet)
+    const tempVoiceData = {
+      voice_id: voiceData.voice_id,
+      voice_name: voiceName,
+      status: 'testing'
+    };
 
     // Deduct credits and track usage
     const creditCost = 100; // Voice cloning cost
@@ -123,7 +128,8 @@ serve(async (req) => {
       voice_id: voiceData.voice_id,
       voice_name: voiceName,
       credits_remaining: credits.elevenlabs_credits - creditCost,
-      message: 'Voice cloned successfully'
+      status: 'ready_for_testing',
+      message: 'Voice cloned successfully - ready for testing'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

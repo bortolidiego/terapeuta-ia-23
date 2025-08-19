@@ -30,6 +30,9 @@ export const Profile = () => {
   const [isTestingVoice, setIsTestingVoice] = useState(false);
   const [testAudioUrl, setTestAudioUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [tempVoiceId, setTempVoiceId] = useState<string | null>(null);
+  const [testAudio, setTestAudio] = useState<string | null>(null);
+  const [showVoiceTest, setShowVoiceTest] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -169,33 +172,36 @@ export const Profile = () => {
   };
 
   const testVoice = async () => {
-    if (!recordedAudio || !voiceName.trim()) {
-      toast({
-        title: "Dados incompletos",
-        description: "Defina um nome para a voz e grave um áudio primeiro",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    if (!tempVoiceId) return;
+    
     setIsTestingVoice(true);
     try {
-      const audioBase64 = recordedAudio.split(',')[1];
+      const { data, error } = await supabase.functions.invoke('voice-clone-test', {
+        body: { voiceId: tempVoiceId }
+      });
+
+      if (error) throw error;
+
+      // Convert base64 to audio URL
+      const audioBlob = new Blob(
+        [Uint8Array.from(atob(data.audioBase64), c => c.charCodeAt(0))],
+        { type: 'audio/mp3' }
+      );
+      const audioUrl = URL.createObjectURL(audioBlob);
       
-      // Simular geração de teste (implementar com ElevenLabs preview)
-      const testText = "Olá, este é um teste da sua voz clonada. Como você se sente ao escutar isso?";
+      setTestAudio(audioUrl);
+      
+      // Auto-play the test audio
+      const audio = new Audio(audioUrl);
+      audio.play();
       
       toast({
-        title: "Teste gerado!",
-        description: "Escute o resultado e decida se quer salvar esta voz.",
+        title: "Teste de voz gerado!",
+        description: "Ouça sua voz clonada e decida se quer mantê-la.",
       });
-      
-      // Aqui implementaríamos a chamada real para ElevenLabs preview
-      setTestAudioUrl("test-audio-url"); // Placeholder
-      
     } catch (error: any) {
       toast({
-        title: "Erro ao testar voz",
+        title: "Erro ao gerar teste de voz",
         description: error.message,
         variant: "destructive",
       });
@@ -208,7 +214,7 @@ export const Profile = () => {
     if (!recordedAudio || !voiceName.trim()) {
       toast({
         title: "Dados incompletos",
-        description: "Complete o teste da voz primeiro",
+        description: "Nome da voz e áudio são obrigatórios",
         variant: "destructive",
       });
       return;
@@ -216,28 +222,28 @@ export const Profile = () => {
 
     setIsCloning(true);
     try {
-      const audioBase64 = recordedAudio.split(',')[1];
+      // Convert recordedAudio (data URL) to base64
+      const base64Audio = recordedAudio.split(',')[1];
       
       const { data, error } = await supabase.functions.invoke('voice-cloning', {
         body: {
-          audioBase64,
+          audioBase64: base64Audio,
           voiceName: voiceName.trim(),
-          description: `Voz clonada para terapia personalizada - ${voiceName}`
+          description: `Voz clonada de ${profile?.display_name || 'usuário'} - Português Brasileiro`
         }
       });
 
       if (error) throw error;
 
+      // Store temporary voice ID for testing
+      setTempVoiceId(data.voice_id);
+      setShowVoiceTest(true);
+      
       toast({
-        title: "Voz salva com sucesso!",
-        description: "Sua voz foi clonada e está pronta para uso",
+        title: "Voz clonada!",
+        description: "Agora teste sua qualidade antes de confirmar.",
       });
       
-      loadProfile();
-      loadCredits();
-      setRecordedAudio(null);
-      setTestAudioUrl(null);
-      setVoiceName("");
     } catch (error: any) {
       toast({
         title: "Erro ao clonar voz",
@@ -249,10 +255,77 @@ export const Profile = () => {
     }
   };
 
+  const confirmVoice = async () => {
+    if (!tempVoiceId) return;
+    
+    try {
+      const { error } = await supabase.functions.invoke('voice-clone-confirm', {
+        body: {
+          voiceId: tempVoiceId,
+          voiceName: voiceName,
+          action: 'confirm'
+        }
+      });
+
+      if (error) throw error;
+
+      setShowVoiceTest(false);
+      setTempVoiceId(null);
+      setTestAudio(null);
+      resetRecording();
+      
+      toast({
+        title: "Voz confirmada!",
+        description: "Sua voz foi salva e está pronta para uso.",
+      });
+      
+      await loadProfile();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao confirmar voz",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const rejectVoice = async () => {
+    if (!tempVoiceId) return;
+    
+    try {
+      const { error } = await supabase.functions.invoke('voice-clone-confirm', {
+        body: {
+          voiceId: tempVoiceId,
+          action: 'reject'
+        }
+      });
+
+      if (error) throw error;
+
+      setShowVoiceTest(false);
+      setTempVoiceId(null);
+      setTestAudio(null);
+      
+      toast({
+        title: "Voz rejeitada",
+        description: "Tente gravar novamente com melhor qualidade.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao rejeitar voz",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const resetRecording = () => {
     setRecordedAudio(null);
     setTestAudioUrl(null);
     setVoiceName("");
+    setShowVoiceTest(false);
+    setTempVoiceId(null);
+    setTestAudio(null);
   };
 
   const generateAudioLibrary = async () => {
@@ -465,43 +538,64 @@ export const Profile = () => {
                         )}
                       </div>
 
-                      {recordedAudio && (
+                      {recordedAudio && !showVoiceTest && (
                         <div className="space-y-4">
                           <audio controls src={recordedAudio} className="w-full" />
                           
-                          {!testAudioUrl ? (
-                            <Button 
-                              onClick={testVoice}
-                              disabled={!voiceName.trim() || isTestingVoice}
-                              className="w-full"
-                              variant="outline"
-                            >
-                              {isTestingVoice ? "Testando..." : "Testar Voz"}
-                            </Button>
-                          ) : (
-                            <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-                              <h4 className="font-medium">Teste da Voz Clonada</h4>
-                              <div className="text-sm text-muted-foreground">
-                                Escute como ficou sua voz clonada:
-                              </div>
-                              {/* Aqui seria o áudio de teste */}
+                          <Button 
+                            onClick={cloneVoice}
+                            disabled={!voiceName.trim() || isCloning}
+                            className="w-full"
+                          >
+                            {isCloning ? "Processando Clonagem..." : "Processar Clonagem"}
+                          </Button>
+                        </div>
+                      )}
+
+                      {showVoiceTest && (
+                        <div className="space-y-4">
+                          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <h4 className="font-medium text-blue-900 mb-2">Teste sua voz clonada</h4>
+                            <p className="text-sm text-blue-700 mb-3">
+                              Ouça como ficou sua voz clonada e decida se quer mantê-la ou refazer a gravação.
+                            </p>
+                            
+                            <div className="space-y-3">
+                              <Button 
+                                onClick={testVoice}
+                                disabled={isTestingVoice}
+                                variant="outline"
+                                className="w-full"
+                              >
+                                {isTestingVoice ? "Gerando teste..." : "Ouvir Teste da Voz Clonada"}
+                              </Button>
+
+                              {testAudio && (
+                                <div className="p-3 bg-gray-50 border rounded-lg">
+                                  <audio controls className="w-full" src={testAudio}>
+                                    Seu navegador não suporta áudio.
+                                  </audio>
+                                </div>
+                              )}
+                              
                               <div className="flex gap-2">
                                 <Button 
-                                  onClick={cloneVoice}
-                                  disabled={isCloning}
-                                  className="flex-1"
+                                  onClick={confirmVoice}
+                                  className="flex-1 bg-green-600 hover:bg-green-700"
                                 >
-                                  {isCloning ? "Salvando..." : "Salvar Voz"}
+                                  <CheckCircle className="w-4 h-4 mr-2" />
+                                  Salvar Voz
                                 </Button>
                                 <Button 
-                                  onClick={() => setTestAudioUrl(null)}
+                                  onClick={rejectVoice}
                                   variant="outline"
+                                  className="flex-1"
                                 >
-                                  Testar Novamente
+                                  Refazer
                                 </Button>
                               </div>
                             </div>
-                          )}
+                          </div>
                         </div>
                       )}
                     </div>
