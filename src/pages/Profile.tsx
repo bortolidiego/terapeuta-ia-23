@@ -210,12 +210,22 @@ export const Profile = () => {
 
   const testVoice = async () => {
     const voiceId = tempVoiceId || profile.cloned_voice_id;
-    if (!voiceId) return;
+    
+    if (!voiceId) {
+      toast({
+        title: "Voz não disponível",
+        description: "Você precisa clonar sua voz primeiro para poder testá-la.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsTestingVoice(true);
+    console.log('Testing voice with ID:', voiceId);
+    
     try {
       const { data, error } = await supabase.functions.invoke('voice-clone-test', {
-        body: { voiceId: tempVoiceId }
+        body: { voiceId }
       });
 
       if (error) throw error;
@@ -235,12 +245,13 @@ export const Profile = () => {
       
       toast({
         title: "Teste de voz gerado!",
-        description: "Ouça sua voz clonada e decida se quer mantê-la.",
+        description: `Frase: "${data.testPhrase}"`,
       });
     } catch (error: any) {
+      console.error('Voice test error:', error);
       toast({
         title: "Erro ao gerar teste de voz",
-        description: error.message,
+        description: error.message || "Erro desconhecido. Tente novamente.",
         variant: "destructive",
       });
     } finally {
