@@ -351,13 +351,12 @@ export const Profile = () => {
 
       if (error) throw error;
 
-      setShowVoiceTest(false);
-      setTempVoiceId(null);
-      setTestAudio(null);
+      // Reset all recording and testing state
+      resetRecording();
       
       toast({
         title: "Voz rejeitada",
-        description: "Tente gravar novamente com melhor qualidade.",
+        description: "Agora você pode gravar uma nova voz.",
       });
     } catch (error: any) {
       toast({
