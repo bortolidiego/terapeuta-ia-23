@@ -60,8 +60,7 @@ serve(async (req) => {
           style: 0.5,
           use_speaker_boost: true
         },
-        output_format: 'mp3_44100_128',
-        language_code: 'pt'
+        output_format: 'mp3_44100_128'
       }),
     });
 
