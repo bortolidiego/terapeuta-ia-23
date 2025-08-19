@@ -338,6 +338,13 @@ async function generateSentimentAudio(supabase: any, options: {
 }) {
   const { sentiment, sessionId, userId, userName, voiceId, elevenLabsApiKey } = options;
   
+  // Sanitizar nome do sentimento para evitar caracteres especiais
+  const sanitizedSentiment = sentiment
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .replace(/[^a-zA-Z0-9_]/g, '_')  // Replace special chars with underscore
+    .toLowerCase();
+  
   try {
     console.log(`Generating sentiment audio: ${sentiment}`);
 
@@ -382,7 +389,7 @@ async function generateSentimentAudio(supabase: any, options: {
     }
 
     const audioBuffer = await response.arrayBuffer();
-    const audioPath = `user-audio-library/${userId}/${sessionId}/sentiment-${sentiment}-${Date.now()}.mp3`;
+    const audioPath = `user-audio-library/${userId}/${sessionId}/sentiment-${sanitizedSentiment}-${Date.now()}.mp3`;
 
     // Upload para Supabase Storage
     const { error: uploadError } = await supabase.storage

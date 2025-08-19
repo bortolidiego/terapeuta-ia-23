@@ -248,6 +248,94 @@ export const AudioLibraryNew = () => {
     }
   };
 
+  // Função para gerar áudio individual
+  const generateIndividualAudio = async (item: AudioItem) => {
+    try {
+      // Obter usuário atual
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        toast({
+          title: "Erro",
+          description: "Usuário não autenticado",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Primeiro criar/atualizar o item na biblioteca se não existir
+      const componentKey = item.type === 'sentiment' ? `sentiment_${item.key}` : item.key;
+      
+      const { data: existingItem } = await supabase
+        .from('user_audio_library')
+        .select('id')
+        .eq('component_key', componentKey)
+        .eq('user_id', session.user.id)
+        .single();
+
+      let libraryItemId = existingItem?.id;
+
+      if (!libraryItemId) {
+        // Criar novo item na biblioteca
+        const { data: newItem, error: createError } = await supabase
+          .from('user_audio_library')
+          .insert({
+            user_id: session.user.id,
+            component_key: componentKey,
+            component_type: item.type === 'base_word' ? 'base' : 'sentiment',
+            sentiment_name: item.type === 'sentiment' ? item.key : null,
+            status: 'pending'
+          })
+          .select('id')
+          .single();
+
+        if (createError) throw createError;
+        libraryItemId = newItem.id;
+      }
+
+      // Atualizar status para processing
+      await supabase
+        .from('user_audio_library')
+        .update({ status: 'processing' })
+        .eq('id', libraryItemId);
+
+      // Recarregar dados para mostrar status atualizado
+      loadAudioLibrary();
+
+      toast({
+        title: "Gerando áudio...",
+        description: `Iniciando geração para "${item.text}"`,
+      });
+
+      // Chamar edge function para gerar áudio individual
+      const { data, error } = await supabase.functions.invoke('generate-audio-item', {
+        body: {
+          libraryItemId,
+          textContent: item.text
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Áudio gerado!",
+        description: `"${item.text}" foi gerado com sucesso`,
+      });
+
+      // Recarregar biblioteca após sucesso
+      loadAudioLibrary();
+
+    } catch (error: any) {
+      console.error('Erro na geração individual:', error);
+      toast({
+        title: "Erro na geração",
+        description: error.message || "Falha ao gerar áudio",
+        variant: "destructive",
+      });
+      // Recarregar para mostrar estado correto
+      loadAudioLibrary();
+    }
+  };
+
   const handleRecord = async (item: AudioItem) => {
     try {
       if (isRecording) {
@@ -483,7 +571,7 @@ export const AudioLibraryNew = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => generateAudioBatch('base_words')}
+                        onClick={() => generateIndividualAudio(item)}
                         className="h-8 w-8 p-0"
                         title="Gerar com IA"
                       >
@@ -637,7 +725,7 @@ export const AudioLibraryNew = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => generateAudioBatch('sentiments')}
+                        onClick={() => generateIndividualAudio(item)}
                         className="h-8 w-8 p-0"
                         title="Gerar com IA"
                       >
