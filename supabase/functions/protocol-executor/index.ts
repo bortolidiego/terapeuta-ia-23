@@ -173,83 +173,84 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
   const eventEssence = extractEventEssence(selectedEvent);
   console.log(`Event essence extracted: "${eventEssence}"`);
 
-  // Buscar componentes de áudio do banco de dados
-  const { data: components, error } = await supabase
+  // Buscar fragmentos base disponíveis
+  const { data: baseFragments, error: fragmentsError } = await supabase
     .from('audio_components')
-    .select('component_key, text_content, component_type, is_available')
-    .eq('protocol_type', 'evento_traumatico_especifico');
+    .select('*')
+    .eq('is_available', true)
+    .eq('protocol_type', 'evento_traumatico_especifico')
+    .eq('component_type', 'base_word');
 
-  if (error) {
-    console.error('Erro ao buscar componentes:', error);
-    throw new Error('Falha ao carregar componentes de áudio');
+  if (fragmentsError) {
+    console.error('Erro ao buscar fragmentos:', fragmentsError);
+    throw new Error('Falha ao carregar fragmentos de áudio');
   }
 
-  // Converter array para objeto para facilitar acesso
-  const componentMap = components.reduce((acc: any, component: any) => {
-    acc[component.component_key] = component;
-    return acc;
-  }, {});
+  console.log(`Found ${baseFragments.length} available base fragments`);
 
-  // Criar instruções de montagem ao invés de texto final
+  // Criar sequência de montagem baseada em fragmentos
+  const assemblySequence = [];
+
+  // Para cada sentimento selecionado, criar uma sequência
+  selectedSentiments.forEach((sentiment) => {
+    // Sequência 1: "Código alma, a minha consciência escolhe" + sentimento + "que eu senti" + "acabaram!"
+    assemblySequence.push(
+      { type: 'base_word', componentKey: 'base_code_alma' },
+      { type: 'sentiment', sentiment: sentiment },
+      { type: 'base_word', componentKey: 'base_que_senti' },
+      { type: 'base_word', componentKey: 'base_acabaram' }
+    );
+
+    // Sequência 2: "Recebo agora" + qualidades positivas + "em mim" + "para sempre"
+    assemblySequence.push(
+      { type: 'base_word', componentKey: 'base_recebo_agora' },
+      { type: 'event', text: 'paz, amor e harmonia' },
+      { type: 'base_word', componentKey: 'base_em_mim' },
+      { type: 'base_word', componentKey: 'base_para_sempre' }
+    );
+  });
+
+  // Sequência final para o evento específico
+  assemblySequence.push(
+    { type: 'base_word', componentKey: 'base_liberto_agora' },
+    { type: 'event', text: eventEssence },
+    { type: 'base_word', componentKey: 'base_de_mim' },
+    { type: 'base_word', componentKey: 'base_completamente' }
+  );
+
+  // Definir instruções de montagem
   const assemblyInstructions = {
-    event: selectedEvent,
-    eventEssence,
     protocolType: 'evento_traumatico_especifico',
-    baseComponents: [
-      'quantum_alma_senti',
-      'quantum_alma_recebi', 
-      'quantum_alma_senti_geral',
-      'quantum_espirito_gerou_completo',
-      'quantum_espirito_recebi_completo'
-    ],
-    dynamicElements: {
-      selectedSentiments,
-      eventText: eventEssence
-    },
-    assemblyOrder: [
-      // Para cada sentimento: quantum_alma_senti + sentimento + evento
-      ...selectedSentiments.map(sentiment => ({
-        componentKey: 'quantum_alma_senti',
-        replacements: { '[SENTIMENT]': sentiment, '[EVENT]': eventEssence },
-        type: 'sentiment_specific'
-      })),
-      // Comandos gerais
-      {
-        componentKey: 'quantum_alma_recebi',
-        replacements: { '[EVENT]': eventEssence },
-        type: 'general_alma'
-      },
-      {
-        componentKey: 'quantum_alma_senti_geral', 
-        replacements: { '[EVENT]': eventEssence },
-        type: 'general_alma'
-      },
-      {
-        componentKey: 'quantum_espirito_gerou_completo',
-        replacements: { '[EVENT]': eventEssence },
-        type: 'general_espirito'
-      },
-      {
-        componentKey: 'quantum_espirito_recebi_completo',
-        replacements: { '[EVENT]': eventEssence },
-        type: 'general_espirito'
-      }
-    ],
-    estimatedDuration: (selectedSentiments.length + 4) * 15, // ~15 segundos por comando
-    totalComponents: selectedSentiments.length + 4
+    selectedEvent: eventEssence,
+    selectedSentiments,
+    sequence: assemblySequence,
+    estimatedDuration: assemblySequence.length * 3, // 3 segundos por fragmento
+    totalFragments: assemblySequence.length,
+    metadata: {
+      sentimentSequences: selectedSentiments.length,
+      eventSequences: 1,
+      totalBaseWords: assemblySequence.filter(s => s.type === 'base_word').length,
+      totalSentiments: assemblySequence.filter(s => s.type === 'sentiment').length,
+      totalEvents: assemblySequence.filter(s => s.type === 'event').length
+    }
   };
 
-  // Verificar disponibilidade dos componentes
-  const unavailableComponents = assemblyInstructions.baseComponents.filter(key => 
-    !componentMap[key] || !componentMap[key].is_available
-  );
+  // Verificar se todos os fragmentos base estão disponíveis
+  const requiredBaseWords = ['base_code_alma', 'base_que_senti', 'base_acabaram', 'base_recebo_agora', 'base_em_mim', 'base_para_sempre', 'base_liberto_agora', 'base_de_mim', 'base_completamente'];
+  const availableBaseWords = baseFragments.map(frag => frag.component_key);
+  const unavailableComponents = requiredBaseWords.filter(comp => !availableBaseWords.includes(comp));
+
+  const isReady = unavailableComponents.length === 0;
 
   return {
     type: 'assembly_instructions',
     assemblyInstructions,
     unavailableComponents,
-    ready: unavailableComponents.length === 0,
-    sentimentCount: selectedSentiments.length
+    ready: isReady,
+    sentimentCount: selectedSentiments.length,
+    message: isReady 
+      ? `Protocolo pronto: ${assemblySequence.length} fragmentos para processar`
+      : `Fragmentos não disponíveis: ${unavailableComponents.join(', ')}`
   };
 }
 

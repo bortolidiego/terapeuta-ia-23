@@ -797,8 +797,250 @@ export const Profile = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="library">
+            <AudioLibraryTab />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
+  );
+};
+
+const AudioLibraryTab = () => {
+  const [baseFragments, setBaseFragments] = useState<any[]>([]);
+  const [sentiments, setSentiments] = useState<any[]>([]);
+  const [userLibrary, setUserLibrary] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    loadAudioLibrary();
+  }, []);
+
+  const loadAudioLibrary = async () => {
+    try {
+      setIsLoading(true);
+
+      // Buscar fragmentos base
+      const { data: fragments, error: fragmentsError } = await supabase
+        .from('audio_components')
+        .select('*')
+        .eq('protocol_type', 'evento_traumatico_especifico')
+        .eq('component_type', 'base_word')
+        .order('component_key');
+
+      if (fragmentsError) throw fragmentsError;
+
+      // Buscar sentimentos
+      const { data: sentimentData, error: sentimentsError } = await supabase
+        .from('sentimentos')
+        .select('*')
+        .order('nome');
+
+      if (sentimentsError) throw sentimentsError;
+
+      // Buscar biblioteca do usuário
+      const { data: library, error: libraryError } = await supabase
+        .from('user_audio_library')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (libraryError) throw libraryError;
+
+      setBaseFragments(fragments || []);
+      setSentiments(sentimentData || []);
+      setUserLibrary(library || []);
+    } catch (error) {
+      console.error('Erro ao carregar biblioteca:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar a biblioteca de áudios",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const playAudio = async (audioPath: string) => {
+    try {
+      setPlayingAudio(audioPath);
+      const { data } = await supabase.storage
+        .from('audio-assembly')
+        .createSignedUrl(audioPath, 60);
+      
+      if (data?.signedUrl) {
+        const audio = new Audio(data.signedUrl);
+        audio.play();
+        audio.onended = () => setPlayingAudio(null);
+      }
+    } catch (error) {
+      console.error('Erro ao reproduzir áudio:', error);
+      setPlayingAudio(null);
+    }
+  };
+
+  const getFragmentStatus = (componentKey: string) => {
+    const userAudio = userLibrary.find(audio => 
+      audio.component_key === componentKey && audio.component_type === 'base_word'
+    );
+    return userAudio ? 'completed' : 'pending';
+  };
+
+  const getSentimentStatus = (sentimentName: string) => {
+    const userAudio = userLibrary.find(audio => 
+      audio.component_key === `sentiment_${sentimentName}` && audio.component_type === 'sentiment'
+    );
+    return userAudio ? 'completed' : 'pending';
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Library className="w-5 h-5" />
+            Biblioteca de Áudios
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const completedFragments = baseFragments.filter(frag => getFragmentStatus(frag.component_key) === 'completed').length;
+  const completedSentiments = sentiments.filter(sent => getSentimentStatus(sent.nome) === 'completed').length;
+  const totalProgress = Math.round(((completedFragments + completedSentiments) / (baseFragments.length + sentiments.length)) * 100);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Library className="w-5 h-5" />
+          Biblioteca de Áudios
+        </CardTitle>
+        <CardDescription>
+          Gerencie seus fragmentos de áudio personalizados
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Progress Overview */}
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-semibold text-blue-900">Progresso da Biblioteca</h4>
+            <span className="text-2xl font-bold text-blue-700">{totalProgress}%</span>
+          </div>
+          <Progress value={totalProgress} className="mb-3" />
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-blue-700">Palavras Base:</span>
+              <span className="ml-2 font-semibold">{completedFragments}/{baseFragments.length}</span>
+            </div>
+            <div>
+              <span className="text-blue-700">Sentimentos:</span>
+              <span className="ml-2 font-semibold">{completedSentiments}/{sentiments.length}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Base Words Section */}
+        <div>
+          <h4 className="font-semibold mb-3">Palavras Base do Protocolo</h4>
+          <div className="grid gap-3">
+            {baseFragments.map((fragment) => {
+              const status = getFragmentStatus(fragment.component_key);
+              const userAudio = userLibrary.find(audio => 
+                audio.component_key === fragment.component_key && audio.component_type === 'base_word'
+              );
+              
+              return (
+                <div key={fragment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {status === 'completed' ? (
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Clock className="w-4 h-4 text-orange-500" />
+                      )}
+                      <span className="font-medium">{fragment.component_key}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">"{fragment.text_content}"</p>
+                  </div>
+                  <div className="flex gap-2">
+                    {status === 'completed' && userAudio?.audio_path && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => playAudio(userAudio.audio_path)}
+                        disabled={playingAudio === userAudio.audio_path}
+                      >
+                        {playingAudio === userAudio.audio_path ? (
+                          <Pause className="w-4 h-4" />
+                        ) : (
+                          <Play className="w-4 h-4" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Sentiments Section */}
+        <div>
+          <h4 className="font-semibold mb-3">Sentimentos</h4>
+          <div className="grid gap-3">
+            {sentiments.slice(0, 10).map((sentiment) => {
+              const status = getSentimentStatus(sentiment.nome);
+              const userAudio = userLibrary.find(audio => 
+                audio.component_key === `sentiment_${sentiment.nome}` && audio.component_type === 'sentiment'
+              );
+              
+              return (
+                <div key={sentiment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {status === 'completed' ? (
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Clock className="w-4 h-4 text-orange-500" />
+                      )}
+                      <span className="font-medium capitalize">{sentiment.nome}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {sentiment.contexto || `${sentiment.nome}s que eu senti`}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {status === 'completed' && userAudio?.audio_path && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => playAudio(userAudio.audio_path)}
+                        disabled={playingAudio === userAudio.audio_path}
+                      >
+                        {playingAudio === userAudio.audio_path ? (
+                          <Pause className="w-4 h-4" />
+                        ) : (
+                          <Play className="w-4 h-4" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };

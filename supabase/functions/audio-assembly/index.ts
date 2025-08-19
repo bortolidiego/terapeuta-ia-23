@@ -112,84 +112,99 @@ async function processAudioAssembly(supabase: any, job: any) {
     const voiceId = profile?.cloned_voice_id || 'pNInz6obpgDQGcFmaJgB';
     const userName = profile?.full_name || 'você';
 
-    const totalSteps = instructions.assemblyOrder.length;
+    const assemblySequence = instructions.sequence || instructions.assemblyOrder;
+    const totalSteps = assemblySequence.length;
     const audioSegments = [];
 
-    // Processar cada segmento
+    // Processar cada fragmento da sequência
     for (let i = 0; i < totalSteps; i++) {
-      const step = instructions.assemblyOrder[i];
-      
-      // Primeiro, tentar encontrar na biblioteca do usuário
+      const step = assemblySequence[i];
       let audioPath = null;
       let needsGeneration = true;
-      
-      const userAudio = userAudioLibrary.find(audio => 
-        audio.component_key === step.componentKey ||
-        (audio.sentiment_name && step.componentKey.includes(audio.sentiment_name.toLowerCase()))
-      );
+      let finalText = '';
 
-      if (userAudio && userAudio.audio_path) {
-        audioPath = userAudio.audio_path;
-        needsGeneration = false;
-        console.log(`Using existing audio from library for step ${i + 1}: ${userAudio.component_key}`);
-      } else {
-        // Fallback: buscar componente base e gerar áudio
-        const baseComponent = baseComponents.find(comp => 
-          comp.component_key === step.componentKey ||
-          comp.component_type === step.type
+      // Identificar tipo de fragmento
+      if (step.type === 'base_word') {
+        // Buscar fragmento base na biblioteca
+        const userAudio = userAudioLibrary.find(audio => 
+          audio.component_key === step.componentKey && 
+          audio.component_type === 'base_word'
         );
 
-        if (baseComponent) {
-          console.log(`Generating new audio for step ${i + 1}: ${step.componentKey}`);
+        if (userAudio && userAudio.audio_path) {
+          audioPath = userAudio.audio_path;
+          needsGeneration = false;
+          console.log(`Using base word from library: ${step.componentKey}`);
+        }
+      } else if (step.type === 'sentiment') {
+        // Buscar sentimento na biblioteca
+        const userAudio = userAudioLibrary.find(audio => 
+          audio.component_key === `sentiment_${step.sentiment}` && 
+          audio.component_type === 'sentiment'
+        );
+
+        if (userAudio && userAudio.audio_path) {
+          audioPath = userAudio.audio_path;
+          needsGeneration = false;
+          console.log(`Using sentiment from library: ${step.sentiment}`);
+        } else {
+          // Buscar contexto do sentimento para gerar
+          const { data: sentimentData } = await supabase
+            .from('sentimentos')
+            .select('contexto')
+            .eq('nome', step.sentiment)
+            .single();
           
-          // Personalizar texto
-          let finalText = baseComponent.text_content;
-          for (const [placeholder, replacement] of Object.entries(step.replacements || {})) {
-            finalText = finalText.replace(new RegExp(placeholder, 'gi'), replacement);
+          finalText = sentimentData?.contexto || `${step.sentiment}s que eu senti`;
+        }
+      } else if (step.type === 'event') {
+        // Eventos são sempre gerados dinamicamente
+        finalText = step.text || step.eventText || '';
+        console.log(`Generating dynamic event text: ${finalText.substring(0, 50)}...`);
+      }
+
+      // Se precisa gerar áudio
+      if (needsGeneration && finalText) {
+
+        try {
+          const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'audio/mpeg',
+              'Content-Type': 'application/json',
+              'xi-api-key': elevenLabsApiKey,
+            },
+            body: JSON.stringify({
+              text: finalText,
+              model_id: 'eleven_multilingual_v2',
+              voice_settings: {
+                stability: 0.5,
+                similarity_boost: 0.8,
+                style: 0.3
+              }
+            }),
+          });
+
+          if (ttsResponse.ok) {
+            const audioBuffer = await ttsResponse.arrayBuffer();
+            audioPath = `assembly-temp/${jobId}/segment-${i + 1}-${step.type}.mp3`;
+
+            // Upload temporário
+            await supabase.storage
+              .from('audio-assembly')
+              .upload(audioPath, audioBuffer, {
+                contentType: 'audio/mpeg',
+                upsert: true
+              });
+
+            console.log(`Generated audio for ${step.type}: ${finalText.substring(0, 30)}...`);
+          } else {
+            const errorText = await ttsResponse.text();
+            throw new Error(`TTS API error: ${ttsResponse.status} - ${errorText}`);
           }
-          finalText = finalText.replace(/\{nome\}/gi, userName);
-
-          // Gerar áudio via ElevenLabs
-          try {
-            const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-              method: 'POST',
-              headers: {
-                'Accept': 'audio/mpeg',
-                'Content-Type': 'application/json',
-                'xi-api-key': elevenLabsApiKey,
-              },
-              body: JSON.stringify({
-                text: finalText,
-                model_id: 'eleven_multilingual_v2',
-                voice_settings: {
-                  stability: 0.5,
-                  similarity_boost: 0.8,
-                  style: 0.3
-                }
-              }),
-            });
-
-            if (ttsResponse.ok) {
-              const audioBuffer = await ttsResponse.arrayBuffer();
-              audioPath = `assembly-temp/${jobId}/segment-${i + 1}.mp3`;
-
-              // Upload temporário
-              await supabase.storage
-                .from('audio-assembly')
-                .upload(audioPath, audioBuffer, {
-                  contentType: 'audio/mpeg',
-                  upsert: true
-                });
-
-              console.log(`Generated and uploaded audio for step ${i + 1}`);
-            } else {
-              throw new Error(`Falha na geração TTS: ${ttsResponse.status}`);
-            }
-          } catch (ttsError) {
-            console.error(`TTS generation failed for step ${i + 1}:`, ttsError);
-            // Usar silêncio ou pular este segmento
-            audioPath = null;
-          }
+        } catch (ttsError) {
+          console.error(`TTS generation failed for step ${i + 1}:`, ttsError);
+          audioPath = null;
         }
       }
 
@@ -197,10 +212,13 @@ async function processAudioAssembly(supabase: any, job: any) {
         audioSegments.push({
           order: i + 1,
           audioPath,
-          componentKey: step.componentKey,
+          componentKey: step.componentKey || step.sentiment || 'dynamic',
           type: step.type,
-          fromLibrary: !needsGeneration
+          fromLibrary: !needsGeneration,
+          text: finalText.substring(0, 100) // Para debug
         });
+      } else {
+        console.warn(`No audio generated for step ${i + 1}: ${JSON.stringify(step)}`);
       }
 
       // Atualizar progresso
