@@ -7,6 +7,33 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper para retry com backoff exponencial
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 3000
+): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isLastAttempt = attempt === maxRetries - 1;
+      const isRateLimit = error.message?.includes('429') || 
+                          error.message?.includes('too_many_concurrent_requests') ||
+                          error.message?.includes('rate limit');
+      
+      if (isLastAttempt || !isRateLimit) {
+        throw error;
+      }
+      
+      const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 2000;
+      console.log(`Rate limit hit, retrying attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -46,7 +73,9 @@ serve(async (req) => {
     const voiceId = profile.cloned_voice_id || 'pNInz6obpgDQGcFmaJgB'; // Fallback para voz padrão
     const userName = profile.full_name || 'amigo';
 
-    console.log(`Generating ${sentiments.length} audio items for user: ${userName}, voice: ${voiceId}`);
+    // Limitar sentimentos a apenas os 5 primeiros para evitar sobrecarga
+    const limitedSentiments = sentiments.slice(0, 5);
+    console.log(`Processing ${limitedSentiments.length} sentiments (limited from ${sentiments.length}) for user: ${userName}, voice: ${voiceId}`);
 
     // Buscar fragmentos base para protocolo específico
     const { data: baseFragments, error: fragmentsError } = await supabase
@@ -62,51 +91,66 @@ serve(async (req) => {
 
     console.log(`Found ${baseFragments.length} available base fragments`);
 
-    // Gerar áudios para fragmentos base + sentimentos
-    const baseFragmentPromises = baseFragments.map(async (fragment: any) => {
-      return generateBaseFragment(supabase, {
-        fragment,
-        sessionId,
-        userId,
-        userName,
-        voiceId,
-        elevenLabsApiKey
-      });
-    });
-
-    const sentimentPromises = sentiments.map(async (sentiment: string) => {
-      return generateSentimentAudio(supabase, {
-        sentiment,
-        sessionId,
-        userId,
-        userName,
-        voiceId,
-        elevenLabsApiKey
-      });
-    });
-
-    const allPromises = [...baseFragmentPromises, ...sentimentPromises];
-
-    // Executar todas as gerações sequencialmente para evitar rate limits
-    const batchSize = 1;
-    const results = [];
+    // Processar fragmentos base primeiro - sequencialmente com retry
+    const successfulBase = [];
+    const failedBase = [];
     
-    for (let i = 0; i < allPromises.length; i += batchSize) {
-      const batch = allPromises.slice(i, i + batchSize);
-      const batchResults = await Promise.allSettled(batch);
-      results.push(...batchResults);
-      
-      // Pausa maior entre requisições para evitar rate limits
-      if (i + batchSize < allPromises.length) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+    for (const fragment of baseFragments || []) {
+      try {
+        console.log(`Generating base fragment: ${fragment.component_key}`);
+        await retryWithBackoff(() => 
+          generateBaseFragment(supabase, {
+            fragment,
+            sessionId,
+            userId,
+            userName,
+            voiceId,
+            elevenLabsApiKey
+          })
+        );
+        successfulBase.push(fragment.component_key);
+      } catch (error: any) {
+        console.error(`Failed to generate base fragment ${fragment.component_key}:`, error.message);
+        failedBase.push({ key: fragment.component_key, error: error.message });
       }
+      
+      // Pausa longa entre cada fragmento
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
-    // Processar resultados
-    const successful = results.filter(r => r.status === 'fulfilled');
-    const failed = results.filter(r => r.status === 'rejected');
+    // Processar sentimentos - sequencialmente com retry
+    const successfulSentiments = [];
+    const failedSentiments = [];
+    
+    for (const sentiment of limitedSentiments) {
+      try {
+        console.log(`Generating sentiment audio: ${sentiment}`);
+        await retryWithBackoff(() => 
+          generateSentimentAudio(supabase, {
+            sentiment,
+            sessionId,
+            userId,
+            userName,
+            voiceId,
+            elevenLabsApiKey
+          })
+        );
+        successfulSentiments.push(sentiment);
+      } catch (error: any) {
+        console.error(`Failed to generate sentiment ${sentiment}:`, error.message);
+        failedSentiments.push({ sentiment, error: error.message });
+      }
+      
+      // Pausa longa entre cada sentimento
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
 
-    console.log(`Batch generation completed: ${successful.length} successful, ${failed.length} failed`);
+    // Contar resultados totais
+    const totalSuccessful = successfulBase.length + successfulSentiments.length;
+    const totalFailed = failedBase.length + failedSentiments.length;
+    const totalItems = baseFragments.length + limitedSentiments.length;
+
+    console.log(`Batch generation completed: ${totalSuccessful} successful, ${totalFailed} failed`);
 
     // Criar notificação para o usuário
     await supabase
@@ -114,14 +158,17 @@ serve(async (req) => {
       .insert({
         user_id: userId,
         type: 'audio_generation',
-        title: 'Áudios Gerados',
-        message: `${successful.length} fragmentos de áudio foram criados com sucesso. ${failed.length > 0 ? `${failed.length} falharam.` : ''}`,
+        title: 'Geração de Biblioteca Concluída',
+        message: `${totalSuccessful} áudios foram criados com sucesso. ${totalFailed > 0 ? `${totalFailed} falharam.` : ''}`,
         metadata: {
           session_id: sessionId,
-          successful_count: successful.length,
-          failed_count: failed.length,
-          total_fragments: baseFragments.length + sentiments.length,
-          sentiments: sentiments
+          successful_count: totalSuccessful,
+          failed_count: totalFailed,
+          total_fragments: totalItems,
+          successful_base: successfulBase.length,
+          successful_sentiments: successfulSentiments.length,
+          failed_details: [...failedBase, ...failedSentiments],
+          limited_sentiments: limitedSentiments
         }
       });
 
@@ -129,11 +176,26 @@ serve(async (req) => {
       success: true,
       message: `Geração em lote concluída`,
       results: {
-        total: baseFragments.length + sentiments.length,
-        successful: successful.length,
-        failed: failed.length,
-        fragments_generated: baseFragments.length,
-        sentiments_generated: sentiments.length
+        total: totalItems,
+        successful: totalSuccessful,
+        failed: totalFailed,
+        base_fragments: {
+          total: baseFragments.length,
+          successful: successfulBase.length,
+          failed: failedBase.length
+        },
+        sentiments: {
+          requested: sentiments.length,
+          processed: limitedSentiments.length,
+          successful: successfulSentiments.length,
+          failed: failedSentiments.length
+        },
+        details: {
+          successful_base,
+          successful_sentiments,
+          failed_base: failedBase,
+          failed_sentiments: failedSentiments
+        }
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
