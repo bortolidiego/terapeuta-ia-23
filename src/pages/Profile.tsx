@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Mic, Play, Pause, RotateCcw, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { Mic, Play, Pause, RotateCcw, CheckCircle, AlertCircle, Clock, PlayCircle, Library } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -208,7 +208,8 @@ export const Profile = () => {
   };
 
   const testVoice = async () => {
-    if (!tempVoiceId) return;
+    const voiceId = tempVoiceId || profile.cloned_voice_id;
+    if (!voiceId) return;
     
     setIsTestingVoice(true);
     try {
@@ -637,15 +638,64 @@ export const Profile = () => {
                     </div>
                   </>
                 ) : (
-                  <div className="text-center space-y-4">
-                    <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
-                    <h3 className="text-lg font-semibold">Voz Clonada com Sucesso!</h3>
-                    <p className="text-muted-foreground">
-                      Sua voz foi clonada e está pronta para gerar áudios personalizados
-                    </p>
-                    <Button onClick={generateAudioLibrary}>
-                      Gerar Biblioteca de Áudios
-                    </Button>
+                  <div className="space-y-6">
+                    <div className="text-center space-y-4">
+                      <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
+                      <h3 className="text-lg font-semibold">Voz Clonada com Sucesso!</h3>
+                      <p className="text-muted-foreground">
+                        Sua voz foi clonada e está pronta para gerar áudios personalizados
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                          <Mic className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-purple-900">Perfil de Voz</h4>
+                          <p className="text-sm text-purple-700">Sua voz personalizada está pronta</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <Button 
+                          onClick={testVoice}
+                          disabled={isTestingVoice}
+                          variant="outline"
+                          className="w-full border-purple-300 text-purple-700 hover:bg-purple-50"
+                        >
+                          <PlayCircle className="w-4 h-4 mr-2" />
+                          {isTestingVoice ? "Gerando teste..." : "Ouvir Áudio Teste"}
+                        </Button>
+
+                        {testAudio && (
+                          <div className="p-3 bg-white border border-purple-200 rounded-lg">
+                            <audio controls className="w-full" src={testAudio}>
+                              Seu navegador não suporta áudio.
+                            </audio>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={generateAudioLibrary}
+                            className="flex-1 bg-purple-600 hover:bg-purple-700"
+                          >
+                            <Library className="w-4 h-4 mr-2" />
+                            Gerar Biblioteca
+                          </Button>
+                          <Button 
+                            onClick={resetRecording}
+                            variant="outline"
+                            className="flex-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+                          >
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            Refazer Clonagem
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
