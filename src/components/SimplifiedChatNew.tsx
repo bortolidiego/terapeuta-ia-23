@@ -187,36 +187,37 @@ export const SimplifiedChatNew = () => {
       return;
     }
     
-    // Salvar resultado como mensagem
-    const { error } = await supabase
-      .from("session_messages")
-      .insert({
-        session_id: currentConsultationId,
-        role: "assistant",
-        content: result.commands.join('\n\n'),
-        metadata: { type: 'quantum_commands', ...result }
-      });
-
-    if (error) {
-      console.error("Erro ao salvar resultado:", error);
-      return;
-    }
-
-    // Atualizar interface
-    const assistantMessage: Message = {
-      id: Date.now().toString(),
-      role: "assistant",
-      content: result.commands.join('\n\n'),
-      created_at: new Date().toISOString(),
-      metadata: { type: 'quantum_commands', ...result }
-    };
-    
-    setMessages(prev => [...prev, assistantMessage]);
+    // Protocolo concluído - operação silenciosa
     setProtocolActive(false);
     
+    // Gerar título automático da sessão
+    try {
+      await supabase.functions.invoke('generate-session-title', {
+        body: { sessionId: currentConsultationId }
+      });
+    } catch (error) {
+      console.error('Erro ao gerar título:', error);
+    }
+
+    // Iniciar geração da biblioteca de áudios em background
+    try {
+      if (result.sentiments && result.sentiments.length > 0) {
+        await supabase.functions.invoke('batch-generate-audio-items', {
+          body: {
+            sessionId: currentConsultationId,
+            sentiments: result.sentiments,
+            userId: (await supabase.auth.getUser()).data.user?.id
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao iniciar geração de áudios:', error);
+    }
+    
+    // Operação silenciosa - não mostrar resultado na tela
     toast({
-      title: "Comandos quânticos gerados",
-      description: `${result.sentimentCount} comandos criados com sucesso!`,
+      title: "Sessão processada",
+      description: "Seus áudios personalizados estão sendo gerados. Você receberá uma notificação quando estiverem prontos.",
     });
   };
 

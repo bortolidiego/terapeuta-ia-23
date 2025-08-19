@@ -178,11 +178,53 @@ export const Profile = () => {
   };
 
   const generateAudioLibrary = async () => {
-    // Implementation for generating the complete audio library
-    toast({
-      title: "Gerando biblioteca",
-      description: "Suas bibliotecas de áudios estão sendo geradas...",
-    });
+    if (!profile.cloned_voice_id) {
+      toast({
+        title: "Voz não clonada",
+        description: "Clone sua voz primeiro para gerar a biblioteca personalizada",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Buscar sentimentos disponíveis
+      const { data: sentiments } = await supabase
+        .from('sentimentos')
+        .select('nome')
+        .limit(10);
+
+      if (!sentiments || sentiments.length === 0) {
+        throw new Error('Nenhum sentimento encontrado para gerar áudios');
+      }
+
+      const sentimentNames = sentiments.map(s => s.nome);
+
+      await supabase.functions.invoke('batch-generate-audio-items', {
+        body: {
+          sessionId: 'profile-generation',
+          sentiments: sentimentNames,
+          userId: user?.id
+        }
+      });
+
+      toast({
+        title: "Gerando biblioteca",
+        description: "Suas bibliotecas de áudios estão sendo geradas. Você receberá uma notificação quando estiverem prontas.",
+      });
+
+      // Recarregar biblioteca após alguns segundos
+      setTimeout(() => {
+        loadAudioLibrary();
+      }, 3000);
+
+    } catch (error: any) {
+      toast({
+        title: "Erro ao gerar biblioteca",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusIcon = (status: string) => {

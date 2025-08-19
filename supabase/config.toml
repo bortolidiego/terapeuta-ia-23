@@ -14,3 +14,24 @@ verify_jwt = false
 
 [functions.audio-assembly]
 verify_jwt = false
+
+[functions.generate-voice-sample-text]
+verify_jwt = false
+
+[functions.voice-cloning]
+verify_jwt = false
+
+[functions.generate-audio-item]
+verify_jwt = false
+
+[functions.notification-service]
+verify_jwt = false
+
+[functions.batch-generate-audio-items]
+verify_jwt = false
+
+[functions.generate-session-title]
+verify_jwt = false
+
+[functions.credit-tracking]
+verify_jwt = false

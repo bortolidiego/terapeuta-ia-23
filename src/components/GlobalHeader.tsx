@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
-import { LogOut, Settings, User } from 'lucide-react';
+import { LogOut, Settings, User, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 
@@ -44,6 +44,16 @@ const GlobalHeader = () => {
           >
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Perfil</span>
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => navigate('/credits')}
+            className="gap-2"
+          >
+            <CreditCard className="h-4 w-4" />
+            <span className="hidden sm:inline">Créditos</span>
           </Button>
 
           <NotificationDropdown />
