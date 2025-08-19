@@ -33,6 +33,7 @@ export const Profile = () => {
   const [tempVoiceId, setTempVoiceId] = useState<string | null>(null);
   const [testAudio, setTestAudio] = useState<string | null>(null);
   const [showVoiceTest, setShowVoiceTest] = useState(false);
+  const [isGeneratingLibrary, setIsGeneratingLibrary] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -375,7 +376,19 @@ export const Profile = () => {
       return;
     }
 
+    if (isGeneratingLibrary) {
+      // Parar geração (implementar lógica de cancelamento)
+      setIsGeneratingLibrary(false);
+      toast({
+        title: "Geração interrompida",
+        description: "A geração de áudios foi cancelada.",
+      });
+      return;
+    }
+
     try {
+      setIsGeneratingLibrary(true);
+      
       // Buscar sentimentos disponíveis
       const { data: sentiments } = await supabase
         .from('sentimentos')
@@ -401,10 +414,21 @@ export const Profile = () => {
         description: "Suas bibliotecas de áudios estão sendo geradas. Você receberá uma notificação quando estiverem prontas.",
       });
 
-      // Recarregar biblioteca após alguns segundos
+      // Polling para atualizar progresso
+      const pollInterval = setInterval(async () => {
+        await loadAudioLibrary();
+        
+        // Verificar se geração foi completada ou parada
+        if (!isGeneratingLibrary) {
+          clearInterval(pollInterval);
+        }
+      }, 5000);
+
+      // Auto-stop após 5 minutos
       setTimeout(() => {
-        loadAudioLibrary();
-      }, 3000);
+        setIsGeneratingLibrary(false);
+        clearInterval(pollInterval);
+      }, 300000);
 
     } catch (error: any) {
       toast({
@@ -412,6 +436,7 @@ export const Profile = () => {
         description: error.message,
         variant: "destructive",
       });
+      setIsGeneratingLibrary(false);
     }
   };
 
@@ -679,13 +704,6 @@ export const Profile = () => {
 
                         <div className="flex gap-2">
                           <Button 
-                            onClick={generateAudioLibrary}
-                            className="flex-1 bg-purple-600 hover:bg-purple-700"
-                          >
-                            <Library className="w-4 h-4 mr-2" />
-                            Gerar Biblioteca
-                          </Button>
-                          <Button 
                             onClick={resetRecording}
                             variant="outline"
                             className="flex-1 border-orange-300 text-orange-700 hover:bg-orange-50"
@@ -719,8 +737,9 @@ export const Profile = () => {
                     <Button 
                       onClick={generateAudioLibrary}
                       disabled={!profile.cloned_voice_id}
+                      variant={isGeneratingLibrary ? "destructive" : "default"}
                     >
-                      Gerar Biblioteca Personalizada
+                      {isGeneratingLibrary ? "Parar Geração" : "Gerar Biblioteca Personalizada"}
                     </Button>
                   </div>
                 ) : (

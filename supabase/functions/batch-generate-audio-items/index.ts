@@ -87,8 +87,8 @@ serve(async (req) => {
 
     const allPromises = [...baseFragmentPromises, ...sentimentPromises];
 
-    // Executar todas as gerações em paralelo (máximo 3 simultaneas para não sobrecarregar)
-    const batchSize = 3;
+    // Executar todas as gerações sequencialmente para evitar rate limits
+    const batchSize = 1;
     const results = [];
     
     for (let i = 0; i < allPromises.length; i += batchSize) {
@@ -96,9 +96,9 @@ serve(async (req) => {
       const batchResults = await Promise.allSettled(batch);
       results.push(...batchResults);
       
-      // Pequena pausa entre batches
+      // Pausa maior entre requisições para evitar rate limits
       if (i + batchSize < allPromises.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
 
