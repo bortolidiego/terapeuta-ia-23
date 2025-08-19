@@ -108,6 +108,18 @@ export const useAudioPlayer = () => {
 
   const getAudioUrl = async (audioPath: string): Promise<string | null> => {
     try {
+      // Verificar se o arquivo existe primeiro
+      const { data: fileExists, error: listError } = await supabase.storage
+        .from("audio-assembly")
+        .list(audioPath.split('/').slice(0, -1).join('/'), {
+          search: audioPath.split('/').pop()
+        });
+
+      if (listError || !fileExists || fileExists.length === 0) {
+        console.error("Arquivo não encontrado:", audioPath);
+        throw new Error("Arquivo de áudio não encontrado no storage");
+      }
+
       const { data, error } = await supabase.storage
         .from("audio-assembly")
         .createSignedUrl(audioPath, 3600); // 1 hora
@@ -116,6 +128,11 @@ export const useAudioPlayer = () => {
       return data.signedUrl;
     } catch (error) {
       console.error("Erro ao obter URL do áudio:", error);
+      toast({
+        title: "Erro no áudio",
+        description: `Arquivo não encontrado: ${audioPath.split('/').pop()}`,
+        variant: "destructive",
+      });
       return null;
     }
   };
@@ -142,6 +159,25 @@ export const useAudioPlayer = () => {
       if (audioRef.current) {
         audioRef.current.src = audioUrl;
         audioRef.current.volume = volume;
+        
+        // Adicionar event listeners para debug
+        audioRef.current.addEventListener('loadstart', () => {
+          console.log('Carregamento iniciado:', audioUrl);
+        });
+        
+        audioRef.current.addEventListener('error', (e) => {
+          console.error('Erro no audio element:', e);
+          toast({
+            title: "Erro de reprodução",
+            description: "O arquivo de áudio não pôde ser carregado",
+            variant: "destructive",
+          });
+        });
+        
+        audioRef.current.addEventListener('canplay', () => {
+          console.log('Áudio pronto para reprodução');
+        });
+        
         await audioRef.current.play();
         setIsPlaying(true);
       }
