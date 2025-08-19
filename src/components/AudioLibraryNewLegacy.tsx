@@ -1,8 +1,8 @@
-// Refactored Audio Library - New simplified version
+// Deprecated: Use AudioLibrarySimplified instead
 import React from 'react';
 import { AudioLibrarySimplified } from './AudioLibrarySimplified';
 
-// Main export now uses the new simplified component
+// Legacy component wrapper - redirect to new simplified version
 export const AudioLibraryNew = () => {
   return <AudioLibrarySimplified />;
 };

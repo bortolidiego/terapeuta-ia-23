@@ -22,84 +22,88 @@ export const useVoiceRecording = (sessionId?: string) => {
       console.log('🎤 Iniciando gravação...');
       
       // Verificar se o navegador suporta getUserMedia
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Seu navegador não suporta gravação de áudio');
+      console.log('🎤 Starting recording...');
+      
+      // Check microphone permissions
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices.filter(device => device.kind === 'audioinput');
+        
+        if (audioInputs.length === 0) {
+          throw new Error('Nenhum microfone encontrado');
+        }
+
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('🎤 Microphone permissions granted');
+      } catch (permissionError: any) {
+        console.error('🎤 Permission error:', permissionError);
+        
+        if (permissionError.name === 'NotAllowedError') {
+          throw new Error('Permissão de microfone negada. Permita o acesso ao microfone.');
+        } else if (permissionError.name === 'NotFoundError') {
+          throw new Error('Microfone não encontrado');
+        } else {
+          throw new Error(`Erro ao acessar microfone: ${permissionError.message}`);
+        }
       }
 
-      // Verificar permissões antes de tentar acessar o microfone
-      const permission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-      console.log('🔒 Status da permissão do microfone:', permission.state);
+      if (isRecording) return;
 
-      if (permission.state === 'denied') {
-        throw new Error('Permissão do microfone foi negada. Permita o acesso nas configurações do navegador.');
+      if (!window.MediaRecorder) {
+        throw new Error('Navegador não suporta gravação de áudio');
       }
 
-      // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 16000,
-          channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100
         }
       });
-
-      console.log('✅ Microfone acessado com sucesso');
+      
       streamRef.current = stream;
-      audioChunksRef.current = [];
 
-      // Create MediaRecorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+        ? 'audio/webm;codecs=opus' 
+        : 'audio/webm';
+
+      const mediaRecorder = new MediaRecorder(stream, { 
+        mimeType,
+        audioBitsPerSecond: 128000
       });
       
       mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
-          console.log('📊 Dados de áudio coletados:', event.data.size, 'bytes');
         }
       };
 
-      mediaRecorder.start(1000); // Collect data every second
+      mediaRecorder.onerror = (event: any) => {
+        console.error('🎤 MediaRecorder error:', event.error);
+        setIsRecording(false);
+        setIsProcessing(false);
+      };
+
+      mediaRecorder.start(1000);
       setIsRecording(true);
       setRecordingTime(0);
+      setIsPaused(false);
 
-      console.log('🔴 Gravação iniciada');
-
-      // Start timer
       intervalRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
 
-      toast({
-        title: 'Gravação iniciada',
-        description: 'Fale agora. O áudio está sendo capturado.',
-      });
-
-    } catch (error) {
-      console.error('❌ Erro ao iniciar gravação:', error);
+      console.log('🎤 Recording started successfully');
       
-      let errorMessage = 'Não foi possível acessar o microfone.';
-      
-      if (error instanceof Error) {
-        if (error.name === 'NotAllowedError') {
-          errorMessage = 'Permissão do microfone foi negada. Permita o acesso e tente novamente.';
-        } else if (error.name === 'NotFoundError') {
-          errorMessage = 'Nenhum microfone foi encontrado. Verifique se há um microfone conectado.';
-        } else if (error.name === 'NotSupportedError') {
-          errorMessage = 'Gravação de áudio não é suportada neste navegador.';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-
-      toast({
-        title: 'Erro na gravação',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+    } catch (error: any) {
+      console.error('🎤 Failed to start recording:', error);
+      setIsRecording(false);
+      setIsProcessing(false);
+      throw error;
     }
   }, [toast]);
 

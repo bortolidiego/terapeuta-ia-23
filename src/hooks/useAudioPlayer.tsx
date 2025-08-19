@@ -116,41 +116,36 @@ export const useAudioPlayer = () => {
     }
   };
 
-  const getAudioUrl = async (audioPath: string): Promise<string | null> => {
+  const getAudioUrl = async (audioPath: string): Promise<string | undefined> => {
     try {
-      if (!audioPath) {
-        console.error("❌ Caminho do áudio não fornecido");
-        return null;
-      }
-
-      console.log("🔍 Obtendo URL para áudio:", audioPath);
-
-      // Simplificar: todos os áudios gerados estão no bucket audio-assembly
-      const bucket = "audio-assembly";
+      console.log('🎵 [getAudioUrl] Requesting URL for path:', audioPath);
       
-      console.log(`🎯 Usando bucket: ${bucket}, path: ${audioPath}`);
-
-      // Tentar obter URL diretamente
+      // All audio files are in the audio-assembly bucket with standardized paths
       const { data, error } = await supabase.storage
-        .from(bucket)
+        .from('audio-assembly')
         .createSignedUrl(audioPath, 3600);
-
+      
       if (error) {
-        console.error(`❌ Erro ao obter URL do áudio:`, error);
-        console.error(`Path tentado: ${audioPath}`);
-        return null;
+        console.error('🎵 [getAudioUrl] Error generating URL:', error);
+        toast({
+          title: "Erro",
+          description: `Não foi possível acessar o áudio: ${error.message}`,
+          variant: "destructive",
+        });
+        return undefined;
       }
-
-      console.log("✅ URL obtida com sucesso");
+      
+      console.log('🎵 [getAudioUrl] URL generated successfully');
       return data.signedUrl;
-    } catch (error) {
-      console.error("Erro ao obter URL do áudio:", error);
+      
+    } catch (error: any) {
+      console.error('🎵 [getAudioUrl] Unexpected error:', error);
       toast({
-        title: "Erro no áudio",
-        description: `Arquivo não encontrado: ${audioPath.split('/').pop()}`,
+        title: "Erro",
+        description: "Falha ao carregar áudio",
         variant: "destructive",
       });
-      return null;
+      return undefined;
     }
   };
 

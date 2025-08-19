@@ -77,8 +77,8 @@ export const useAudioLibrary = () => {
           id: component.id,
           componentKey: component.component_key,
           text: component.text_content,
-          type: 'base_word',
-          status: userAudio?.status || 'pending',
+          type: 'base_word' as const,
+          status: (userAudio?.status as AudioLibraryItem['status']) || 'pending',
           audioPath: userAudio?.audio_path,
           createdAt: component.created_at,
           updatedAt: userAudio?.updated_at || component.updated_at
@@ -96,8 +96,8 @@ export const useAudioLibrary = () => {
           id: sentiment.id,
           componentKey: sentiment.nome,
           text: sentiment.contexto || `${sentiment.nome}s que eu senti`,
-          type: 'sentiment',
-          status: userAudio?.status || 'pending',
+          type: 'sentiment' as const,
+          status: (userAudio?.status as AudioLibraryItem['status']) || 'pending',
           audioPath: userAudio?.audio_path,
           createdAt: sentiment.created_at,
           updatedAt: userAudio?.updated_at || sentiment.updated_at
