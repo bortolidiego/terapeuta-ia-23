@@ -40,11 +40,16 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId, sentiments, userId } = await req.json();
-    console.log(`Starting batch audio generation for session: ${sessionId}, user: ${userId}`);
+    const { sessionId, userId, type = 'all', sentiments } = await req.json();
+    console.log(`Starting batch audio generation for session: ${sessionId}, user: ${userId}, type: ${type}`);
 
-    if (!sessionId || !sentiments || !Array.isArray(sentiments) || sentiments.length === 0) {
-      throw new Error('Session ID e lista de sentimentos são obrigatórios');
+    if (!sessionId || !userId) {
+      throw new Error('Session ID e User ID são obrigatórios');
+    }
+
+    // Validar type para sentimentos
+    if (type === 'sentiments' && (!sentiments || !Array.isArray(sentiments) || sentiments.length === 0)) {
+      throw new Error('Lista de sentimentos é obrigatória para type=sentiments');
     }
 
     // Initialize Supabase
@@ -73,76 +78,83 @@ serve(async (req) => {
     const voiceId = profile.cloned_voice_id || 'pNInz6obpgDQGcFmaJgB'; // Fallback para voz padrão
     const userName = profile.full_name || 'amigo';
 
-    // Limitar sentimentos a apenas os 5 primeiros para evitar sobrecarga
-    const limitedSentiments = sentiments.slice(0, 5);
-    console.log(`Processing ${limitedSentiments.length} sentiments (limited from ${sentiments.length}) for user: ${userName}, voice: ${voiceId}`);
+    let successfulBase = [];
+    let failedBase = [];
+    let successfulSentiments = [];
+    let failedSentiments = [];
+    let baseFragments = [];
+    let limitedSentiments = [];
 
-    // Buscar fragmentos base para protocolo específico
-    const { data: baseFragments, error: fragmentsError } = await supabase
-      .from('audio_components')
-      .select('*')
-      .eq('is_available', true)
-      .eq('protocol_type', 'evento_traumatico_especifico')
-      .eq('component_type', 'base_word');
+    // Processar apenas o tipo solicitado
+    if (type === 'all' || type === 'base_words') {
+      // Buscar fragmentos base para protocolo específico
+      const { data: fragments, error: fragmentsError } = await supabase
+        .from('audio_components')
+        .select('*')
+        .eq('is_available', true)
+        .eq('protocol_type', 'evento_traumatico_especifico')
+        .eq('component_type', 'base_word');
 
-    if (fragmentsError) {
-      throw new Error(`Erro ao buscar fragmentos: ${fragmentsError.message}`);
+      if (fragmentsError) {
+        throw new Error(`Erro ao buscar fragmentos: ${fragmentsError.message}`);
+      }
+
+      baseFragments = fragments || [];
+      console.log(`Found ${baseFragments.length} available base fragments`);
+
+      // Processar fragmentos base - sequencialmente com retry
+      for (const fragment of baseFragments) {
+        try {
+          console.log(`Generating base fragment: ${fragment.component_key}`);
+          await retryWithBackoff(() => 
+            generateBaseFragment(supabase, {
+              fragment,
+              sessionId,
+              userId,
+              userName,
+              voiceId,
+              elevenLabsApiKey
+            })
+          );
+          successfulBase.push(fragment.component_key);
+        } catch (error: any) {
+          console.error(`Failed to generate base fragment ${fragment.component_key}:`, error.message);
+          failedBase.push({ key: fragment.component_key, error: error.message });
+        }
+        
+        // Pausa entre cada fragmento
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
     }
 
-    console.log(`Found ${baseFragments.length} available base fragments`);
+    if (type === 'all' || type === 'sentiments') {
+      // Limitar sentimentos a 10 para evitar sobrecarga
+      limitedSentiments = sentiments ? sentiments.slice(0, 10) : [];
+      console.log(`Processing ${limitedSentiments.length} sentiments for user: ${userName}, voice: ${voiceId}`);
 
-    // Processar fragmentos base primeiro - sequencialmente com retry
-    const successfulBase = [];
-    const failedBase = [];
-    
-    for (const fragment of baseFragments || []) {
-      try {
-        console.log(`Generating base fragment: ${fragment.component_key}`);
-        await retryWithBackoff(() => 
-          generateBaseFragment(supabase, {
-            fragment,
-            sessionId,
-            userId,
-            userName,
-            voiceId,
-            elevenLabsApiKey
-          })
-        );
-        successfulBase.push(fragment.component_key);
-      } catch (error: any) {
-        console.error(`Failed to generate base fragment ${fragment.component_key}:`, error.message);
-        failedBase.push({ key: fragment.component_key, error: error.message });
+      // Processar sentimentos - sequencialmente com retry
+      for (const sentiment of limitedSentiments) {
+        try {
+          console.log(`Generating sentiment audio: ${sentiment}`);
+          await retryWithBackoff(() => 
+            generateSentimentAudio(supabase, {
+              sentiment,
+              sessionId,
+              userId,
+              userName,
+              voiceId,
+              elevenLabsApiKey
+            })
+          );
+          successfulSentiments.push(sentiment);
+        } catch (error: any) {
+          console.error(`Failed to generate sentiment ${sentiment}:`, error.message);
+          failedSentiments.push({ sentiment, error: error.message });
+        }
+        
+        // Pausa entre cada sentimento
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
-      
-      // Pausa longa entre cada fragmento
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    }
-
-    // Processar sentimentos - sequencialmente com retry
-    const successfulSentiments = [];
-    const failedSentiments = [];
-    
-    for (const sentiment of limitedSentiments) {
-      try {
-        console.log(`Generating sentiment audio: ${sentiment}`);
-        await retryWithBackoff(() => 
-          generateSentimentAudio(supabase, {
-            sentiment,
-            sessionId,
-            userId,
-            userName,
-            voiceId,
-            elevenLabsApiKey
-          })
-        );
-        successfulSentiments.push(sentiment);
-      } catch (error: any) {
-        console.error(`Failed to generate sentiment ${sentiment}:`, error.message);
-        failedSentiments.push({ sentiment, error: error.message });
-      }
-      
-      // Pausa longa entre cada sentimento
-      await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
     // Contar resultados totais
