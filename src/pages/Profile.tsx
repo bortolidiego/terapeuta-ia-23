@@ -341,25 +341,28 @@ export const Profile = () => {
   const rejectVoice = async () => {
     console.log('🔄 Iniciando rejeição da voz:', { tempVoiceId });
     
-    // Validação prévia
-    if (!tempVoiceId) {
-      console.log('❌ Nenhum tempVoiceId encontrado');
-      toast({
-        title: "Erro",
-        description: "Nenhuma voz temporária encontrada para rejeitar.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     // Reset do estado SEMPRE acontece, independente do sucesso da exclusão
     const performReset = () => {
       console.log('🧹 Limpando estados da gravação');
+      setTempVoiceId(null);
+      setTestAudioUrl(null);
+      setSampleText("");
       resetRecording();
       setIsCloning(false);
       setIsTestingVoice(false);
       setShowVoiceTest(false); // Volta para a tela inicial de clonagem
     };
+    
+    // Se não há tempVoiceId, apenas reseta o estado e volta para clonagem
+    if (!tempVoiceId) {
+      console.log('ℹ️ Nenhum tempVoiceId encontrado, apenas resetando interface');
+      toast({
+        title: "Voltando para clonagem",
+        description: "Retornando à tela inicial de clonagem de voz",
+      });
+      performReset();
+      return;
+    }
     
     try {
       console.log('📡 Chamando voice-clone-confirm para rejeitar');
