@@ -34,6 +34,7 @@ export const Profile = () => {
   const [testAudio, setTestAudio] = useState<string | null>(null);
   const [showVoiceTest, setShowVoiceTest] = useState(false);
   const [isGeneratingLibrary, setIsGeneratingLibrary] = useState(false);
+  const [isRedoingCloning, setIsRedoingCloning] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -329,6 +330,7 @@ export const Profile = () => {
       });
       
       await loadProfile();
+      setIsRedoingCloning(false); // Reset flag após confirmação
     } catch (error: any) {
       toast({
         title: "Erro ao confirmar voz",
@@ -351,6 +353,7 @@ export const Profile = () => {
       setIsCloning(false);
       setIsTestingVoice(false);
       setShowVoiceTest(false); // Volta para a tela inicial de clonagem
+      setIsRedoingCloning(true); // Força volta para tela inicial
     };
     
     // Se não há tempVoiceId, apenas reseta o estado e volta para clonagem
@@ -609,7 +612,7 @@ export const Profile = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {!profile.cloned_voice_id ? (
+                {(!profile.cloned_voice_id || isRedoingCloning) ? (
                   <>
                     <div className="space-y-4">
                       <div>
