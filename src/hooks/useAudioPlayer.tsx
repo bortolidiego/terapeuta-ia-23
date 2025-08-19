@@ -119,64 +119,29 @@ export const useAudioPlayer = () => {
   const getAudioUrl = async (audioPath: string): Promise<string | null> => {
     try {
       if (!audioPath) {
-        console.error("Caminho do áudio não fornecido");
+        console.error("❌ Caminho do áudio não fornecido");
         return null;
       }
 
-      console.log("🔍 Tentando obter URL para:", audioPath);
+      console.log("🔍 Obtendo URL para áudio:", audioPath);
 
-      // Determinar bucket correto baseado no path
-      let bucket = "audio-assembly";
-      let fullPath = audioPath;
+      // Simplificar: todos os áudios gerados estão no bucket audio-assembly
+      const bucket = "audio-assembly";
+      
+      console.log(`🎯 Usando bucket: ${bucket}, path: ${audioPath}`);
 
-      // Se o path contém user-audio-library, é um áudio da biblioteca
-      if (audioPath.includes("user-audio-library/")) {
-        bucket = "audio-assembly";
-        fullPath = audioPath;
-      } 
-      // Se é apenas userId/filename, assumir que é do audio-drafts
-      else if (audioPath.match(/^[a-f0-9-]+\/[^/]+\.(mp3|wav|m4a)$/)) {
-        bucket = "audio-drafts";
-        fullPath = audioPath;
-      }
-      // Se não tem estrutura de diretório, tentar adicionar prefixo
-      else if (!audioPath.includes("/")) {
-        // Tentar primeiro como audio-assembly
-        bucket = "audio-assembly";
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          fullPath = `user-audio-library/${user.id}/${audioPath}`;
-        }
-      }
-
-      console.log(`🎯 Tentando bucket: ${bucket}, path: ${fullPath}`);
-
-      // Tentar obter URL do bucket determinado
+      // Tentar obter URL diretamente
       const { data, error } = await supabase.storage
         .from(bucket)
-        .createSignedUrl(fullPath, 3600);
+        .createSignedUrl(audioPath, 3600);
 
       if (error) {
-        console.error(`Erro no bucket ${bucket}:`, error);
-        
-        // Fallback: tentar outros buckets
-        const fallbackBucket = bucket === "audio-assembly" ? "audio-drafts" : "audio-assembly";
-        console.log(`🔄 Tentando fallback no bucket: ${fallbackBucket}`);
-        
-        const { data: altData, error: altError } = await supabase.storage
-          .from(fallbackBucket)
-          .createSignedUrl(audioPath, 3600);
-        
-        if (altError) {
-          console.error("Erro também no bucket alternativo:", altError);
-          throw altError;
-        }
-        
-        console.log("✅ URL obtida via fallback:", altData.signedUrl);
-        return altData.signedUrl;
+        console.error(`❌ Erro ao obter URL do áudio:`, error);
+        console.error(`Path tentado: ${audioPath}`);
+        return null;
       }
 
-      console.log("✅ URL obtida com sucesso:", data.signedUrl);
+      console.log("✅ URL obtida com sucesso");
       return data.signedUrl;
     } catch (error) {
       console.error("Erro ao obter URL do áudio:", error);
