@@ -11,6 +11,7 @@ import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { Chat } from "./pages/Chat";
+import { Profile } from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,19 @@ const App = () => (
                     <GlobalHeader />
                     <div className="flex-1">
                       <Chat />
+                    </div>
+                  </div>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/profile" 
+              element={
+                <ProtectedRoute>
+                  <div className="min-h-screen flex flex-col">
+                    <GlobalHeader />
+                    <div className="flex-1">
+                      <Profile />
                     </div>
                   </div>
                 </ProtectedRoute>

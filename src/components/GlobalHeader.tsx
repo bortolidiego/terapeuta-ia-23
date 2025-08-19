@@ -11,6 +11,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { LogOut, Settings, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { NotificationDropdown } from '@/components/NotificationDropdown';
 
 const GlobalHeader = () => {
   const { user, userRole, signOut, isAdmin } = useAuth();
@@ -35,6 +36,18 @@ const GlobalHeader = () => {
 
         {/* Botões à direita */}
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => navigate('/profile')}
+            className="gap-2"
+          >
+            <User className="h-4 w-4" />
+            <span className="hidden sm:inline">Perfil</span>
+          </Button>
+
+          <NotificationDropdown />
+
           {/* Botão Admin - apenas um, não duplicado */}
           {isAdmin() && (
             <Button 

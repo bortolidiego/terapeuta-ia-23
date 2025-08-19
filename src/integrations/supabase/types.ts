@@ -416,6 +416,7 @@ export type Database = {
       }
       therapy_sessions: {
         Row: {
+          auto_generated_title: string | null
           created_at: string
           id: string
           session_summary: string | null
@@ -425,6 +426,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          auto_generated_title?: string | null
           created_at?: string
           id?: string
           session_summary?: string | null
@@ -434,6 +436,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          auto_generated_title?: string | null
           created_at?: string
           id?: string
           session_summary?: string | null
@@ -441,6 +444,39 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      usage_tracking: {
+        Row: {
+          cost_usd: number
+          created_at: string
+          id: string
+          metadata: Json | null
+          operation_type: string
+          service: string
+          tokens_used: number
+          user_id: string
+        }
+        Insert: {
+          cost_usd: number
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          operation_type: string
+          service: string
+          tokens_used: number
+          user_id: string
+        }
+        Update: {
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          operation_type?: string
+          service?: string
+          tokens_used?: number
+          user_id?: string
         }
         Relationships: []
       }
@@ -473,6 +509,75 @@ export type Database = {
           id?: string
           mime_type?: string | null
           session_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_audio_library: {
+        Row: {
+          audio_path: string | null
+          component_key: string
+          component_type: string | null
+          created_at: string
+          generation_method: string | null
+          id: string
+          sentiment_name: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          audio_path?: string | null
+          component_key: string
+          component_type?: string | null
+          created_at?: string
+          generation_method?: string | null
+          id?: string
+          sentiment_name?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          audio_path?: string | null
+          component_key?: string
+          component_type?: string | null
+          created_at?: string
+          generation_method?: string | null
+          id?: string
+          sentiment_name?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_credits: {
+        Row: {
+          created_at: string
+          elevenlabs_credits: number
+          openai_credits: number
+          total_spent_elevenlabs: number
+          total_spent_openai: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          elevenlabs_credits?: number
+          openai_credits?: number
+          total_spent_elevenlabs?: number
+          total_spent_openai?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          elevenlabs_credits?: number
+          openai_credits?: number
+          total_spent_elevenlabs?: number
+          total_spent_openai?: number
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -531,33 +636,90 @@ export type Database = {
         }
         Relationships: []
       }
-      user_profiles: {
+      user_notifications: {
         Row: {
           created_at: string
+          id: string
+          message: string
+          metadata: Json | null
+          read: boolean
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          read?: boolean
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          read?: boolean
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_profiles: {
+        Row: {
+          birth_city: string | null
+          birth_date: string | null
+          cloned_voice_id: string | null
+          cpf: string | null
+          created_at: string
           display_name: string | null
+          full_name: string | null
+          gender: string | null
           id: string
           preferred_language: string | null
           session_count: number
           updated_at: string
           user_id: string | null
+          voice_library_status: string | null
         }
         Insert: {
+          birth_city?: string | null
+          birth_date?: string | null
+          cloned_voice_id?: string | null
+          cpf?: string | null
           created_at?: string
           display_name?: string | null
+          full_name?: string | null
+          gender?: string | null
           id?: string
           preferred_language?: string | null
           session_count?: number
           updated_at?: string
           user_id?: string | null
+          voice_library_status?: string | null
         }
         Update: {
+          birth_city?: string | null
+          birth_date?: string | null
+          cloned_voice_id?: string | null
+          cpf?: string | null
           created_at?: string
           display_name?: string | null
+          full_name?: string | null
+          gender?: string | null
           id?: string
           preferred_language?: string | null
           session_count?: number
           updated_at?: string
           user_id?: string | null
+          voice_library_status?: string | null
         }
         Relationships: []
       }
