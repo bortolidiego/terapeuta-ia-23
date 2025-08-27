@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { PendingConsultations } from "./PendingConsultations";
 import { AudioPlayer } from "./AudioPlayer";
+import { useSessionManager } from "@/hooks/useSessionManager";
 
 export const LandingPage = () => {
   const [isCreating, setIsCreating] = useState(false);
@@ -14,10 +15,28 @@ export const LandingPage = () => {
   const [pendingCount, setPendingCount] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { findActiveSession, cleanupOrphanedSessions } = useSessionManager();
 
   useEffect(() => {
     fetchPendingCount();
-  }, []);
+    checkForActiveSession();
+    cleanupOrphanedSessions();
+  }, [cleanupOrphanedSessions]);
+
+  const checkForActiveSession = async () => {
+    try {
+      const activeSession = await findActiveSession();
+      if (activeSession && activeSession.hasRecentMessages) {
+        toast({
+          title: "Consulta ativa encontrada",
+          description: "Você será redirecionado para sua consulta em andamento.",
+        });
+        navigate(`/chat/${activeSession.id}`);
+      }
+    } catch (error) {
+      console.error("Erro ao verificar sessão ativa:", error);
+    }
+  };
 
   const fetchPendingCount = async () => {
     try {
@@ -47,6 +66,17 @@ export const LandingPage = () => {
           description: "Usuário não autenticado",
           variant: "destructive",
         });
+        return;
+      }
+
+      // Check if there's already an active session with recent activity
+      const activeSession = await findActiveSession();
+      if (activeSession && activeSession.hasRecentMessages) {
+        toast({
+          title: "Consulta ativa encontrada",
+          description: "Você será redirecionado para sua consulta em andamento.",
+        });
+        navigate(`/chat/${activeSession.id}`);
         return;
       }
 

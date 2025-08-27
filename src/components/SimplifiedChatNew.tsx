@@ -12,6 +12,7 @@ import { ProtocolExecutor } from "@/components/ProtocolExecutor";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import { useDraftMessage } from "@/hooks/useDraftMessage";
 import { useAudioDraft } from "@/hooks/useAudioDraft";
+import { useSessionManager } from "@/hooks/useSessionManager";
 
 interface Message {
   id: string;
@@ -32,6 +33,8 @@ export const SimplifiedChatNew = () => {
   const [protocolActive, setProtocolActive] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  const { pauseSession, cleanupOrphanedSessions } = useSessionManager();
 
   const {
     isRecording,
@@ -69,8 +72,48 @@ export const SimplifiedChatNew = () => {
     if (sessionIdFromUrl) {
       setCurrentConsultationId(sessionIdFromUrl);
       loadSessionMessages(sessionIdFromUrl);
+      
+      // Setup automatic session pausing on page unload
+      const handleBeforeUnload = () => {
+        pauseSession(sessionIdFromUrl);
+      };
+      
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      
+      // Setup inactivity timeout (30 minutes)
+      let inactivityTimer: NodeJS.Timeout;
+      
+      const resetInactivityTimer = () => {
+        clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+          pauseSession(sessionIdFromUrl);
+          toast({
+            title: "Consulta pausada por inatividade",
+            description: "Sua consulta foi pausada automaticamente após 30 minutos de inatividade.",
+          });
+        }, 30 * 60 * 1000); // 30 minutes
+      };
+      
+      // Reset timer on user activity
+      const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+      events.forEach(event => {
+        document.addEventListener(event, resetInactivityTimer, true);
+      });
+      
+      resetInactivityTimer();
+      
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        clearTimeout(inactivityTimer);
+        events.forEach(event => {
+          document.removeEventListener(event, resetInactivityTimer, true);
+        });
+      };
     }
-  }, []);
+    
+    // Clean up orphaned sessions when component loads
+    cleanupOrphanedSessions();
+  }, [pauseSession, cleanupOrphanedSessions, toast]);
 
   const loadSessionMessages = async (sessionId: string) => {
     try {
