@@ -8,9 +8,9 @@ interface ActiveSession {
 }
 
 export const useSessionManager = () => {
-  const pauseSession = useCallback(async (sessionId: string) => {
+  const pauseSession = useCallback(async (sessionId: string, generateTitle: boolean = true) => {
     try {
-      // Use the new edge function for reliable pausing
+      // Use the new edge function for reliable pausing and title generation
       const { error } = await supabase.functions.invoke('pause-session', {
         body: { sessionId }
       });
@@ -27,6 +27,15 @@ export const useSessionManager = () => {
 
         if (dbError) {
           console.error("Error pausing session with direct update:", dbError);
+        } else if (generateTitle) {
+          // Try to generate title manually if edge function failed
+          try {
+            await supabase.functions.invoke('generate-session-title', {
+              body: { sessionId }
+            });
+          } catch (titleError) {
+            console.error("Error generating title:", titleError);
+          }
         }
       }
     } catch (error) {

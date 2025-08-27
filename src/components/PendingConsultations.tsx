@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 interface PendingConsultation {
   id: string;
   title: string;
+  auto_generated_title: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,7 +48,7 @@ export const PendingConsultations = ({ onBack }: PendingConsultationsProps) => {
     try {
       const { data, error } = await supabase
         .from("therapy_sessions")
-        .select("id, title, created_at, updated_at")
+        .select("id, title, auto_generated_title, created_at, updated_at")
         .eq("status", "paused")
         .order("updated_at", { ascending: false });
 
@@ -363,7 +364,7 @@ export const PendingConsultations = ({ onBack }: PendingConsultationsProps) => {
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
                                 <MessageCircle className="h-4 w-4 text-primary" />
-                                <h3 className="font-medium">{consultation.title}</h3>
+                                <h3 className="font-medium">{consultation.auto_generated_title || consultation.title}</h3>
                                 <Badge variant="secondary" className="text-xs">
                                   Pausada
                                 </Badge>
