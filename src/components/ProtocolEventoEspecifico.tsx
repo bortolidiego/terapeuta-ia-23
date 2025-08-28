@@ -20,13 +20,104 @@ export const ProtocolEventoEspecifico = ({
   const [selectedEvent, setSelectedEvent] = useState<string>("");
   const [showSentiments, setShowSentiments] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [protocolId, setProtocolId] = useState<string | null>(null);
 
   // Inicializar o protocolo
   React.useEffect(() => {
-    if (currentStep === 1) {
-      normalizeEvent();
-    }
+    initializeProtocol();
   }, []);
+
+  const initializeProtocol = async () => {
+    try {
+      // Verificar se há protocolo existente
+      const { data: existingProtocol, error: protocolError } = await supabase
+        .from('session_protocols')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (protocolError && protocolError.code !== 'PGRST116') {
+        throw protocolError;
+      }
+
+      if (existingProtocol) {
+        // Restaurar estado do protocolo
+        console.log('Restaurando estado do protocolo:', existingProtocol);
+        const protocolData = existingProtocol.protocol_data as any;
+        
+        setProtocolId(existingProtocol.id);
+        setCurrentStep(existingProtocol.current_step);
+        
+        if (protocolData.eventVariations) {
+          setEventVariations(protocolData.eventVariations);
+        }
+        if (protocolData.selectedEvent) {
+          setSelectedEvent(protocolData.selectedEvent);
+        }
+        
+        // Se estiver na etapa de sentimentos, mostrar popup
+        if (existingProtocol.current_step === 3) {
+          setShowSentiments(true);
+        }
+        
+        return;
+      }
+
+      // Novo protocolo - iniciar normalização
+      if (currentStep === 1) {
+        await normalizeEvent();
+      }
+    } catch (error) {
+      console.error('Erro ao inicializar protocolo:', error);
+      // Se erro, iniciar novo protocolo
+      if (currentStep === 1) {
+        await normalizeEvent();
+      }
+    }
+  };
+
+  const saveProtocolState = async (step: number, data: any) => {
+    try {
+      const protocolData = {
+        protocolType: 'evento_traumatico_especifico',
+        userMessage,
+        eventVariations,
+        selectedEvent,
+        ...data
+      };
+
+      if (protocolId) {
+        // Atualizar protocolo existente
+        await supabase
+          .from('session_protocols')
+          .update({
+            current_step: step,
+            protocol_data: protocolData,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', protocolId);
+      } else {
+        // Criar novo protocolo
+        const { data: newProtocol, error } = await supabase
+          .from('session_protocols')
+          .insert({
+            session_id: sessionId,
+            protocol_id: crypto.randomUUID(),
+            current_step: step,
+            protocol_data: protocolData,
+            status: 'active'
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        setProtocolId(newProtocol.id);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar estado do protocolo:', error);
+    }
+  };
 
   const normalizeEvent = async () => {
     setIsProcessing(true);
@@ -44,6 +135,9 @@ export const ProtocolEventoEspecifico = ({
       if (data?.variations) {
         setEventVariations(data.variations);
         setCurrentStep(2);
+        
+        // Salvar estado
+        await saveProtocolState(2, { eventVariations: data.variations });
       }
     } catch (error) {
       console.error('Erro ao normalizar evento:', error);
@@ -52,15 +146,21 @@ export const ProtocolEventoEspecifico = ({
     }
   };
 
-  const handleEventSelection = (event: string) => {
+  const handleEventSelection = async (event: string) => {
     setSelectedEvent(event);
     setCurrentStep(3);
     setShowSentiments(true);
+    
+    // Salvar estado
+    await saveProtocolState(3, { selectedEvent: event });
   };
 
   const handleSentimentsSelected = async (sentiments: string[]) => {
     setShowSentiments(false);
     setCurrentStep(4);
+    
+    // Salvar estado final
+    await saveProtocolState(4, { selectedSentiments: sentiments });
     
     try {
       const { data, error } = await supabase.functions.invoke('protocol-executor', {
@@ -76,12 +176,21 @@ export const ProtocolEventoEspecifico = ({
 
       if (error) throw error;
       
+      // Marcar protocolo como concluído
+      if (protocolId) {
+        await supabase
+          .from('session_protocols')
+          .update({ status: 'completed' })
+          .eq('id', protocolId);
+      }
+      
       if (data?.commands) {
         onComplete({
           type: 'quantum_commands',
           commands: data.commands,
           event: selectedEvent,
-          sentimentCount: sentiments.length
+          sentimentCount: sentiments.length,
+          sentiments: sentiments
         });
       }
     } catch (error) {

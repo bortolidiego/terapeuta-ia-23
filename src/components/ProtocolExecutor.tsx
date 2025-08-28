@@ -15,8 +15,40 @@ export const ProtocolExecutor = ({ sessionId, userMessage, onComplete }: Protoco
   const { toast } = useToast();
 
   useEffect(() => {
-    classifyProtocol();
+    checkExistingProtocol();
   }, []);
+
+  const checkExistingProtocol = async () => {
+    try {
+      // Verificar se há protocolo em andamento para esta sessão
+      const { data: existingProtocol, error: protocolError } = await supabase
+        .from('session_protocols')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (protocolError && protocolError.code !== 'PGRST116') {
+        throw protocolError;
+      }
+
+      if (existingProtocol) {
+        // Protocolo existente encontrado - restaurar
+        console.log('Restaurando protocolo existente:', existingProtocol);
+        const protocolData = existingProtocol.protocol_data as any;
+        setProtocolType(protocolData?.protocolType || 'evento_traumatico_especifico');
+        setIsClassifying(false);
+        return;
+      }
+
+      // Não há protocolo em andamento - classificar nova mensagem
+      await classifyProtocol();
+    } catch (error) {
+      console.error('Erro ao verificar protocolo existente:', error);
+      // Se erro, classificar normalmente
+      await classifyProtocol();
+    }
+  };
 
   const classifyProtocol = async () => {
     try {

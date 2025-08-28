@@ -72,6 +72,7 @@ export const SimplifiedChatNew = () => {
     if (sessionIdFromUrl) {
       setCurrentConsultationId(sessionIdFromUrl);
       loadSessionMessages(sessionIdFromUrl);
+      checkActiveProtocol(sessionIdFromUrl);
       
       // Setup automatic session pausing on page unload
       const handleBeforeUnload = () => {
@@ -114,6 +115,34 @@ export const SimplifiedChatNew = () => {
     // Clean up orphaned sessions when component loads
     cleanupOrphanedSessions();
   }, [pauseSession, cleanupOrphanedSessions, toast]);
+
+  const checkActiveProtocol = async (sessionId: string) => {
+    try {
+      const { data: activeProtocol, error } = await supabase
+        .from('session_protocols')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (activeProtocol) {
+        console.log('Protocolo ativo encontrado, ativando protocolo:', activeProtocol);
+        setProtocolActive(true);
+        
+        // Mostrar feedback de continuação
+        toast({
+          title: "Protocolo retomado",
+          description: "Continuando de onde você parou na seleção de sentimentos.",
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao verificar protocolo ativo:', error);
+    }
+  };
 
   const loadSessionMessages = async (sessionId: string) => {
     try {
