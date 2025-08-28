@@ -21,6 +21,8 @@ export const ProtocolEventoEspecifico = ({
   const [showSentiments, setShowSentiments] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [protocolId, setProtocolId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [startTime, setStartTime] = useState<number | null>(null);
 
   // Inicializar o protocolo
   React.useEffect(() => {

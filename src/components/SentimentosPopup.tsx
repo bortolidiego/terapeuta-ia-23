@@ -67,6 +67,12 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
 
         if (functionError) {
           console.error('Error calling generate-sentiments function:', functionError);
+          toast({
+            title: "Aviso",
+            description: "Erro ao gerar sentimentos contextuais. Usando sentimentos padrão.",
+            variant: "default",
+          });
+          
           const { data, error } = await supabase
             .from('sentimentos')
             .select('*')
