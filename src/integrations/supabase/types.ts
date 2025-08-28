@@ -145,6 +145,42 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          id: string
+          ip_address: string | null
+          new_data: Json | null
+          old_data: Json | null
+          operation: string
+          table_name: string
+          timestamp: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          ip_address?: string | null
+          new_data?: Json | null
+          old_data?: Json | null
+          operation: string
+          table_name: string
+          timestamp?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          ip_address?: string | null
+          new_data?: Json | null
+          old_data?: Json | null
+          operation?: string
+          table_name?: string
+          timestamp?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       knowledge_base: {
         Row: {
           category: string
@@ -208,6 +244,33 @@ export type Database = {
           protocol_id?: string
           step_number?: number
           step_type?: string
+        }
+        Relationships: []
+      }
+      rate_limits: {
+        Row: {
+          action_type: string
+          attempt_count: number
+          created_at: string
+          id: string
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          action_type: string
+          attempt_count?: number
+          created_at?: string
+          id?: string
+          user_id: string
+          window_start?: string
+        }
+        Update: {
+          action_type?: string
+          attempt_count?: number
+          created_at?: string
+          id?: string
+          user_id?: string
+          window_start?: string
         }
         Relationships: []
       }
@@ -797,6 +860,10 @@ export type Database = {
       }
       pause_consultation: {
         Args: { consultation_uuid: string }
+        Returns: undefined
+      }
+      require_admin: {
+        Args: Record<PropertyKey, never>
         Returns: undefined
       }
     }

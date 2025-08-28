@@ -6,9 +6,11 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import GlobalHeader from "@/components/GlobalHeader";
+import AuthSessionManager from "@/components/AuthSessionManager";
 import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
+import Security from "./pages/Security";
 import NotFound from "./pages/NotFound";
 import { Chat } from "./pages/Chat";
 import { Profile } from "./pages/Profile";
@@ -22,6 +24,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <AuthSessionManager />
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
@@ -85,6 +88,19 @@ const App = () => (
                     <GlobalHeader />
                     <div className="flex-1">
                       <Admin />
+                    </div>
+                  </div>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/security" 
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <div className="min-h-screen flex flex-col">
+                    <GlobalHeader />
+                    <div className="flex-1">
+                      <Security />
                     </div>
                   </div>
                 </ProtectedRoute>

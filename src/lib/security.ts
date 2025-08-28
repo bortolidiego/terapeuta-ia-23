@@ -187,6 +187,88 @@ export class InputValidator {
     
     return { isValid: true };
   }
+
+  // Validate email format
+  static validateEmail(email: string): { isValid: boolean; message?: string } {
+    if (!email) return { isValid: false, message: 'Email é obrigatório' };
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!emailRegex.test(email)) {
+      return { isValid: false, message: 'Formato de email inválido' };
+    }
+    
+    if (email.length > 254) {
+      return { isValid: false, message: 'Email muito longo' };
+    }
+    
+    return { isValid: true };
+  }
+
+  // Enhanced password validation for authentication
+  static validatePassword(password: string): { isValid: boolean; message?: string; score: number } {
+    if (!password) return { isValid: false, message: 'Senha é obrigatória', score: 0 };
+    
+    let score = 0;
+    const requirements = [];
+    
+    if (password.length < 12) {
+      requirements.push('pelo menos 12 caracteres');
+    } else {
+      score += 25;
+    }
+    
+    if (!/[a-z]/.test(password)) {
+      requirements.push('letras minúsculas');
+    } else {
+      score += 15;
+    }
+    
+    if (!/[A-Z]/.test(password)) {
+      requirements.push('letras maiúsculas');
+    } else {
+      score += 15;
+    }
+    
+    if (!/\d/.test(password)) {
+      requirements.push('números');
+    } else {
+      score += 15;
+    }
+    
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      requirements.push('símbolos especiais');
+    } else {
+      score += 15;
+    }
+    
+    // Penalize common patterns
+    if (/123|abc|qwe|password|senha/i.test(password)) {
+      score -= 20;
+      requirements.push('evitar sequências óbvias');
+    } else {
+      score += 10;
+    }
+    
+    if (/(.)\1{2,}/.test(password)) {
+      score -= 15;
+      requirements.push('evitar caracteres repetidos');
+    } else {
+      score += 10;
+    }
+    
+    score = Math.max(0, Math.min(100, score));
+    
+    if (requirements.length > 0) {
+      return {
+        isValid: false,
+        message: `Senha deve ter: ${requirements.join(', ')}`,
+        score
+      };
+    }
+    
+    return { isValid: true, message: 'Senha forte', score };
+  }
 }
 
 // Rate limiting utilities
