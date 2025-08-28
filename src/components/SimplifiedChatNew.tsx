@@ -9,9 +9,11 @@ import { useToast } from "@/hooks/use-toast";
 import SentimentosPopup from "./SentimentosPopup";
 import { NotesDialog } from "./NotesDialog";
 import { ProtocolExecutor } from "@/components/ProtocolExecutor";
+import { AudioAssemblyNotification } from "@/components/AudioAssemblyNotification";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import { useDraftMessage } from "@/hooks/useDraftMessage";
 import { useAudioDraft } from "@/hooks/useAudioDraft";
+import { useAudioAssembly } from "@/hooks/useAudioAssembly";
 import { useSessionManager } from "@/hooks/useSessionManager";
 
 interface Message {
@@ -56,6 +58,8 @@ export const SimplifiedChatNew = () => {
   } = useDraftMessage(currentConsultationId);
 
   const { audioDraft, clearAudioDraft } = useAudioDraft(currentConsultationId);
+
+  const { startAudioAssembly } = useAudioAssembly(currentConsultationId);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -230,63 +234,120 @@ export const SimplifiedChatNew = () => {
   };
 
   const handleProtocolComplete = async (result: any) => {
-    if (!currentConsultationId) return;
-
-    console.log('Protocolo completo:', result);
-    
-    // Se não for protocolo, responder normalmente
-    if (result.type === 'no_protocol') {
-      setProtocolActive(false);
-      // Criar resposta explicativa para mensagens simples
-      const helpMessage: Message = {
-        id: Date.now().toString(),
-        role: "assistant",
-        content: "Olá! 👋 Sou seu assistente terapêutico.\n\nPara eu ajudá-lo melhor, me conte sobre um evento específico que você gostaria de processar, como:\n\n• \"Quando perdi meu emprego...\"\n• \"A primeira vez que senti ansiedade...\"\n• \"Quando discuti com minha família...\"\n\nDescreva o que aconteceu e como se sentiu. Estou aqui para ajudar!",
-        created_at: new Date().toISOString(),
-        metadata: { type: 'help_message' }
-      };
-      
-      setMessages(prev => [...prev, helpMessage]);
-      
-      // Salvar no banco
-      await supabase.from("session_messages").insert({
-        session_id: currentConsultationId,
-        role: "assistant",
-        content: helpMessage.content,
-        metadata: helpMessage.metadata
-      });
-      
-      return;
-    }
-    
-    // Assembly de áudio iniciado
-    if (result.type === 'audio_assembly_started') {
-      setProtocolActive(false);
-      
-      // Gerar título automático da sessão
-      try {
-        await supabase.functions.invoke('generate-session-title', {
-          body: { sessionId: currentConsultationId }
-        });
-      } catch (error) {
-        console.error('Erro ao gerar título:', error);
-      }
-      
-      // Mostrar mensagem de sucesso
-      toast({
-        title: "Protocolo concluído",
-        description: "Sua autocura personalizada está sendo montada. Você receberá uma notificação quando estiver pronta.",
-      });
-      
-      return;
-    }
-    
-    // Fallback para compatibilidade com protocolo antigo
+    console.log('Protocol completed:', result);
+    setIsLoading(false);
     setProtocolActive(false);
-    toast({
-      title: "Sessão processada",
-      description: "Protocolo executado com sucesso.",
-    });
+
+    try {
+      if (result.type === 'assembly_instructions') {
+        const { assemblyInstructions, ready, optimized } = result;
+        
+        if (ready) {
+          // OTIMIZAÇÃO: Iniciar montagem de áudio EM BACKGROUND
+          const jobId = await startAudioAssembly(assemblyInstructions);
+          console.log('Optimized audio assembly started with job ID:', jobId);
+          
+          // CONTINUIDADE CONVERSACIONAL: Dr. Healing não para de conversar
+          const continuationMessage = {
+            id: `protocol-continuation-${Date.now()}`,
+            role: 'assistant' as const,
+            content: `🎯 **Sua Autocura Personalizada Foi Iniciada**
+
+Perfeito! Acabei de começar a preparar sua autocura com os ${assemblyInstructions.originalSentimentCount || assemblyInstructions.selectedSentiments?.length || 0} sentimentos que você selecionou.
+
+${optimized ? `✨ **Protocolo Otimizado**: Reduzi para ${assemblyInstructions.selectedSentiments?.length} sentimentos principais para acelerar o processo.` : ''}
+
+⏱️ **Tempo estimado**: ${Math.round((assemblyInstructions.estimatedDuration || 0) / 60)} minutos
+🔄 **Status**: Processando em segundo plano
+
+**Enquanto sua autocura é preparada, vamos continuar nossa conversa...**
+
+Como você imagina que se sentirá depois de liberar esses sentimentos que carrega? Às vezes é importante visualizar o estado que queremos alcançar.
+
+*Você receberá notificações do progresso e será avisado assim que sua autocura estiver pronta para ser ouvida.*`,
+            created_at: new Date().toISOString(),
+            metadata: { 
+              type: 'protocol_continuation',
+              jobId,
+              assemblyInstructions: assemblyInstructions,
+              optimized: optimized || false
+            }
+          };
+          
+          setMessages(prev => [...prev, continuationMessage]);
+          
+          // FEEDBACK OTIMIZADO: Toast menos intrusivo
+          toast({
+            title: '🎯 Autocura Iniciada',
+            description: `Protocolo ${optimized ? 'otimizado ' : ''}em execução. Continue a conversa!`,
+          });
+        } else {
+          // Componentes não disponíveis
+          const errorMessage = {
+            id: `protocol-error-${Date.now()}`,
+            role: 'assistant' as const,
+            content: `❌ **Componentes Temporariamente Indisponíveis**
+
+Alguns fragmentos de áudio não estão prontos no momento:
+${result.unavailableComponents?.join(', ')}
+
+Isso é temporário! Vamos tentar uma abordagem alternativa ou aguardar alguns minutos.
+
+Enquanto isso, conte-me mais sobre como esses sentimentos se manifestam no seu dia a dia. Isso me ajudará a personalizar ainda mais sua autocura quando os componentes estiverem disponíveis.`,
+            created_at: new Date().toISOString(),
+            metadata: { type: 'protocol_error' }
+          };
+          
+          setMessages(prev => [...prev, errorMessage]);
+          
+          toast({
+            title: 'Componentes Temporariamente Indisponíveis',
+            description: 'Continuando conversa enquanto aguardamos disponibilidade.',
+            variant: 'destructive',
+          });
+        }
+      } else if (result.type === 'no_protocol') {
+        // Continuar conversa normal
+        console.log('No protocol needed, continuing chat');
+        const helpMessage: Message = {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: "Entendo. Como posso ajudá-lo hoje? Me conte sobre um evento específico que você gostaria de processar, ou simplesmente compartilhe o que está em sua mente no momento.",
+          created_at: new Date().toISOString(),
+          metadata: { type: 'help_message' }
+        };
+        
+        setMessages(prev => [...prev, helpMessage]);
+        
+        if (currentConsultationId) {
+          await supabase.from("session_messages").insert({
+            session_id: currentConsultationId,
+            role: "assistant",
+            content: helpMessage.content,
+            metadata: helpMessage.metadata
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao processar resultado do protocolo:', error);
+      setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`,
+        role: 'assistant' as const,
+        content: `❌ **Erro Temporário**
+
+Houve um problema ao iniciar o protocolo, mas não se preocupe - podemos tentar novamente.
+
+Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes, apenas expressar nossos sentimentos já é um primeiro passo importante para a cura.`,
+        created_at: new Date().toISOString(),
+        metadata: { type: 'error' }
+      }]);
+      
+      toast({
+        title: 'Erro Temporário',
+        description: 'Continuando conversa. Podemos tentar o protocolo novamente.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const sendMessage = async (messageText?: string) => {
@@ -472,6 +533,24 @@ export const SimplifiedChatNew = () => {
                   />
                 </div>
               </div>
+            )}
+
+            {/* Audio Assembly Notification */}
+            {currentConsultationId && (
+              <AudioAssemblyNotification 
+                sessionId={currentConsultationId}
+                onAudioReady={(audioUrl) => {
+                  // Adicionar mensagem com link do áudio quando pronto
+                  const audioMessage = {
+                    id: `audio-ready-${Date.now()}`,
+                    role: 'assistant' as const,
+                    content: `🎉 **Sua Autocura Está Pronta!**\n\nSeu áudio personalizado foi criado com sucesso. Clique abaixo para ouvir:\n\n[AUDIO:${audioUrl}]`,
+                    created_at: new Date().toISOString(),
+                    metadata: { type: 'audio_ready', audioUrl }
+                  };
+                  setMessages(prev => [...prev, audioMessage]);
+                }}
+              />
             )}
             
             {isLoading && !protocolActive && (

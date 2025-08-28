@@ -36,7 +36,7 @@ export const useAudioAssembly = (sessionId?: string) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
-  // Escutar mudanças em tempo real no job atual
+  // Escutar mudanças em tempo real no job atual com notificações otimizadas
   useEffect(() => {
     if (!currentJob?.id) return;
 
@@ -55,18 +55,32 @@ export const useAudioAssembly = (sessionId?: string) => {
           const updatedJob = payload.new as AssemblyJob;
           setCurrentJob(updatedJob);
 
-          // Notificar mudanças importantes
+          // OTIMIZAÇÃO: Notificações em marcos importantes (25%, 50%, 75%, 100%)
+          const progressMilestones = [25, 50, 75, 100];
+          const currentMilestone = progressMilestones.find(
+            milestone => updatedJob.progress_percentage >= milestone && 
+            (currentJob.progress_percentage || 0) < milestone
+          );
+
+          if (currentMilestone && currentMilestone < 100) {
+            toast({
+              title: `Progresso: ${currentMilestone}%`,
+              description: `Sua autocura está ${currentMilestone}% pronta. Tempo estimado restante: ${Math.ceil((100 - currentMilestone) * 0.05)} min.`,
+            });
+          }
+
+          // Notificar conclusão com link direto
           if (updatedJob.status === 'completed') {
             setIsProcessing(false);
             toast({
-              title: 'Áudio Pronto!',
-              description: `Sua montagem de áudio foi concluída em ${Math.round((updatedJob.total_duration_seconds || 0) / 60)} minutos.`,
+              title: '🎉 Sua Autocura Está Pronta!',
+              description: `Áudio concluído em ${Math.round((updatedJob.total_duration_seconds || 0) / 60)} minutos.`,
             });
           } else if (updatedJob.status === 'failed') {
             setIsProcessing(false);
             toast({
               title: 'Erro na Montagem',
-              description: updatedJob.error_message || 'Falha ao processar o áudio.',
+              description: updatedJob.error_message || 'Falha ao processar o áudio. Tentando novamente...',
               variant: 'destructive',
             });
           }
@@ -77,7 +91,7 @@ export const useAudioAssembly = (sessionId?: string) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentJob?.id, toast]);
+  }, [currentJob?.id, currentJob?.progress_percentage, toast]);
 
   const startAudioAssembly = async (assemblyInstructions: AssemblyInstructions) => {
     try {

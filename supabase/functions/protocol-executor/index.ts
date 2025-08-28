@@ -188,46 +188,76 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
 
   console.log(`Found ${baseFragments.length} available base fragments`);
 
-  // Criar sequência de montagem baseada em fragmentos
+  // OTIMIZAÇÃO: Limitar número de sentimentos processados para reduzir tempo
+  const maxSentiments = 15; // Reduzir de 50+ para 15
+  const optimizedSentiments = selectedSentiments.slice(0, maxSentiments);
+  
+  console.log(`Optimized sentiments from ${selectedSentiments.length} to ${optimizedSentiments.length}`);
+
+  // Criar sequência de montagem otimizada
   const assemblySequence = [];
 
-  // Para cada sentimento selecionado, criar uma sequência
-  selectedSentiments.forEach((sentiment) => {
-    // Sequência 1: "Código alma, a minha consciência escolhe" + sentimento + "que eu senti" + "acabaram!"
-    assemblySequence.push(
-      { type: 'base_word', componentKey: 'base_code_alma' },
-      { type: 'sentiment', sentiment: sentiment },
-      { type: 'base_word', componentKey: 'base_que_senti' },
-      { type: 'base_word', componentKey: 'base_acabaram' }
-    );
-
-    // Sequência 2: "Recebo agora" + qualidades positivas + "em mim" + "para sempre"
-    assemblySequence.push(
-      { type: 'base_word', componentKey: 'base_recebo_agora' },
-      { type: 'event', text: 'paz, amor e harmonia' },
-      { type: 'base_word', componentKey: 'base_em_mim' },
-      { type: 'base_word', componentKey: 'base_para_sempre' }
-    );
+  // OTIMIZAÇÃO: Sequência compacta - uma única passagem por sentimento
+  optimizedSentiments.forEach((sentiment, index) => {
+    // Alternar entre sequências para variedade
+    if (index % 3 === 0) {
+      // Sequência tipo 1: Limpeza + Recebimento
+      assemblySequence.push(
+        { type: 'sentiment', sentiment: sentiment },
+        { type: 'base_word', componentKey: 'base_que_senti' },
+        { type: 'base_word', componentKey: 'base_acabaram' },
+        { type: 'base_word', componentKey: 'base_recebo_agora' },
+        { type: 'event', text: 'paz e harmonia' },
+        { type: 'base_word', componentKey: 'base_em_mim' }
+      );
+    } else if (index % 3 === 1) {
+      // Sequência tipo 2: Libertação direta
+      assemblySequence.push(
+        { type: 'base_word', componentKey: 'base_liberto_agora' },
+        { type: 'sentiment', sentiment: sentiment },
+        { type: 'base_word', componentKey: 'base_de_mim' },
+        { type: 'base_word', componentKey: 'base_para_sempre' }
+      );
+    } else {
+      // Sequência tipo 3: Transformação
+      assemblySequence.push(
+        { type: 'sentiment', sentiment: sentiment },
+        { type: 'event', text: 'se transforma em amor' },
+        { type: 'base_word', componentKey: 'base_em_mim' },
+        { type: 'base_word', componentKey: 'base_completamente' }
+      );
+    }
   });
 
-  // Sequência final para o evento específico
+  // Sequência final para o evento específico (compacta)
   assemblySequence.push(
     { type: 'base_word', componentKey: 'base_liberto_agora' },
     { type: 'event', text: eventEssence },
     { type: 'base_word', componentKey: 'base_de_mim' },
-    { type: 'base_word', componentKey: 'base_completamente' }
+    { type: 'base_word', componentKey: 'base_completamente' },
+    { type: 'event', text: 'paz, amor e harmonia' },
+    { type: 'base_word', componentKey: 'base_recebo_agora' },
+    { type: 'base_word', componentKey: 'base_para_sempre' }
   );
 
-  // Definir instruções de montagem
+  console.log(`Total assembly sequence: ${assemblySequence.length} segments (optimized)`);
+
+  // Definir instruções de montagem otimizadas
   const assemblyInstructions = {
     protocolType: 'evento_traumatico_especifico',
     selectedEvent: eventEssence,
-    selectedSentiments,
+    selectedSentiments: optimizedSentiments,
+    originalSentimentCount: selectedSentiments.length,
     sequence: assemblySequence,
-    estimatedDuration: assemblySequence.length * 3, // 3 segundos por fragmento
+    estimatedDuration: assemblySequence.length * 2.5, // Reduzido para 2.5s por fragmento
     totalFragments: assemblySequence.length,
+    optimizations: {
+      sentimentReduction: `${selectedSentiments.length} → ${optimizedSentiments.length}`,
+      sequenceType: 'compact',
+      estimatedTime: `${Math.ceil(assemblySequence.length * 2.5 / 60)} minutos`
+    },
     metadata: {
-      sentimentSequences: selectedSentiments.length,
+      sentimentSequences: optimizedSentiments.length,
       eventSequences: 1,
       totalBaseWords: assemblySequence.filter(s => s.type === 'base_word').length,
       totalSentiments: assemblySequence.filter(s => s.type === 'sentiment').length,
@@ -236,7 +266,7 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
   };
 
   // Verificar se todos os fragmentos base estão disponíveis
-  const requiredBaseWords = ['base_code_alma', 'base_que_senti', 'base_acabaram', 'base_recebo_agora', 'base_em_mim', 'base_para_sempre', 'base_liberto_agora', 'base_de_mim', 'base_completamente'];
+  const requiredBaseWords = ['base_que_senti', 'base_acabaram', 'base_recebo_agora', 'base_em_mim', 'base_para_sempre', 'base_liberto_agora', 'base_de_mim', 'base_completamente'];
   const availableBaseWords = baseFragments.map(frag => frag.component_key);
   const unavailableComponents = requiredBaseWords.filter(comp => !availableBaseWords.includes(comp));
 
@@ -247,9 +277,11 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
     assemblyInstructions,
     unavailableComponents,
     ready: isReady,
-    sentimentCount: selectedSentiments.length,
+    sentimentCount: optimizedSentiments.length,
+    originalSentimentCount: selectedSentiments.length,
+    optimized: true,
     message: isReady 
-      ? `Protocolo pronto: ${assemblySequence.length} fragmentos para processar`
+      ? `Protocolo otimizado: ${assemblySequence.length} fragmentos (~${Math.ceil(assemblySequence.length * 2.5 / 60)} min)`
       : `Fragmentos não disponíveis: ${unavailableComponents.join(', ')}`
   };
 }

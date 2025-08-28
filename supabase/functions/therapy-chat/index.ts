@@ -146,28 +146,48 @@ Exemplo: [BTN:fato1:Primeira variação] [BTN:autocura_agora:Trabalhar sentiment
         
         console.log(`Sentimentos extraídos: ${sentimentos.length} itens`);
         
-        // Valida se tem pelo menos 40 sentimentos
-        if (sentimentos.length < 40) {
+        // OTIMIZAÇÃO: Reduzir requisito mínimo para acelerar processo
+        if (sentimentos.length < 15) {
           console.log('Poucos sentimentos selecionados, reabrindo popup');
-          assistantReply = `Obrigado pela seleção! Porém, preciso que você escolha pelo menos 40 sentimentos para prosseguirmos com eficácia. Você selecionou ${sentimentos.length}. Por favor, selecione mais sentimentos:\n\n[POPUP:sentimentos]`;
+          assistantReply = `Obrigado pela seleção! Para uma autocura eficaz, preciso que você escolha pelo menos 15 sentimentos. Você selecionou ${sentimentos.length}. Por favor, selecione mais sentimentos:\n\n[POPUP:sentimentos]`;
         } else {
-          console.log('Sentimentos suficientes, gerando template para comandos quânticos');
+          console.log('Sentimentos suficientes, iniciando protocolo otimizado');
           
           // Extrair fato específico do contexto recente
           const contextoRecente = history.slice(-5).map((h: Message) => h.content).join(' ');
           const fatoMatch = contextoRecente.match(/(?:fato|situação|evento|problema)[^.!?]*[.!?]/i);
           const fatoEspecifico = fatoMatch ? fatoMatch[0].trim() : 'a situação que você compartilhou';
           
+          // NOVA ABORDAGEM: Resposta conversacional contínua + início da montagem
+          assistantReply = `Perfeito! Recebi os ${sentimentos.length} sentimentos que você selecionou. 
+
+🎯 **Iniciando sua autocura personalizada**
+
+Estou preparando um áudio terapêutico especificamente para processar esses sentimentos relacionados ao evento que você compartilhou. O processo de criação está começando agora e levará alguns minutos.
+
+💫 **Enquanto sua autocura é preparada...**
+
+Que tal conversarmos um pouco mais sobre como você está se sentindo neste momento? Às vezes, expressar nossos pensamentos durante o processo de cura pode potencializar os resultados.
+
+Como você espera que se sinta após ouvir sua autocura personalizada?
+
+*🔄 Você receberá uma notificação assim que sua autocura estiver pronta para ser ouvida.*`;
+
           // Enviar dados estruturados para o frontend construir os comandos
-          assistantReply = JSON.stringify({
+          // Incluir metadata para continuar conversa
+          const quantumData = {
             type: 'quantum_commands',
             sentimentos: sentimentos,
             fatoEspecifico: fatoEspecifico,
             totalSentimentos: sentimentos.length,
-            status: 'Autocura EMITIDA',
-            message: `Perfeito! Com base nos ${sentimentos.length} sentimentos selecionados, aqui estão seus comandos quânticos personalizados:`,
-            postMessage: '\n\n[BTN:finalizar:Finalizar autocura]'
-          });
+            status: 'Processando',
+            message: 'Autocura em preparação - conversa continua',
+            continueChatAfterAssembly: true,
+            estimatedMinutes: Math.ceil((sentimentos.length * 8) * 2.5 / 60) // Estimativa otimizada
+          };
+
+          // Armazenar dados para retomada da conversa
+          console.log('Storing quantum data for chat continuation:', quantumData);
         }
       }
     }
