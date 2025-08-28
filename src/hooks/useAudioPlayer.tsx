@@ -12,6 +12,14 @@ export interface AudioItem {
   componentType?: string;
 }
 
+// FASE 2: Cache inteligente de URLs
+interface UrlCache {
+  url: string;
+  expiresAt: number;
+}
+
+const urlCache = new Map<string, UrlCache>();
+
 export const useAudioPlayer = () => {
   const [currentAudio, setCurrentAudio] = useState<AudioItem | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -116,14 +124,24 @@ export const useAudioPlayer = () => {
     }
   };
 
+  // FASE 2: getAudioUrl com cache inteligente
   const getAudioUrl = async (audioPath: string): Promise<string | undefined> => {
     try {
       console.log('🎵 [getAudioUrl] Requesting URL for path:', audioPath);
       
-      // All audio files are in the audio-assembly bucket with standardized paths
+      // Verificar cache primeiro
+      const cached = urlCache.get(audioPath);
+      const now = Date.now();
+      
+      if (cached && cached.expiresAt > now) {
+        console.log('🎵 [getAudioUrl] Using cached URL');
+        return cached.url;
+      }
+      
+      // Gerar nova URL se cache expirou ou não existe
       const { data, error } = await supabase.storage
         .from('audio-assembly')
-        .createSignedUrl(audioPath, 3600);
+        .createSignedUrl(audioPath, 3600); // 1 hora
       
       if (error) {
         console.error('🎵 [getAudioUrl] Error generating URL:', error);
@@ -135,7 +153,13 @@ export const useAudioPlayer = () => {
         return undefined;
       }
       
-      console.log('🎵 [getAudioUrl] URL generated successfully');
+      // Armazenar no cache (expira 50 minutos antes do limite de 1 hora)
+      urlCache.set(audioPath, {
+        url: data.signedUrl,
+        expiresAt: now + (50 * 60 * 1000) // 50 minutos
+      });
+      
+      console.log('🎵 [getAudioUrl] URL generated and cached successfully');
       return data.signedUrl;
       
     } catch (error: any) {

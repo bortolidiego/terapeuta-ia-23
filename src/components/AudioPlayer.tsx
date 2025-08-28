@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Play, 
   Pause, 
@@ -11,11 +12,15 @@ import {
   VolumeX,
   Music,
   Calendar,
-  Clock
+  Clock,
+  Settings,
+  Activity
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAudioPlayer, AudioItem } from "@/hooks/useAudioPlayer";
+import { AudioAssemblyProgress } from "./AudioAssemblyProgress";
+import { AudioQualityControls } from "./AudioQualityControls";
 
 interface AudioPlayerProps {
   className?: string;
@@ -94,14 +99,31 @@ export const AudioPlayer = ({ className }: AudioPlayerProps) => {
 
   return (
     <Card className={className}>
-      <CardContent className="p-6 space-y-6">
-        {/* Header */}
-        <div className="space-y-2">
-          <h2 className="text-xl font-bold text-foreground">Seus Áudios de Auto-Cura</h2>
-          <p className="text-sm text-muted-foreground">
-            Reproduza e baixe seus áudios personalizados criados durante as sessões
-          </p>
-        </div>
+      <CardContent className="p-6">
+        <Tabs defaultValue="player" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="player" className="flex items-center gap-2">
+              <Music className="h-4 w-4" />
+              Player
+            </TabsTrigger>
+            <TabsTrigger value="progress" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Progresso
+            </TabsTrigger>
+            <TabsTrigger value="controls" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Qualidade
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="player" className="space-y-6 mt-6">
+            {/* Header */}
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-foreground">Seus Áudios de Auto-Cura</h2>
+              <p className="text-sm text-muted-foreground">
+                Reproduza e baixe seus áudios personalizados criados durante as sessões
+              </p>
+            </div>
 
         {/* Search */}
         <div className="relative">
@@ -208,8 +230,28 @@ export const AudioPlayer = ({ className }: AudioPlayerProps) => {
           </div>
         </div>
 
-        {/* Hidden audio element */}
-        <audio ref={audioRef} />
+            {/* Hidden audio element */}
+            <audio ref={audioRef} />
+          </TabsContent>
+
+          <TabsContent value="progress" className="mt-6">
+            <AudioAssemblyProgress className="w-full" />
+          </TabsContent>
+
+          <TabsContent value="controls" className="mt-6">
+            <AudioQualityControls 
+              currentAudio={currentAudio}
+              isPlaying={isPlaying}
+              onPlayPause={isPlaying ? pause : resume}
+              onSpeedChange={(speed) => {
+                if (audioRef.current) {
+                  audioRef.current.playbackRate = speed;
+                }
+              }}
+              className="w-full"
+            />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
