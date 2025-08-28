@@ -61,62 +61,33 @@ export const useAudioPlayer = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Buscar áudios da biblioteca do usuário (apenas o mais recente de cada component_key)
-      const { data: libraryItems, error: libraryError } = await supabase
-        .from("user_audio_library")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("status", "completed")
-        .order("component_key", { ascending: true })
-        .order("created_at", { ascending: false });
-
-      if (libraryError) throw libraryError;
-
-      // Buscar jobs de assembly concluídos
+      // CORREÇÃO: Buscar APENAS jobs de assembly concluídos (Sessões de Auto-Cura)
       const { data: assemblyJobs, error: assemblyError } = await supabase
         .from("assembly_jobs")
         .select("*")
         .eq("user_id", user.id)
         .eq("status", "completed")
+        .not("result_audio_path", "is", null) // Garantir que o arquivo existe
         .order("created_at", { ascending: false });
 
       if (assemblyError) throw assemblyError;
 
-      // Filtrar duplicatas (manter apenas o mais recente por component_key)
-      const uniqueLibraryItems = libraryItems?.reduce((acc: any[], item: any) => {
-        const existing = acc.find(i => i.component_key === item.component_key);
-        if (!existing) {
-          acc.push(item);
-        }
-        return acc;
-      }, []) || [];
-
-      // Combinar e formatar itens
-      const formattedItems: AudioItem[] = [
-        ...uniqueLibraryItems.map(item => ({
-          id: item.id,
-          title: `${item.component_type || 'Áudio'} - ${item.sentiment_name || item.component_key}`,
-          duration: 0, // Will be loaded when playing
-          audioPath: item.audio_path,
-          createdAt: item.created_at,
-          componentType: item.component_type
-        })),
-        ...assemblyJobs.map(job => ({
-          id: job.id,
-          title: `Sessão de Auto-Cura`,
-          duration: job.total_duration_seconds || 0,
-          audioPath: job.result_audio_path,
-          createdAt: job.created_at,
-          sessionId: job.session_id
-        }))
-      ];
+      // Formatar apenas os assembly jobs como áudios de consulta
+      const formattedItems: AudioItem[] = assemblyJobs?.map(job => ({
+        id: job.id,
+        title: `Sessão de Auto-Cura - ${new Date(job.created_at).toLocaleDateString('pt-BR')}`,
+        duration: job.total_duration_seconds || 0,
+        audioPath: job.result_audio_path,
+        createdAt: job.created_at,
+        sessionId: job.session_id
+      })) || [];
 
       setAudioItems(formattedItems);
     } catch (error) {
       console.error("Erro ao carregar áudios:", error);
       toast({
         title: "Erro",
-        description: "Não foi possível carregar seus áudios",
+        description: "Não foi possível carregar suas sessões de auto-cura",
         variant: "destructive",
       });
     } finally {
@@ -180,11 +151,21 @@ export const useAudioPlayer = () => {
         return;
       }
 
+      // CORREÇÃO: Verificar se o arquivo existe antes de tentar reproduzir
+      if (!item.audioPath) {
+        toast({
+          title: "Erro",
+          description: "Arquivo de áudio não encontrado para esta sessão",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const audioUrl = await getAudioUrl(item.audioPath);
       if (!audioUrl) {
         toast({
           title: "Erro",
-          description: "Não foi possível carregar o áudio",
+          description: "Não foi possível acessar o arquivo de áudio. Tente novamente mais tarde.",
           variant: "destructive",
         });
         return;
@@ -196,32 +177,32 @@ export const useAudioPlayer = () => {
         audioRef.current.src = audioUrl;
         audioRef.current.volume = volume;
         
-        // Adicionar event listeners para debug
+        // Event listeners para melhor tratamento de erros
         audioRef.current.addEventListener('loadstart', () => {
-          console.log('Carregamento iniciado:', audioUrl);
+          console.log('🎵 Carregamento iniciado:', item.title);
         });
         
-        audioRef.current.addEventListener('error', (e) => {
-          console.error('Erro no audio element:', e);
+        audioRef.current.addEventListener('error', (e: any) => {
+          console.error('🎵 Erro no audio element:', e);
           toast({
             title: "Erro de reprodução",
-            description: "O arquivo de áudio não pôde ser carregado",
+            description: "O arquivo de áudio está corrompido ou inacessível",
             variant: "destructive",
           });
         });
         
         audioRef.current.addEventListener('canplay', () => {
-          console.log('Áudio pronto para reprodução');
+          console.log('🎵 Áudio pronto para reprodução:', item.title);
         });
         
         await audioRef.current.play();
         setIsPlaying(true);
       }
     } catch (error) {
-      console.error("Erro ao reproduzir áudio:", error);
+      console.error("🎵 Erro ao reproduzir áudio:", error);
       toast({
         title: "Erro",
-        description: "Não foi possível reproduzir o áudio",
+        description: "Não foi possível reproduzir esta sessão de auto-cura",
         variant: "destructive",
       });
     }
