@@ -420,7 +420,7 @@ export type Database = {
           fact_text: string
           id: string
           sentiments: Json | null
-          session_id: string | null
+          session_id: string
           status: string
           updated_at: string
         }
@@ -429,7 +429,7 @@ export type Database = {
           fact_text: string
           id?: string
           sentiments?: Json | null
-          session_id?: string | null
+          session_id: string
           status?: string
           updated_at?: string
         }
@@ -438,7 +438,7 @@ export type Database = {
           fact_text?: string
           id?: string
           sentiments?: Json | null
-          session_id?: string | null
+          session_id?: string
           status?: string
           updated_at?: string
         }
@@ -486,7 +486,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           auto_generated_title?: string | null
@@ -496,7 +496,7 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           auto_generated_title?: string | null
@@ -506,7 +506,7 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
