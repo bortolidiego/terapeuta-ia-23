@@ -11,6 +11,7 @@ import { Mic, Play, Pause, RotateCcw, CheckCircle, AlertCircle, Clock, PlayCircl
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { DataEncryption, InputValidator, RateLimiter, AuditLogger } from "@/lib/security";
 
 export const Profile = () => {
   const { user } = useAuth();
@@ -53,14 +54,90 @@ export const Profile = () => {
       .eq('user_id', user?.id)
       .single();
     
-    setProfile(data || {});
+    if (data) {
+      // Decrypt sensitive data for display
+      const decryptedProfile = { ...data };
+      if (data.cpf) {
+        try {
+          const decryptedCPF = await DataEncryption.decrypt(data.cpf);
+          decryptedProfile.cpf = InputValidator.formatCPF(decryptedCPF);
+        } catch (error) {
+          console.error('Failed to decrypt CPF:', error);
+          decryptedProfile.cpf = data.cpf; // Fallback to original if decryption fails
+        }
+      }
+      setProfile(decryptedProfile);
+      
+      // Log profile access
+      AuditLogger.logSecurityEvent('profile_accessed', {
+        hasPersonalData: !!(data.cpf || data.full_name || data.birth_date)
+      }, user?.id);
+    } else {
+      setProfile({});
+    }
   };
 
   const updateProfile = async () => {
     if (!user?.id) return;
     
+    // Rate limiting check
+    if (!RateLimiter.checkLimit(`profile_update_${user.id}`, 10, 60000)) {
+      return;
+    }
+    
+    // Validate all inputs
+    const cpfValidation = InputValidator.validateCPF(profile.cpf);
+    const nameValidation = InputValidator.validateName(profile.full_name);
+    const birthDateValidation = InputValidator.validateBirthDate(profile.birth_date);
+    const cityValidation = InputValidator.validateCity(profile.birth_city);
+    
+    if (!cpfValidation.isValid) {
+      toast({
+        title: "CPF inválido",
+        description: cpfValidation.message,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!nameValidation.isValid) {
+      toast({
+        title: "Nome inválido",
+        description: nameValidation.message,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!birthDateValidation.isValid) {
+      toast({
+        title: "Data inválida",
+        description: birthDateValidation.message,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!cityValidation.isValid) {
+      toast({
+        title: "Cidade inválida",
+        description: cityValidation.message,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsSaving(true);
     try {
+      // Sanitize and encrypt sensitive data
+      const sanitizedData = {
+        full_name: InputValidator.sanitizeText(profile.full_name),
+        gender: InputValidator.sanitizeText(profile.gender),
+        birth_city: InputValidator.sanitizeText(profile.birth_city),
+        birth_date: profile.birth_date,
+        cpf: profile.cpf ? await DataEncryption.encrypt(profile.cpf.replace(/[^\d]/g, '')) : null,
+      };
+      
       // Verificar se o perfil existe, se não, criar um
       const { data: existingProfile } = await supabase
         .from('user_profiles')
@@ -76,28 +153,28 @@ export const Profile = () => {
             user_id: user.id,
             display_name: user.email,
             preferred_language: 'pt-BR',
-            full_name: profile.full_name,
-            gender: profile.gender,
-            birth_city: profile.birth_city,
-            birth_date: profile.birth_date,
-            cpf: profile.cpf,
+            ...sanitizedData,
           });
 
         if (insertError) throw insertError;
+        
+        // Log profile creation
+        AuditLogger.logSecurityEvent('profile_created', {
+          fields: Object.keys(sanitizedData).filter(key => sanitizedData[key as keyof typeof sanitizedData])
+        }, user.id);
       } else {
         // Atualizar perfil existente
         const { error } = await supabase
           .from('user_profiles')
-          .update({
-            full_name: profile.full_name,
-            gender: profile.gender,
-            birth_city: profile.birth_city,
-            birth_date: profile.birth_date,
-            cpf: profile.cpf,
-          })
+          .update(sanitizedData)
           .eq('user_id', user.id);
 
         if (error) throw error;
+        
+        // Log profile update
+        AuditLogger.logSecurityEvent('profile_updated', {
+          fields: Object.keys(sanitizedData).filter(key => sanitizedData[key as keyof typeof sanitizedData])
+        }, user.id);
       }
 
       toast({
@@ -107,6 +184,11 @@ export const Profile = () => {
       
       await loadProfile();
     } catch (error: any) {
+      // Log failed update
+      AuditLogger.logSecurityEvent('profile_update_failed', {
+        error: error.message
+      }, user.id);
+      
       toast({
         title: "Erro ao salvar",
         description: error.message,

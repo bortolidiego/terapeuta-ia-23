@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { AuditLogger, RateLimiter } from '@/lib/security';
+import { SessionManager } from '@/lib/utils';
 
 interface AuthContextType {
   user: User | null;
@@ -80,6 +82,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    // Rate limiting for login attempts
+    if (!RateLimiter.checkLimit(`login_${email}`, 5, 300000)) { // 5 attempts per 5 minutes
+      AuditLogger.logSecurityEvent('login_rate_limited', { email });
+      return { error: { message: 'Muitas tentativas de login. Tente novamente em 5 minutos.' } };
+    }
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -87,20 +95,48 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (error) {
+        AuditLogger.logSecurityEvent('login_failed', { 
+          email, 
+          error: error.message,
+          userAgent: navigator.userAgent 
+        });
+        
         toast({
           title: "Erro no login",
           description: error.message,
           variant: "destructive",
         });
       } else {
+        AuditLogger.logSecurityEvent('login_successful', { 
+          email,
+          userAgent: navigator.userAgent 
+        });
+        
         toast({
           title: "Login realizado com sucesso!",
           description: "Bem-vindo de volta.",
         });
+
+        // Start session timeout management
+        SessionManager.startSession(
+          () => signOut(), // Auto logout on timeout
+          () => {
+            // Show timeout warning
+            toast({
+              title: "Sessão expirando",
+              description: "Sua sessão expirará em 5 minutos por motivos de segurança.",
+            });
+          }
+        );
       }
 
       return { error };
     } catch (error: any) {
+      AuditLogger.logSecurityEvent('login_error', { 
+        email, 
+        error: error.message 
+      });
+      
       toast({
         title: "Erro no login",
         description: "Ocorreu um erro inesperado.",
@@ -148,12 +184,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signOut = async () => {
     try {
+      // Clear session timeout
+      SessionManager.clearSession();
+      
+      // Log logout event
+      AuditLogger.logSecurityEvent('logout', { 
+        userId: user?.id,
+        sessionDuration: Date.now() // Could calculate actual duration
+      }, user?.id);
+      
       await supabase.auth.signOut();
       toast({
         title: "Logout realizado",
         description: "Até logo!",
       });
     } catch (error: any) {
+      AuditLogger.logSecurityEvent('logout_error', { 
+        error: error.message 
+      }, user?.id);
+      
       toast({
         title: "Erro no logout",
         description: "Ocorreu um erro inesperado.",
