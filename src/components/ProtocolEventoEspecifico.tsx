@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import SentimentosPopup from "@/components/SentimentosPopup";
 import { supabase } from "@/integrations/supabase/client";
+import { useAudioAssembly } from "@/hooks/useAudioAssembly";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProtocolEventoEspecificoProps {
   sessionId: string;
@@ -23,11 +25,27 @@ export const ProtocolEventoEspecifico = ({
   const [protocolId, setProtocolId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<number | null>(null);
+  
+  const { toast } = useToast();
+  const { currentJob, isProcessing: isAssemblyProcessing, startAudioAssembly, clearCurrentJob } = useAudioAssembly(sessionId);
 
   // Inicializar o protocolo
   React.useEffect(() => {
     initializeProtocol();
+    setStartTime(Date.now());
   }, []);
+
+  // Timeout de 30 segundos para protocolo travado
+  React.useEffect(() => {
+    if (startTime && isProcessing) {
+      const timeoutId = setTimeout(() => {
+        setError("Protocolo demorou muito para responder. Tente novamente.");
+        setIsProcessing(false);
+      }, 30000);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [startTime, isProcessing]);
 
   const initializeProtocol = async () => {
     try {
@@ -123,6 +141,7 @@ export const ProtocolEventoEspecifico = ({
 
   const normalizeEvent = async () => {
     setIsProcessing(true);
+    setError(null);
     try {
       const { data, error } = await supabase.functions.invoke('protocol-executor', {
         body: {
@@ -143,6 +162,7 @@ export const ProtocolEventoEspecifico = ({
       }
     } catch (error) {
       console.error('Erro ao normalizar evento:', error);
+      setError("Erro ao processar evento. Tente novamente.");
     } finally {
       setIsProcessing(false);
     }
@@ -160,11 +180,13 @@ export const ProtocolEventoEspecifico = ({
   const handleSentimentsSelected = async (sentiments: string[]) => {
     setShowSentiments(false);
     setCurrentStep(4);
+    setError(null);
     
     // Salvar estado final
     await saveProtocolState(4, { selectedSentiments: sentiments });
     
     try {
+      // Gerar instruções de assembly
       const { data, error } = await supabase.functions.invoke('protocol-executor', {
         body: {
           sessionId,
@@ -178,27 +200,63 @@ export const ProtocolEventoEspecifico = ({
 
       if (error) throw error;
       
-      // Marcar protocolo como concluído
-      if (protocolId) {
-        await supabase
-          .from('session_protocols')
-          .update({ status: 'completed' })
-          .eq('id', protocolId);
-      }
-      
-      if (data?.commands) {
+      // Verificar se temos assemblyInstructions em vez de commands
+      if (data?.assemblyInstructions) {
+        console.log('Starting audio assembly with instructions:', data.assemblyInstructions);
+        
+        // Iniciar montagem de áudio
+        await startAudioAssembly(data.assemblyInstructions);
+        
+        // Marcar protocolo como concluído
+        if (protocolId) {
+          await supabase
+            .from('session_protocols')
+            .update({ status: 'completed' })
+            .eq('id', protocolId);
+        }
+        
+        // Passar resultado para o componente pai
         onComplete({
-          type: 'quantum_commands',
-          commands: data.commands,
+          type: 'audio_assembly_started',
+          assemblyInstructions: data.assemblyInstructions,
           event: selectedEvent,
           sentimentCount: sentiments.length,
           sentiments: sentiments
         });
+      } else {
+        throw new Error('Instruções de assembly não foram geradas');
       }
     } catch (error) {
       console.error('Erro ao gerar comandos:', error);
+      setError("Erro ao iniciar montagem de áudio. Tente novamente.");
     }
   };
+
+  const resetProtocol = () => {
+    setCurrentStep(1);
+    setEventVariations([]);
+    setSelectedEvent("");
+    setShowSentiments(false);
+    setIsProcessing(false);
+    setError(null);
+    setStartTime(Date.now());
+    clearCurrentJob();
+    initializeProtocol();
+  };
+
+  // Exibir erro se houver
+  if (error) {
+    return (
+      <Card className="p-6">
+        <div className="space-y-4">
+          <p className="text-destructive">{error}</p>
+          <Button onClick={resetProtocol} variant="outline">
+            Tentar Novamente
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
   // Step 1: Processando
   if (currentStep === 1) {
@@ -256,13 +314,33 @@ export const ProtocolEventoEspecifico = ({
     );
   }
 
-  // Step 4: Gerando comandos
+  // Step 4: Gerando comandos e montando áudio
   if (currentStep === 4) {
     return (
       <Card className="p-6">
-        <div className="flex items-center gap-3">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-          <p className="text-muted-foreground">Gerando comandos quânticos...</p>
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+            <div>
+              <p className="text-muted-foreground">
+                {isAssemblyProcessing ? 'Montando áudio personalizado...' : 'Gerando instruções...'}
+              </p>
+              {currentJob && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Progresso:</span>
+                    <span>{currentJob.progress_percentage}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${currentJob.progress_percentage}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </Card>
     );

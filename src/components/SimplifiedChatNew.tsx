@@ -259,37 +259,33 @@ export const SimplifiedChatNew = () => {
       return;
     }
     
-    // Protocolo concluído - operação silenciosa
-    setProtocolActive(false);
-    
-    // Gerar título automático da sessão
-    try {
-      await supabase.functions.invoke('generate-session-title', {
-        body: { sessionId: currentConsultationId }
-      });
-    } catch (error) {
-      console.error('Erro ao gerar título:', error);
-    }
-
-    // Iniciar geração da biblioteca de áudios em background
-    try {
-      if (result.sentiments && result.sentiments.length > 0) {
-        await supabase.functions.invoke('batch-generate-audio-items', {
-          body: {
-            sessionId: currentConsultationId,
-            sentiments: result.sentiments,
-            userId: (await supabase.auth.getUser()).data.user?.id
-          }
+    // Assembly de áudio iniciado
+    if (result.type === 'audio_assembly_started') {
+      setProtocolActive(false);
+      
+      // Gerar título automático da sessão
+      try {
+        await supabase.functions.invoke('generate-session-title', {
+          body: { sessionId: currentConsultationId }
         });
+      } catch (error) {
+        console.error('Erro ao gerar título:', error);
       }
-    } catch (error) {
-      console.error('Erro ao iniciar geração de áudios:', error);
+      
+      // Mostrar mensagem de sucesso
+      toast({
+        title: "Protocolo concluído",
+        description: "Sua autocura personalizada está sendo montada. Você receberá uma notificação quando estiver pronta.",
+      });
+      
+      return;
     }
     
-    // Operação silenciosa - não mostrar resultado na tela
+    // Fallback para compatibilidade com protocolo antigo
+    setProtocolActive(false);
     toast({
       title: "Sessão processada",
-      description: "Seus áudios personalizados estão sendo gerados. Você receberá uma notificação quando estiverem prontos.",
+      description: "Protocolo executado com sucesso.",
     });
   };
 
