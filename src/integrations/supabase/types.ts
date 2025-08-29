@@ -858,6 +858,15 @@ export type Database = {
         Args: { session_uuid: string }
         Returns: boolean
       }
+      migrate_assembly_audio_paths: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          job_id: string
+          migration_status: string
+          new_path: string
+          old_path: string
+        }[]
+      }
       pause_consultation: {
         Args: { consultation_uuid: string }
         Returns: undefined
