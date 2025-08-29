@@ -216,10 +216,12 @@ export const useAudioPlayer = () => {
         });
         
         audioRef.current.addEventListener('error', (e: any) => {
-          console.error('🎵 Erro no audio element:', e);
+          console.error('🎵 Erro no audio element:', e.target?.error);
+          // Limpar cache para este arquivo
+          urlCache.delete(item.audioPath);
           toast({
             title: "Erro de reprodução",
-            description: "O arquivo de áudio está corrompido ou inacessível",
+            description: "O arquivo de áudio está corrompido ou inacessível. Cache limpo, tente novamente.",
             variant: "destructive",
           });
         });
@@ -228,8 +230,18 @@ export const useAudioPlayer = () => {
           console.log('🎵 Áudio pronto para reprodução:', item.title);
         });
         
-        await audioRef.current.play();
-        setIsPlaying(true);
+        try {
+          await audioRef.current.play();
+          setIsPlaying(true);
+          console.log('🎵 Reprodução iniciada com sucesso!');
+        } catch (playError) {
+          console.error('🎵 Erro ao iniciar reprodução:', playError);
+          toast({
+            title: "Erro de reprodução",
+            description: "Não foi possível iniciar a reprodução. Verifique sua conexão.",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       console.error("🎵 Erro ao reproduzir áudio:", error);
