@@ -151,8 +151,11 @@ export const useAudioPlayer = () => {
         return;
       }
 
+      console.log('🎵 [playAudio] Iniciando reprodução:', item.title, 'Path:', item.audioPath);
+
       // CORREÇÃO: Verificar se o arquivo existe antes de tentar reproduzir
       if (!item.audioPath) {
+        console.error('🎵 [playAudio] audioPath está vazio para item:', item.id);
         toast({
           title: "Erro",
           description: "Arquivo de áudio não encontrado para esta sessão",
@@ -161,8 +164,37 @@ export const useAudioPlayer = () => {
         return;
       }
 
+      // Verificar se o arquivo existe no storage antes de gerar URL
+      const { data: fileExists, error: checkError } = await supabase.storage
+        .from('audio-assembly')
+        .list(item.audioPath.split('/').slice(0, -1).join('/'));
+
+      if (checkError) {
+        console.error('🎵 [playAudio] Erro ao verificar arquivo:', checkError);
+        toast({
+          title: "Erro de acesso",
+          description: "Não foi possível verificar o arquivo. Verifique suas permissões.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const fileName = item.audioPath.split('/').pop();
+      const fileFound = fileExists?.some(file => file.name === fileName);
+      
+      if (!fileFound) {
+        console.error('🎵 [playAudio] Arquivo não encontrado no storage:', item.audioPath);
+        toast({
+          title: "Arquivo não encontrado",
+          description: "O arquivo de áudio foi removido ou está em processamento. Tente gerar novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const audioUrl = await getAudioUrl(item.audioPath);
       if (!audioUrl) {
+        console.error('🎵 [playAudio] Falha ao obter URL para:', item.audioPath);
         toast({
           title: "Erro",
           description: "Não foi possível acessar o arquivo de áudio. Tente novamente mais tarde.",
@@ -171,6 +203,7 @@ export const useAudioPlayer = () => {
         return;
       }
 
+      console.log('🎵 [playAudio] URL obtida com sucesso, iniciando reprodução...');
       setCurrentAudio(item);
       
       if (audioRef.current) {

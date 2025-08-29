@@ -187,7 +187,8 @@ async function processAudioAssembly(supabase: any, job: any) {
 
           if (ttsResponse.ok) {
             const audioBuffer = await ttsResponse.arrayBuffer();
-            audioPath = `assembly-temp/${jobId}/segment-${i + 1}-${step.type}.mp3`;
+            // CORREÇÃO: Salvar com user_id na estrutura de pastas
+            audioPath = `${userId}/assembly-temp/${jobId}/segment-${i + 1}-${step.type}.mp3`;
 
             // Upload temporário
             await supabase.storage
@@ -232,7 +233,8 @@ async function processAudioAssembly(supabase: any, job: any) {
     // FASE 1: Concatenação real de áudios usando FFmpeg
     await updateJobStatus(supabase, jobId, 'processing', 90, 'Concatenando áudios...');
 
-    const resultAudioPath = `assembly-results/${jobId}/final-session-audio.mp3`;
+    // CORREÇÃO: Salvar resultado com user_id na estrutura
+    const resultAudioPath = `${userId}/assembly-results/${jobId}/final-session-audio.mp3`;
     
     if (audioSegments.length > 0) {
       try {
