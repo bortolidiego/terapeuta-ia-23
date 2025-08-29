@@ -231,7 +231,7 @@ export const ProtocolEventoEspecifico = ({
         body: {
           sessionId,
           action: 'generate_commands',
-          data: {
+          actionData: {
             selectedEvent,
             selectedSentiments: sentiments
           }

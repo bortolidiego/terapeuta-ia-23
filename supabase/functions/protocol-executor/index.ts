@@ -32,6 +32,11 @@ serve(async (req) => {
         response = await normalizeEvent(userMessage);
         break;
       case 'generate_commands':
+        if (!actionData || !actionData.selectedEvent || !actionData.selectedSentiments) {
+          console.error('Missing actionData for generate_commands:', { actionData, fullRequest: JSON.stringify({ sessionId, userMessage, action, actionData }) });
+          throw new Error('actionData with selectedEvent and selectedSentiments is required for generate_commands');
+        }
+        console.log('Generate commands - Event:', actionData.selectedEvent, 'Sentiments count:', actionData.selectedSentiments.length);
         response = await generateQuantumCommands(actionData.selectedEvent, actionData.selectedSentiments, supabase);
         break;
       default:
