@@ -330,13 +330,17 @@ export const ProtocolEventoEspecifico = ({
         throw error;
       }
       
-      if (data?.assemblyInstructions) {
+      if (data?.assemblySequence) {
         addLog(`✅ Instruções geradas - iniciando montagem de áudio`);
+        addLog(`📊 Sequências: ${data.assemblySequence.length}, Componentes faltantes: ${data.missingComponents?.length || 0}`);
+        
+        // Calcular duração total a partir das sequências
+        const totalDuration = data.assemblySequence.reduce((total, seq) => total + (seq.estimatedDuration || 0), 0);
         
         const assemblyInstructions = {
           sessionId,
-          assemblySequence: data.assemblyInstructions.assemblySequence,
-          totalEstimatedDuration: data.assemblyInstructions.totalEstimatedDuration || 0
+          assemblySequence: data.assemblySequence,
+          totalEstimatedDuration: totalDuration
         };
         
         await startAudioAssembly(assemblyInstructions);
@@ -352,12 +356,13 @@ export const ProtocolEventoEspecifico = ({
         
         onComplete({
           type: 'audio_assembly_started',
-          assemblyInstructions: data.assemblyInstructions,
+          assemblyInstructions: data, // data já é o objeto de instruções
           event: selectedEvent,
           sentimentCount: sentiments.length,
           sentiments: sentiments
         });
       } else {
+        addLog(`❌ Dados inválidos recebidos: ${JSON.stringify(data)}`);
         throw new Error('Instruções de assembly não foram geradas');
       }
     } catch (error) {
