@@ -73,6 +73,14 @@ async function processAudioAssembly(supabase: any, job: any) {
     console.log(`[processAudioAssembly] Starting PROTOCOL assembly for job ${jobId}`);
     console.log(`[processAudioAssembly] Assembly instructions:`, JSON.stringify(instructions, null, 2));
     
+    // Validar se a API key do ElevenLabs está configurada
+    const elevenLabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
+    if (!elevenLabsApiKey) {
+      console.error(`[processAudioAssembly] ElevenLabs API key not configured`);
+      await updateJobStatus(supabase, jobId, 'failed', 0, 'Erro: Chave da API ElevenLabs não configurada');
+      return;
+    }
+    
     // Validar se os dados necessários estão presentes
     if (!instructions.metadata) {
       console.error(`[processAudioAssembly] Missing metadata in assembly instructions`);
@@ -166,10 +174,11 @@ async function processAudioAssembly(supabase: any, job: any) {
 
       // Generate audio using ElevenLabs TTS with protocol-appropriate settings
       try {
+        const elevenLabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
         const ttsResponse = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + voiceId, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${Deno.env.get('ELEVENLABS_API_KEY')}`,
+            'xi-api-key': elevenLabsApiKey,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -187,6 +196,8 @@ async function processAudioAssembly(supabase: any, job: any) {
         if (!ttsResponse.ok) {
           const errorText = await ttsResponse.text();
           console.error(`[processAudioAssembly] TTS Error for sequence ${i + 1}:`, errorText);
+          console.error(`[processAudioAssembly] Voice ID used:`, voiceId);
+          console.error(`[processAudioAssembly] API Key configured:`, elevenLabsApiKey ? 'Yes' : 'No');
           throw new Error(`TTS failed: ${errorText}`);
         }
 
