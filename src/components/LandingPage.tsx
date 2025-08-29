@@ -13,6 +13,7 @@ export const LandingPage = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [showPending, setShowPending] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { findActiveSession, cleanupOrphanedSessions } = useSessionManager();
@@ -27,11 +28,12 @@ export const LandingPage = () => {
     try {
       const activeSession = await findActiveSession();
       if (activeSession && activeSession.hasRecentMessages) {
+        // Não redirecionar automaticamente - apenas mostrar opção para retomar
+        setActiveSessionId(activeSession.id);
         toast({
           title: "Consulta ativa encontrada",
-          description: "Você será redirecionado para sua consulta em andamento.",
+          description: "Você tem uma consulta pausada. Clique em 'Retomar Consulta' para continuar.",
         });
-        navigate(`/chat/${activeSession.id}`);
       }
     } catch (error) {
       console.error("Erro ao verificar sessão ativa:", error);
@@ -72,11 +74,12 @@ export const LandingPage = () => {
       // Check if there's already an active session with recent activity
       const activeSession = await findActiveSession();
       if (activeSession && activeSession.hasRecentMessages) {
+        // Oferecer opção de retomar em vez de forçar redirecionamento
+        setActiveSessionId(activeSession.id);
         toast({
           title: "Consulta ativa encontrada",
-          description: "Você será redirecionado para sua consulta em andamento.",
+          description: "Você tem uma consulta em andamento. Use 'Retomar Consulta' para continuar ou 'Nova Consulta' para começar uma nova.",
         });
-        navigate(`/chat/${activeSession.id}`);
         return;
       }
 
@@ -138,30 +141,56 @@ export const LandingPage = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-              <Button
-                onClick={createNewConsultation}
-                disabled={isCreating}
-                className="h-12 text-lg font-semibold"
-                size="lg"
-              >
-                <Play className="mr-2 h-5 w-5" />
-                {isCreating ? "Iniciando..." : "Iniciar Consulta"}
-              </Button>
+              {activeSessionId ? (
+                <>
+                  <Button
+                    onClick={() => navigate(`/chat/${activeSessionId}`)}
+                    className="h-12 text-lg font-semibold bg-green-600 hover:bg-green-700"
+                    size="lg"
+                  >
+                    <Play className="mr-2 h-5 w-5" />
+                    Retomar Consulta
+                  </Button>
+                  
+                  <Button
+                    onClick={createNewConsultation}
+                    disabled={isCreating}
+                    variant="outline"
+                    className="h-12 text-lg"
+                    size="lg"
+                  >
+                    <MessageCircle className="mr-2 h-5 w-5" />
+                    {isCreating ? "Iniciando..." : "Nova Consulta"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={createNewConsultation}
+                    disabled={isCreating}
+                    className="h-12 text-lg font-semibold"
+                    size="lg"
+                  >
+                    <Play className="mr-2 h-5 w-5" />
+                    {isCreating ? "Iniciando..." : "Iniciar Consulta"}
+                  </Button>
 
-              <Button
-                onClick={() => setShowPending(true)}
-                variant="outline"
-                className="h-12 text-lg relative"
-                size="lg"
-              >
-                <Clock className="mr-2 h-5 w-5" />
-                Consultas Pendentes
-                {pendingCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground text-xs rounded-full h-6 w-6 flex items-center justify-center font-semibold">
-                    {pendingCount}
-                  </span>
-                )}
-              </Button>
+                  <Button
+                    onClick={() => setShowPending(true)}
+                    variant="outline"
+                    className="h-12 text-lg relative"
+                    size="lg"
+                  >
+                    <Clock className="mr-2 h-5 w-5" />
+                    Consultas Pendentes
+                    {pendingCount > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground text-xs rounded-full h-6 w-6 flex items-center justify-center font-semibold">
+                        {pendingCount}
+                      </span>
+                    )}
+                  </Button>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>

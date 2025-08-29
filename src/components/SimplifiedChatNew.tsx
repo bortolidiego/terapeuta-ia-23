@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useParams, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +26,8 @@ interface Message {
 }
 
 export const SimplifiedChatNew = () => {
+  const { id } = useParams();
+  const location = useLocation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -119,6 +122,19 @@ export const SimplifiedChatNew = () => {
     // Clean up orphaned sessions when component loads
     cleanupOrphanedSessions();
   }, [pauseSession, cleanupOrphanedSessions, toast]);
+
+  // Pausar sessão automaticamente quando sair do chat
+  useEffect(() => {
+    const sessionId = id || currentConsultationId;
+    
+    return () => {
+      // Componente está sendo desmontado - pausar a sessão
+      if (sessionId) {
+        console.log('Saindo do chat, pausando sessão:', sessionId);
+        pauseSession(sessionId, true).catch(console.error);
+      }
+    };
+  }, [id, currentConsultationId, pauseSession]);
 
   const checkActiveProtocol = async (sessionId: string) => {
     try {
