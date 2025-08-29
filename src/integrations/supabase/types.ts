@@ -115,36 +115,6 @@ export type Database = {
         }
         Relationships: []
       }
-      audio_templates: {
-        Row: {
-          audio_url: string | null
-          created_at: string
-          id: string
-          is_fixed: boolean
-          template_key: string
-          template_text: string
-          updated_at: string
-        }
-        Insert: {
-          audio_url?: string | null
-          created_at?: string
-          id?: string
-          is_fixed?: boolean
-          template_key: string
-          template_text: string
-          updated_at?: string
-        }
-        Update: {
-          audio_url?: string | null
-          created_at?: string
-          id?: string
-          is_fixed?: boolean
-          template_key?: string
-          template_text?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       audit_logs: {
         Row: {
           id: string

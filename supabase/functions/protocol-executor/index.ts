@@ -166,124 +166,155 @@ Mantenha o evento original, apenas ajuste para cada padrão. Seja preciso e natu
   };
 }
 
+// FASE 2: Quantum command generation - Protocolo Linear Simples
 async function generateQuantumCommands(selectedEvent: string, selectedSentiments: string[], supabase: any) {
-  console.log(`Generating assembly instructions for event: "${selectedEvent}", sentiments: ${selectedSentiments.length}`);
-  
-  // Extrair essência do evento
-  const eventEssence = extractEventEssence(selectedEvent);
-  console.log(`Event essence extracted: "${eventEssence}"`);
-
-  // Buscar fragmentos base disponíveis
-  const { data: baseFragments, error: fragmentsError } = await supabase
-    .from('audio_components')
-    .select('*')
-    .eq('is_available', true)
-    .eq('protocol_type', 'evento_traumatico_especifico')
-    .eq('component_type', 'base_word');
-
-  if (fragmentsError) {
-    console.error('Erro ao buscar fragmentos:', fragmentsError);
-    throw new Error('Falha ao carregar fragmentos de áudio');
+  try {
+    console.log('[generateQuantumCommands] Starting with:', { selectedEvent, selectedSentiments });
+    
+    // VALIDAÇÃO CRÍTICA: Mínimo 40 sentimentos obrigatórios
+    if (selectedSentiments.length < 40) {
+      throw new Error(`Protocolo requer mínimo 40 sentimentos. Recebidos: ${selectedSentiments.length}`);
+    }
+    
+    // Extract the essence of the event
+    const eventEssence = extractEventEssence(selectedEvent);
+    console.log('[generateQuantumCommands] Event essence:', eventEssence);
+    
+    // Fetch available base components from audio_components
+    const { data: audioComponents, error: audioError } = await supabase
+      .from('audio_components')
+      .select('component_key, text_content, component_type')
+      .eq('component_type', 'base_word')
+      .eq('is_available', true);
+    
+    if (audioError) {
+      console.error('[generateQuantumCommands] Error fetching audio components:', audioError);
+      throw new Error('Failed to fetch audio components');
+    }
+    
+    console.log('[generateQuantumCommands] Available audio components:', audioComponents);
+    
+    // SEQUÊNCIA LINEAR EXATA DO PROTOCOLO
+    const assemblySequence = [];
+    let sequenceId = 1;
+    
+    // PARTE 1: Frases individuais para cada sentimento
+    // "Código ALMA, a minha consciência escolhe: [SENTIMENT] que eu senti [EVENT], ACABARAM!"
+    for (const sentiment of selectedSentiments) {
+      assemblySequence.push({
+        sequenceId: sequenceId++,
+        components: [
+          'base_code_alma',
+          'base_minha_consciencia_escolhe', 
+          sentiment,
+          'base_que_senti',
+          eventEssence,
+          'base_acabaram'
+        ],
+        estimatedDuration: 8
+      });
+    }
+    
+    // PARTE 2: 4 Frases finais obrigatórias do protocolo
+    
+    // 1. "Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu recebi [EVENT], ACABARAM!"
+    assemblySequence.push({
+      sequenceId: sequenceId++,
+      components: [
+        'base_code_alma',
+        'base_minha_consciencia_escolhe',
+        'base_todos_sentimentos_prejudiciais',
+        'base_que_recebi',
+        eventEssence,
+        'base_acabaram'
+      ],
+      estimatedDuration: 8
+    });
+    
+    // 2. "Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu senti [EVENT], ACABARAM!"
+    assemblySequence.push({
+      sequenceId: sequenceId++,
+      components: [
+        'base_code_alma',
+        'base_minha_consciencia_escolhe',
+        'base_todos_sentimentos_prejudiciais',
+        'base_que_senti',
+        eventEssence,
+        'base_acabaram'
+      ],
+      estimatedDuration: 8
+    });
+    
+    // 3. "Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu gerei [EVENT], ACABARAM!"
+    assemblySequence.push({
+      sequenceId: sequenceId++,
+      components: [
+        'base_code_espirito',
+        'base_informacoes_prejudiciais_gerei',
+        eventEssence,
+        'base_acabaram'
+      ],
+      estimatedDuration: 8
+    });
+    
+    // 4. "Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu recebi [EVENT], ACABARAM!"
+    assemblySequence.push({
+      sequenceId: sequenceId++,
+      components: [
+        'base_code_espirito',
+        'base_informacoes_prejudiciais_recebi',
+        eventEssence,
+        'base_acabaram'
+      ],
+      estimatedDuration: 8
+    });
+    
+    // Verificar componentes necessários
+    const requiredComponents = [
+      'base_code_alma',
+      'base_minha_consciencia_escolhe',
+      'base_que_senti',
+      'base_que_recebi',
+      'base_acabaram',
+      'base_todos_sentimentos_prejudiciais',
+      'base_code_espirito',
+      'base_informacoes_prejudiciais_gerei',
+      'base_informacoes_prejudiciais_recebi'
+    ];
+    
+    const availableComponentKeys = audioComponents.map(comp => comp.component_key);
+    const missingComponents = requiredComponents.filter(comp => !availableComponentKeys.includes(comp));
+    
+    if (missingComponents.length > 0) {
+      console.warn('[generateQuantumCommands] Missing components:', missingComponents);
+    }
+    
+    const assemblyInstructions = {
+      assemblySequence,
+      metadata: {
+        protocolType: 'evento_traumatico_especifico',
+        selectedEvent: selectedEvent,
+        sentimentCount: selectedSentiments.length,
+        totalSequences: assemblySequence.length,
+        estimatedTotalDuration: assemblySequence.reduce((total, seq) => total + seq.estimatedDuration, 0),
+        availableComponents: availableComponentKeys,
+        missingComponents,
+        protocolStructure: {
+          individualSentiments: selectedSentiments.length,
+          finalPhrases: 4,
+          totalPhrases: selectedSentiments.length + 4
+        }
+      },
+      readyForAssembly: missingComponents.length === 0
+    };
+    
+    console.log('[generateQuantumCommands] Generated linear protocol assembly instructions:', assemblyInstructions);
+    
+    return assemblyInstructions;
+  } catch (error) {
+    console.error('[generateQuantumCommands] Error:', error);
+    throw error;
   }
-
-  console.log(`Found ${baseFragments.length} available base fragments`);
-
-  // OTIMIZAÇÃO: Limitar número de sentimentos processados para reduzir tempo
-  const maxSentiments = 15; // Reduzir de 50+ para 15
-  const optimizedSentiments = selectedSentiments.slice(0, maxSentiments);
-  
-  console.log(`Optimized sentiments from ${selectedSentiments.length} to ${optimizedSentiments.length}`);
-
-  // Criar sequência de montagem otimizada
-  const assemblySequence = [];
-
-  // OTIMIZAÇÃO: Sequência compacta - uma única passagem por sentimento
-  optimizedSentiments.forEach((sentiment, index) => {
-    // Alternar entre sequências para variedade
-    if (index % 3 === 0) {
-      // Sequência tipo 1: Limpeza + Recebimento
-      assemblySequence.push(
-        { type: 'sentiment', sentiment: sentiment },
-        { type: 'base_word', componentKey: 'base_que_senti' },
-        { type: 'base_word', componentKey: 'base_acabaram' },
-        { type: 'base_word', componentKey: 'base_recebo_agora' },
-        { type: 'event', text: 'paz e harmonia' },
-        { type: 'base_word', componentKey: 'base_em_mim' }
-      );
-    } else if (index % 3 === 1) {
-      // Sequência tipo 2: Libertação direta
-      assemblySequence.push(
-        { type: 'base_word', componentKey: 'base_liberto_agora' },
-        { type: 'sentiment', sentiment: sentiment },
-        { type: 'base_word', componentKey: 'base_de_mim' },
-        { type: 'base_word', componentKey: 'base_para_sempre' }
-      );
-    } else {
-      // Sequência tipo 3: Transformação
-      assemblySequence.push(
-        { type: 'sentiment', sentiment: sentiment },
-        { type: 'event', text: 'se transforma em amor' },
-        { type: 'base_word', componentKey: 'base_em_mim' },
-        { type: 'base_word', componentKey: 'base_completamente' }
-      );
-    }
-  });
-
-  // Sequência final para o evento específico (compacta)
-  assemblySequence.push(
-    { type: 'base_word', componentKey: 'base_liberto_agora' },
-    { type: 'event', text: eventEssence },
-    { type: 'base_word', componentKey: 'base_de_mim' },
-    { type: 'base_word', componentKey: 'base_completamente' },
-    { type: 'event', text: 'paz, amor e harmonia' },
-    { type: 'base_word', componentKey: 'base_recebo_agora' },
-    { type: 'base_word', componentKey: 'base_para_sempre' }
-  );
-
-  console.log(`Total assembly sequence: ${assemblySequence.length} segments (optimized)`);
-
-  // Definir instruções de montagem otimizadas
-  const assemblyInstructions = {
-    protocolType: 'evento_traumatico_especifico',
-    selectedEvent: eventEssence,
-    selectedSentiments: optimizedSentiments,
-    originalSentimentCount: selectedSentiments.length,
-    sequence: assemblySequence,
-    estimatedDuration: assemblySequence.length * 2.5, // Reduzido para 2.5s por fragmento
-    totalFragments: assemblySequence.length,
-    optimizations: {
-      sentimentReduction: `${selectedSentiments.length} → ${optimizedSentiments.length}`,
-      sequenceType: 'compact',
-      estimatedTime: `${Math.ceil(assemblySequence.length * 2.5 / 60)} minutos`
-    },
-    metadata: {
-      sentimentSequences: optimizedSentiments.length,
-      eventSequences: 1,
-      totalBaseWords: assemblySequence.filter(s => s.type === 'base_word').length,
-      totalSentiments: assemblySequence.filter(s => s.type === 'sentiment').length,
-      totalEvents: assemblySequence.filter(s => s.type === 'event').length
-    }
-  };
-
-  // Verificar se todos os fragmentos base estão disponíveis
-  const requiredBaseWords = ['base_que_senti', 'base_acabaram', 'base_recebo_agora', 'base_em_mim', 'base_para_sempre', 'base_liberto_agora', 'base_de_mim', 'base_completamente'];
-  const availableBaseWords = baseFragments.map(frag => frag.component_key);
-  const unavailableComponents = requiredBaseWords.filter(comp => !availableBaseWords.includes(comp));
-
-  const isReady = unavailableComponents.length === 0;
-
-  return {
-    type: 'assembly_instructions',
-    assemblyInstructions,
-    unavailableComponents,
-    ready: isReady,
-    sentimentCount: optimizedSentiments.length,
-    originalSentimentCount: selectedSentiments.length,
-    optimized: true,
-    message: isReady 
-      ? `Protocolo otimizado: ${assemblySequence.length} fragmentos (~${Math.ceil(assemblySequence.length * 2.5 / 60)} min)`
-      : `Fragmentos não disponíveis: ${unavailableComponents.join(', ')}`
-  };
 }
 
 function extractEventEssence(event: string): string {

@@ -63,266 +63,224 @@ serve(async (req) => {
   }
 });
 
+// FASE 3: Main audio assembly processing function - Frases Completas
 async function processAudioAssembly(supabase: any, job: any) {
   const jobId = job.id;
   const instructions = job.assembly_instructions;
   const userId = job.user_id;
   
   try {
-    console.log(`Processing assembly job ${jobId}`);
+    console.log(`[processAudioAssembly] Starting PROTOCOL assembly for job ${jobId}`);
     
     // Atualizar status para processing
-    await updateJobStatus(supabase, jobId, 'processing', 0, 'Iniciando montagem...');
+    await updateJobStatus(supabase, jobId, 'processing', 10, 'Iniciando protocolo...');
 
-    // Buscar áudios da biblioteca do usuário
-    const { data: userAudioLibrary, error: libraryError } = await supabase
+    // Get user's audio library for personalized components
+    const { data: userLibrary, error: libraryError } = await supabase
       .from('user_audio_library')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'completed');
 
     if (libraryError) {
-      throw new Error(`Erro ao buscar biblioteca de áudios: ${libraryError.message}`);
+      console.error('[processAudioAssembly] Error fetching user library:', libraryError);
     }
 
-    console.log(`Found ${userAudioLibrary.length} audio items in user library`);
-
-    // Buscar componentes base como fallback
-    const { data: baseComponents, error: componentsError } = await supabase
+    // Get base audio components
+    const { data: baseComponents, error: baseError } = await supabase
       .from('audio_components')
       .select('*')
       .eq('is_available', true);
 
-    if (componentsError) {
-      throw new Error(`Erro ao buscar componentes base: ${componentsError.message}`);
+    if (baseError) {
+      console.error('[processAudioAssembly] Error fetching base components:', baseError);
+      throw new Error('Failed to fetch base components');
     }
 
-    const elevenLabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
-    if (!elevenLabsApiKey) {
-      throw new Error('ElevenLabs API key não configurada');
-    }
-
-    // Buscar perfil do usuário para obter voice_id
-    const { data: profile } = await supabase
+    // Get user profile for voice settings
+    const { data: userProfile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('cloned_voice_id, full_name')
+      .select('cloned_voice_id')
       .eq('user_id', userId)
       .single();
 
-    const voiceId = profile?.cloned_voice_id || 'pNInz6obpgDQGcFmaJgB';
-    const userName = profile?.full_name || 'você';
+    if (profileError) {
+      console.warn('[processAudioAssembly] Could not fetch user profile:', profileError);
+    }
 
-    const assemblySequence = instructions.sequence || instructions.assemblyOrder;
-    const totalSteps = assemblySequence.length;
+    const voiceId = userProfile?.cloned_voice_id || 'EXAVITQu4vr4xnSDxMaL'; // Default voice
+    console.log('[processAudioAssembly] Using voice ID:', voiceId);
+
+    await updateJobStatus(supabase, jobId, 'processing', 20, 'Montando frases do protocolo...');
+
     const audioSegments = [];
+    const assemblySequence = instructions.assemblySequence || [];
+    const totalSequences = assemblySequence.length;
 
-    // Processar cada fragmento da sequência
-    for (let i = 0; i < totalSteps; i++) {
-      const step = assemblySequence[i];
-      let audioPath = null;
-      let needsGeneration = true;
-      let finalText = '';
+    // Validação do protocolo
+    const { metadata } = instructions;
+    if (metadata.protocolType !== 'evento_traumatico_especifico') {
+      throw new Error('Protocolo não suportado');
+    }
 
-      // Identificar tipo de fragmento
-      if (step.type === 'base_word') {
-        // Buscar fragmento base na biblioteca
-        const userAudio = userAudioLibrary.find(audio => 
-          audio.component_key === step.componentKey && 
-          audio.component_type === 'base_word'
-        );
+    console.log(`[processAudioAssembly] Processing protocol with ${metadata.sentimentCount} sentiments + ${metadata.protocolStructure?.finalPhrases || 4} final phrases`);
 
-        if (userAudio && userAudio.audio_path) {
-          audioPath = userAudio.audio_path;
-          needsGeneration = false;
-          console.log(`Using base word from library: ${step.componentKey}`);
-        }
-      } else if (step.type === 'sentiment') {
-        // Buscar sentimento na biblioteca
-        const userAudio = userAudioLibrary.find(audio => 
-          audio.component_key === `sentiment_${step.sentiment}` && 
-          audio.component_type === 'sentiment'
-        );
+    for (let i = 0; i < totalSequences; i++) {
+      const sequence = assemblySequence[i];
+      console.log(`[processAudioAssembly] Processing sequence ${i + 1}/${totalSequences}:`, sequence);
 
-        if (userAudio && userAudio.audio_path) {
-          audioPath = userAudio.audio_path;
-          needsGeneration = false;
-          console.log(`Using sentiment from library: ${step.sentiment}`);
+      // Build the complete phrase for this sequence
+      let phraseText = '';
+
+      for (const component of sequence.components) {
+        // Check if it's a base component first
+        const baseComponent = baseComponents.find(base => base.component_key === component);
+
+        if (baseComponent) {
+          phraseText += baseComponent.text_content + ' ';
         } else {
-          // Buscar contexto do sentimento para gerar
-          const { data: sentimentData } = await supabase
-            .from('sentimentos')
-            .select('contexto')
-            .eq('nome', step.sentiment)
-            .single();
-          
-          finalText = sentimentData?.contexto || `${step.sentiment}s que eu senti`;
+          // Treat as literal text (sentiment or event)
+          phraseText += component + ' ';
         }
-      } else if (step.type === 'event') {
-        // Eventos são sempre gerados dinamicamente
-        finalText = step.text || step.eventText || '';
-        console.log(`Generating dynamic event text: ${finalText.substring(0, 50)}...`);
       }
 
-      // Se precisa gerar áudio
-      if (needsGeneration && finalText) {
+      // Clean up the phrase text
+      phraseText = phraseText.trim().replace(/\s+/g, ' ');
 
-        try {
-          const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-            method: 'POST',
-            headers: {
-              'Accept': 'audio/mpeg',
-              'Content-Type': 'application/json',
-              'xi-api-key': elevenLabsApiKey,
-            },
-            body: JSON.stringify({
-              text: finalText,
-              model_id: 'eleven_multilingual_v2',
-              voice_settings: {
-                stability: 0.5,
-                similarity_boost: 0.8,
-                style: 0.3
-              }
-            }),
+      // Ensure it ends with exclamation for protocol emphasis
+      if (!phraseText.endsWith('!') && !phraseText.endsWith('.')) {
+        phraseText += '!';
+      }
+
+      console.log(`[processAudioAssembly] Generated phrase ${i + 1}: "${phraseText}"`);
+
+      // Generate audio using ElevenLabs TTS with protocol-appropriate settings
+      try {
+        const ttsResponse = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + voiceId, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('ELEVENLABS_API_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: phraseText,
+            model_id: 'eleven_multilingual_v2',
+            voice_settings: {
+              stability: 0.7,          // Mais estável para protocolo
+              similarity_boost: 0.9,   // Maior similaridade
+              style: 0.2,              // Pouco estilo para clareza
+              use_speaker_boost: true
+            }
+          }),
+        });
+
+        if (!ttsResponse.ok) {
+          const errorText = await ttsResponse.text();
+          console.error(`[processAudioAssembly] TTS Error for sequence ${i + 1}:`, errorText);
+          throw new Error(`TTS failed: ${errorText}`);
+        }
+
+        const audioBuffer = await ttsResponse.arrayBuffer();
+        const audioUint8Array = new Uint8Array(audioBuffer);
+
+        // Upload audio segment to storage
+        const segmentFileName = `protocol_segment_${i + 1}_${Date.now()}.mp3`;
+        const segmentPath = `${userId}/assembly-segments/${jobId}/${segmentFileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('audio-assembly')
+          .upload(segmentPath, audioUint8Array, {
+            contentType: 'audio/mpeg',
+            upsert: true
           });
 
-          if (ttsResponse.ok) {
-            const audioBuffer = await ttsResponse.arrayBuffer();
-            // CORREÇÃO: Salvar com user_id na estrutura de pastas
-            audioPath = `${userId}/assembly-temp/${jobId}/segment-${i + 1}-${step.type}.mp3`;
-
-            // Upload temporário
-            await supabase.storage
-              .from('audio-assembly')
-              .upload(audioPath, audioBuffer, {
-                contentType: 'audio/mpeg',
-                upsert: true
-              });
-
-            console.log(`Generated audio for ${step.type}: ${finalText.substring(0, 30)}...`);
-          } else {
-            const errorText = await ttsResponse.text();
-            throw new Error(`TTS API error: ${ttsResponse.status} - ${errorText}`);
-          }
-        } catch (ttsError) {
-          console.error(`TTS generation failed for step ${i + 1}:`, ttsError);
-          audioPath = null;
+        if (uploadError) {
+          console.error(`[processAudioAssembly] Upload error for segment ${i + 1}:`, uploadError);
+          throw new Error(`Failed to upload segment: ${uploadError.message}`);
         }
-      }
 
-      if (audioPath) {
         audioSegments.push({
-          order: i + 1,
-          audioPath,
-          componentKey: step.componentKey || step.sentiment || 'dynamic',
-          type: step.type,
-          fromLibrary: !needsGeneration,
-          text: finalText.substring(0, 100) // Para debug
+          path: segmentPath,
+          buffer: audioUint8Array,
+          text: phraseText,
+          sequenceId: sequence.sequenceId,
+          type: i < metadata.sentimentCount ? 'individual_sentiment' : 'final_phrase'
         });
-      } else {
-        console.warn(`No audio generated for step ${i + 1}: ${JSON.stringify(step)}`);
-      }
 
-      // Atualizar progresso
-      const progress = Math.round(((i + 1) / totalSteps) * 80);
-      await updateJobStatus(supabase, jobId, 'processing', progress, 
-        `Processando segmento ${i + 1} de ${totalSteps}`);
-    }
+        // Update progress
+        const progress = 20 + Math.floor((i + 1) / totalSequences * 60);
+        await updateJobStatus(supabase, jobId, 'processing', progress, 
+          `Frase ${i + 1} de ${totalSequences} processada`);
 
-    console.log(`Processed ${audioSegments.length} segments for job ${jobId}`);
-
-    // FASE 1: Concatenação real de áudios usando FFmpeg
-    await updateJobStatus(supabase, jobId, 'processing', 90, 'Concatenando áudios...');
-
-    // CORREÇÃO: Salvar resultado com user_id na estrutura
-    const resultAudioPath = `${userId}/assembly-results/${jobId}/final-session-audio.mp3`;
-    
-    if (audioSegments.length > 0) {
-      try {
-        // Baixar todos os segmentos
-        const segmentBuffers = [];
-        let totalDuration = 0;
-        
-        for (const segment of audioSegments) {
-          const { data: segmentData } = await supabase.storage
-            .from('audio-assembly')
-            .download(segment.audioPath);
-          
-          if (segmentData) {
-            segmentBuffers.push(await segmentData.arrayBuffer());
-            totalDuration += 10; // Estimativa por segmento
-          }
-        }
-
-        if (segmentBuffers.length > 0) {
-          // Concatenação real usando Web Audio API
-          const concatenatedBuffer = await concatenateAudioBuffers(segmentBuffers);
-          
-          await supabase.storage
-            .from('audio-assembly')
-            .upload(resultAudioPath, concatenatedBuffer, {
-              contentType: 'audio/mpeg',
-              upsert: true
-            });
-
-          console.log(`Successfully concatenated ${segmentBuffers.length} audio segments`);
-        }
-      } catch (error) {
-        console.error('Error during audio concatenation:', error);
-        // Fallback para primeiro segmento se concatenação falhar
-        if (audioSegments[0]?.audioPath) {
-          const { data: firstSegment } = await supabase.storage
-            .from('audio-assembly')
-            .download(audioSegments[0].audioPath);
-
-          if (firstSegment) {
-            await supabase.storage
-              .from('audio-assembly')
-              .upload(resultAudioPath, firstSegment, {
-                contentType: 'audio/mpeg',
-                upsert: true
-              });
-          }
-        }
+      } catch (ttsError) {
+        console.error(`[processAudioAssembly] TTS Error for sequence ${i + 1}:`, ttsError);
+        throw new Error(`Failed to generate audio for sequence ${i + 1}: ${ttsError.message}`);
       }
     }
 
-    // Calcular métricas finais
-    const totalDuration = audioSegments.length * 10; // Estimativa
-    const estimatedFileSize = totalDuration * 64000;
+    await updateJobStatus(supabase, jobId, 'processing', 85, 'Concatenando protocolo final...');
 
-    // Marcar como concluído
-    await supabase
+    // Concatenate all audio segments with proper spacing for protocol
+    const finalAudioBuffer = concatenateAudioBuffers(audioSegments.map(seg => seg.buffer));
+
+    // Upload final audio file
+    const finalFileName = `protocol_assembly_${jobId}_${Date.now()}.mp3`;
+    const finalPath = `${userId}/assembly-results/${finalFileName}`;
+
+    const { error: finalUploadError } = await supabase.storage
+      .from('audio-assembly')
+      .upload(finalPath, finalAudioBuffer, {
+        contentType: 'audio/mpeg',
+        upsert: true
+      });
+
+    if (finalUploadError) {
+      console.error('[processAudioAssembly] Final upload error:', finalUploadError);
+      throw new Error(`Failed to upload final audio: ${finalUploadError.message}`);
+    }
+
+    await updateJobStatus(supabase, jobId, 'processing', 95, 'Finalizando protocolo...');
+
+    // Update job with final results
+    const { error: updateError } = await supabase
       .from('assembly_jobs')
       .update({
         status: 'completed',
         progress_percentage: 100,
-        result_audio_path: resultAudioPath,
-        total_duration_seconds: totalDuration,
-        total_file_size_bytes: estimatedFileSize,
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
+        result_audio_path: finalPath,
+        total_duration_seconds: Math.floor(audioSegments.length * 8), // Estimated
+        total_file_size_bytes: finalAudioBuffer.byteLength
       })
       .eq('id', jobId);
 
-    // Criar notificação para o usuário
+    if (updateError) {
+      console.error('[processAudioAssembly] Error updating job completion:', updateError);
+    }
+
+    // Create detailed user notification
     await supabase
       .from('user_notifications')
       .insert({
         user_id: userId,
-        type: 'audio_assembly',
-        title: 'Áudio de Sessão Criado',
-        message: `Seu áudio de auto-cura está pronto! ${audioSegments.length} segmentos foram processados.`,
+        type: 'protocol_assembly_completed',
+        title: 'Protocolo de Evento Traumático Concluído',
+        message: `Seu protocolo foi gerado com ${metadata.sentimentCount} sentimentos individuais e 4 frases finais.`,
         metadata: {
           job_id: jobId,
-          segments_count: audioSegments.length,
-          duration: totalDuration,
-          result_path: resultAudioPath
+          audio_path: finalPath,
+          protocol_type: metadata.protocolType,
+          sentiment_count: metadata.sentimentCount,
+          total_phrases: audioSegments.length,
+          structure: metadata.protocolStructure
         }
       });
 
-    console.log(`Assembly job ${jobId} completed successfully`);
+    console.log('[processAudioAssembly] Protocol assembly completed successfully for job:', jobId);
+    console.log(`[processAudioAssembly] Final structure: ${metadata.sentimentCount} individual + 4 final = ${audioSegments.length} total phrases`);
 
   } catch (error) {
-    console.error(`Error processing assembly job ${jobId}:`, error);
+    console.error(`[processAudioAssembly] Error processing job ${jobId}:`, error);
     
     await supabase
       .from('assembly_jobs')
@@ -333,19 +291,21 @@ async function processAudioAssembly(supabase: any, job: any) {
       })
       .eq('id', jobId);
 
-    // Notificar erro
+    // Create error notification
     await supabase
       .from('user_notifications')
       .insert({
         user_id: userId,
-        type: 'audio_assembly_error',
-        title: 'Erro na Criação de Áudio',
-        message: `Houve um erro ao processar seu áudio de sessão. Nossa equipe foi notificada.`,
+        type: 'protocol_assembly_failed',
+        title: 'Erro no Protocolo de Evento Traumático',
+        message: `Falha ao processar o protocolo: ${error.message}`,
         metadata: {
           job_id: jobId,
           error: error.message
         }
       });
+    
+    throw error;
   }
 }
 
