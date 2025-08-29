@@ -4,7 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Play, Download, Volume2 } from 'lucide-react';
+import { Play, Download, Volume2, RefreshCw } from 'lucide-react';
 
 interface AudioAssemblyNotificationProps {
   sessionId?: string;
@@ -12,7 +12,7 @@ interface AudioAssemblyNotificationProps {
 }
 
 export const AudioAssemblyNotification = ({ sessionId, onAudioReady }: AudioAssemblyNotificationProps) => {
-  const { currentJob, isProcessing, getAudioUrl } = useAudioAssembly(sessionId);
+  const { currentJob, isProcessing, retryAssembly, canRetry, retryCount, getAudioUrl } = useAudioAssembly(sessionId);
   const { toast } = useToast();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
@@ -32,8 +32,8 @@ export const AudioAssemblyNotification = ({ sessionId, onAudioReady }: AudioAsse
     }
   }, [currentJob, audioUrl, getAudioUrl, onAudioReady]);
 
-  // Não mostrar se não há job ativo
-  if (!currentJob || !isProcessing) {
+  // Não mostrar se não há job ativo e não pode fazer retry
+  if (!currentJob && !canRetry) {
     return null;
   }
 
@@ -64,11 +64,15 @@ export const AudioAssemblyNotification = ({ sessionId, onAudioReady }: AudioAsse
   };
 
   const getStatusText = () => {
+    if (!currentJob) {
+      return '⚠️ Montagem falhada - Tente novamente';
+    }
     if (currentJob.status === 'completed') {
       return '🎉 Sua autocura está pronta!';
     }
     if (currentJob.status === 'processing') {
-      return `🔄 Preparando sua autocura... (${currentJob.progress_percentage || 0}%)`;
+      const retryText = retryCount > 0 ? ` (Tentativa ${retryCount})` : '';
+      return `🔄 Preparando sua autocura...${retryText} (${currentJob.progress_percentage || 0}%)`;
     }
     if (currentJob.status === 'failed') {
       return '❌ Erro na preparação';
@@ -77,7 +81,7 @@ export const AudioAssemblyNotification = ({ sessionId, onAudioReady }: AudioAsse
   };
 
   const getEstimatedTimeRemaining = () => {
-    if (currentJob.status === 'completed') return null;
+    if (!currentJob || currentJob.status === 'completed') return null;
     
     const progress = currentJob.progress_percentage || 0;
     if (progress === 0) return null;
@@ -106,14 +110,14 @@ export const AudioAssemblyNotification = ({ sessionId, onAudioReady }: AudioAsse
           </div>
         </div>
 
-        {currentJob.status === 'processing' && (
+        {currentJob?.status === 'processing' && (
           <Progress 
             value={currentJob.progress_percentage || 0} 
             className="w-full h-2"
           />
         )}
 
-        {currentJob.status === 'completed' && audioUrl && (
+        {currentJob?.status === 'completed' && audioUrl && (
           <div className="flex gap-2">
             <Button
               onClick={handlePlayAudio}
@@ -133,10 +137,24 @@ export const AudioAssemblyNotification = ({ sessionId, onAudioReady }: AudioAsse
           </div>
         )}
 
-        {currentJob.status === 'failed' && (
-          <p className="text-xs text-destructive">
-            {currentJob.error_message || 'Erro desconhecido na preparação da autocura.'}
-          </p>
+        {(currentJob?.status === 'failed' || (!currentJob && canRetry)) && (
+          <div className="space-y-2">
+            {currentJob?.error_message && (
+              <p className="text-xs text-destructive">
+                {currentJob.error_message}
+              </p>
+            )}
+            <Button
+              onClick={retryAssembly}
+              size="sm"
+              variant="outline"
+              disabled={!canRetry || isProcessing}
+              className="w-full"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Tentar Novamente
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>

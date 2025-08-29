@@ -5,6 +5,7 @@ import SentimentosPopup from "@/components/SentimentosPopup";
 import { supabase } from "@/integrations/supabase/client";
 import { useAudioAssembly } from "@/hooks/useAudioAssembly";
 import { useToast } from "@/hooks/use-toast";
+import { RefreshCw } from "lucide-react";
 
 interface ProtocolEventoEspecificoProps {
   sessionId: string;
@@ -27,7 +28,7 @@ export const ProtocolEventoEspecifico = ({
   const [startTime, setStartTime] = useState<number | null>(null);
   
   const { toast } = useToast();
-  const { currentJob, isProcessing: isAssemblyProcessing, startAudioAssembly, clearCurrentJob } = useAudioAssembly(sessionId);
+  const { currentJob, isProcessing: isAssemblyProcessing, startAudioAssembly, clearCurrentJob, retryAssembly, canRetry } = useAudioAssembly(sessionId);
 
   // Inicializar o protocolo
   React.useEffect(() => {
@@ -79,6 +80,23 @@ export const ProtocolEventoEspecifico = ({
         // Se estiver na etapa de sentimentos, mostrar popup
         if (existingProtocol.current_step === 3) {
           setShowSentiments(true);
+        }
+        
+        // Se estiver na etapa 4 e houve erro de montagem, permitir retry
+        if (existingProtocol.current_step === 4) {
+          // Verificar se houve job de assembly falhado
+          const { data: failedJob } = await supabase
+            .from('assembly_jobs')
+            .select('*')
+            .eq('session_id', sessionId)
+            .eq('status', 'failed')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+            
+          if (failedJob) {
+            console.log('Job falhado encontrado, permitindo retry');
+          }
         }
         
         return;
@@ -341,6 +359,21 @@ export const ProtocolEventoEspecifico = ({
               )}
             </div>
           </div>
+          
+          {/* Mostrar botão de retry se houver erro e puder tentar novamente */}
+          {canRetry && (
+            <div className="mt-4">
+              <Button
+                onClick={retryAssembly}
+                variant="outline"
+                size="sm"
+                className="w-full"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Tentar Novamente Montagem
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
     );

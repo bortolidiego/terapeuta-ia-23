@@ -34,6 +34,8 @@ interface AssemblyInstructions {
 export const useAudioAssembly = (sessionId?: string) => {
   const [currentJob, setCurrentJob] = useState<AssemblyJob | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [lastAssemblyInstructions, setLastAssemblyInstructions] = useState<AssemblyInstructions | null>(null);
   const { toast } = useToast();
 
   // Escutar mudanças em tempo real no job atual com notificações otimizadas
@@ -93,48 +95,116 @@ export const useAudioAssembly = (sessionId?: string) => {
     };
   }, [currentJob?.id, currentJob?.progress_percentage, toast]);
 
-  const startAudioAssembly = async (assemblyInstructions: AssemblyInstructions) => {
+  const startAudioAssembly = async (assemblyInstructions: AssemblyInstructions, isRetry: boolean = false) => {
+    const maxRetries = 3;
+    const currentRetry = isRetry ? retryCount + 1 : 0;
+    
     try {
       setIsProcessing(true);
+      setLastAssemblyInstructions(assemblyInstructions);
+      
+      if (isRetry) {
+        setRetryCount(currentRetry);
+        console.log(`Tentativa ${currentRetry} de ${maxRetries} para montagem de áudio`);
+      }
+
+      // Verificar componentes de áudio necessários antes de iniciar
+      console.log('Verificando componentes de áudio necessários...');
+      const { data: audioComponents, error: componentsError } = await supabase
+        .from('audio_components')
+        .select('component_key')
+        .in('component_key', assemblyInstructions.baseComponents);
+
+      if (componentsError) {
+        console.error('Erro ao verificar componentes:', componentsError);
+      } else {
+        const missingComponents = assemblyInstructions.baseComponents.filter(
+          component => !audioComponents.some(ac => ac.component_key === component)
+        );
+        if (missingComponents.length > 0) {
+          console.warn('Componentes de áudio faltando:', missingComponents);
+        }
+      }
 
       const { data, error } = await supabase.functions.invoke('audio-assembly', {
         body: {
           assemblyInstructions,
           sessionId,
-          userId: (await supabase.auth.getUser()).data.user?.id
+          userId: (await supabase.auth.getUser()).data.user?.id,
+          retryAttempt: currentRetry
         }
       });
 
       if (error) {
-        throw new Error(error.message);
+        console.error('Erro na função audio-assembly:', error);
+        throw new Error(`Erro na montagem: ${error.message || error.toString()}`);
       }
 
-      // Buscar o job criado
-      const { data: job, error: jobError } = await supabase
-        .from('assembly_jobs')
-        .select('*')
-        .eq('id', data.jobId)
-        .single();
+      if (!data?.jobId) {
+        throw new Error('Job ID não foi retornado pela função');
+      }
 
-      if (jobError) {
-        throw new Error(jobError.message);
+      // Buscar o job criado com retry
+      let job = null;
+      let jobError = null;
+      
+      for (let i = 0; i < 3; i++) {
+        const result = await supabase
+          .from('assembly_jobs')
+          .select('*')
+          .eq('id', data.jobId)
+          .single();
+        
+        if (result.data) {
+          job = result.data;
+          break;
+        }
+        
+        jobError = result.error;
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1s antes de tentar novamente
+      }
+
+      if (!job) {
+        throw new Error(`Job não encontrado: ${jobError?.message || 'Erro desconhecido'}`);
       }
 
       setCurrentJob(job);
+      setRetryCount(0); // Reset retry count on success
 
       toast({
-        title: 'Montagem Iniciada',
+        title: isRetry ? `Tentativa ${currentRetry} - Montagem Iniciada` : 'Montagem Iniciada',
         description: `Processamento iniciado! Duração estimada: ${Math.round(assemblyInstructions.estimatedDuration / 60)} minutos.`,
       });
 
       return data.jobId;
     } catch (error) {
-      console.error('Error starting audio assembly:', error);
+      console.error(`Erro na montagem (tentativa ${currentRetry}):`, error);
+      
+      // Retry logic
+      if (currentRetry < maxRetries && !isRetry) {
+        console.log(`Tentando novamente em 3 segundos... (${currentRetry + 1}/${maxRetries})`);
+        
+        toast({
+          title: `Tentativa ${currentRetry + 1} falhou`,
+          description: `Tentando novamente automaticamente... (${currentRetry + 1}/${maxRetries})`,
+          variant: 'destructive',
+        });
+        
+        setTimeout(() => {
+          startAudioAssembly(assemblyInstructions, true);
+        }, 3000);
+        
+        return;
+      }
+      
       setIsProcessing(false);
+      setRetryCount(0);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       
       toast({
-        title: 'Erro',
-        description: 'Não foi possível iniciar a montagem de áudio.',
+        title: currentRetry >= maxRetries ? 'Falha após múltiplas tentativas' : 'Erro na Montagem',
+        description: `${errorMessage}${currentRetry > 0 ? ` (após ${currentRetry} tentativas)` : ''}`,
         variant: 'destructive',
       });
       
@@ -174,17 +244,36 @@ export const useAudioAssembly = (sessionId?: string) => {
     }
   };
 
+  const retryAssembly = async () => {
+    if (!lastAssemblyInstructions) {
+      toast({
+        title: 'Erro',
+        description: 'Não é possível tentar novamente. Instruções de montagem não encontradas.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    console.log('Tentando novamente a montagem de áudio...');
+    await startAudioAssembly(lastAssemblyInstructions, true);
+  };
+
   const clearCurrentJob = () => {
     setCurrentJob(null);
     setIsProcessing(false);
+    setRetryCount(0);
+    setLastAssemblyInstructions(null);
   };
 
   return {
     currentJob,
     isProcessing,
+    retryCount,
     startAudioAssembly,
+    retryAssembly,
     getJobStatus,
     getAudioUrl,
     clearCurrentJob,
+    canRetry: !!lastAssemblyInstructions && !isProcessing,
   };
 };
