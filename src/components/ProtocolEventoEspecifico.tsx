@@ -204,26 +204,57 @@ export const ProtocolEventoEspecifico = ({
     await saveProtocolState(4, { selectedSentiments: sentiments });
     
     try {
-      // Gerar instruções de assembly
-      const { data, error } = await supabase.functions.invoke('protocol-executor', {
+      // Reativar sessão se estiver pausada
+      console.log('Verificando e reativando sessão se necessário...');
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('therapy_sessions')
+        .select('status')
+        .eq('id', sessionId)
+        .single();
+
+      if (!sessionError && sessionData?.status === 'paused') {
+        console.log('Reativando sessão pausada');
+        await supabase
+          .from('therapy_sessions')
+          .update({ status: 'active' })
+          .eq('id', sessionId);
+      }
+
+      // Gerar instruções de assembly com timeout
+      console.log('Gerando comandos de assembly...');
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout na geração de comandos')), 25000);
+      });
+
+      const executorPromise = supabase.functions.invoke('protocol-executor', {
         body: {
           sessionId,
           action: 'generate_commands',
-          actionData: {
+          data: {
             selectedEvent,
             selectedSentiments: sentiments
           }
         }
       });
 
+      const result = await Promise.race([executorPromise, timeoutPromise]) as any;
+      const { data, error } = result;
+
       if (error) throw error;
       
-      // Verificar se temos assemblyInstructions em vez de commands
+      // Verificar se temos assemblyInstructions
       if (data?.assemblyInstructions) {
         console.log('Starting audio assembly with instructions:', data.assemblyInstructions);
         
         // Iniciar montagem de áudio
-        await startAudioAssembly(data.assemblyInstructions);
+        const assemblyInstructions = {
+          sessionId,
+          assemblySequence: data.assemblyInstructions.assemblySequence,
+          totalEstimatedDuration: data.assemblyInstructions.totalEstimatedDuration || 0
+        };
+        
+        await startAudioAssembly(assemblyInstructions);
         
         // Marcar protocolo como concluído
         if (protocolId) {

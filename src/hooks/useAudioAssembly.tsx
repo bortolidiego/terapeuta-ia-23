@@ -14,21 +14,13 @@ interface AssemblyJob {
 }
 
 interface AssemblyInstructions {
-  event: string;
-  eventEssence: string;
-  protocolType: string;
-  baseComponents: string[];
-  dynamicElements: {
-    selectedSentiments: string[];
-    eventText: string;
-  };
-  assemblyOrder: Array<{
-    componentKey: string;
-    replacements: Record<string, string>;
-    type: string;
+  sessionId?: string;
+  assemblySequence: Array<{
+    sequenceId: number;
+    components: string[];
+    estimatedDuration: number;
   }>;
-  estimatedDuration: number;
-  totalComponents: number;
+  totalEstimatedDuration: number;
 }
 
 export const useAudioAssembly = (sessionId?: string) => {
@@ -108,32 +100,61 @@ export const useAudioAssembly = (sessionId?: string) => {
         console.log(`Tentativa ${currentRetry} de ${maxRetries} para montagem de áudio`);
       }
 
-      // Verificar componentes de áudio necessários antes de iniciar
+      // Reativar sessão se estiver pausada
+      const currentSessionId = assemblyInstructions.sessionId || sessionId;
+      if (currentSessionId) {
+        console.log('Verificando status da sessão...');
+        const { data: sessionData, error: sessionError } = await supabase
+          .from('therapy_sessions')
+          .select('status')
+          .eq('id', currentSessionId)
+          .single();
+
+        if (!sessionError && sessionData?.status === 'paused') {
+          console.log('Reativando sessão pausada para montagem de áudio');
+          await supabase
+            .from('therapy_sessions')
+            .update({ status: 'active' })
+            .eq('id', currentSessionId);
+          
+          toast({
+            title: 'Sessão reativada',
+            description: 'Sessão foi reativada para permitir a montagem de áudio.',
+          });
+        }
+      }
+
+      // Verificar componentes de áudio necessários
       console.log('Verificando componentes de áudio necessários...');
       const { data: audioComponents, error: componentsError } = await supabase
         .from('audio_components')
         .select('component_key')
-        .in('component_key', assemblyInstructions.baseComponents);
+        .eq('protocol_type', 'evento_traumatico_especifico');
 
       if (componentsError) {
         console.error('Erro ao verificar componentes:', componentsError);
       } else {
-        const missingComponents = assemblyInstructions.baseComponents.filter(
-          component => !audioComponents.some(ac => ac.component_key === component)
-        );
-        if (missingComponents.length > 0) {
-          console.warn('Componentes de áudio faltando:', missingComponents);
-        }
+        console.log(`Encontrados ${audioComponents.length} componentes de áudio`);
       }
 
-      const { data, error } = await supabase.functions.invoke('audio-assembly', {
+      console.log('Invocando função audio-assembly com timeout...');
+      
+      // Adicionar timeout para evitar travamento
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout na função de montagem de áudio')), 30000);
+      });
+
+      const assemblyPromise = supabase.functions.invoke('audio-assembly', {
         body: {
           assemblyInstructions,
-          sessionId,
+          sessionId: currentSessionId,
           userId: (await supabase.auth.getUser()).data.user?.id,
           retryAttempt: currentRetry
         }
       });
+
+      const result = await Promise.race([assemblyPromise, timeoutPromise]) as any;
+      const { data, error } = result;
 
       if (error) {
         console.error('Erro na função audio-assembly:', error);
@@ -161,7 +182,7 @@ export const useAudioAssembly = (sessionId?: string) => {
         }
         
         jobError = result.error;
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1s antes de tentar novamente
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
       if (!job) {
@@ -169,11 +190,11 @@ export const useAudioAssembly = (sessionId?: string) => {
       }
 
       setCurrentJob(job);
-      setRetryCount(0); // Reset retry count on success
+      setRetryCount(0);
 
       toast({
         title: isRetry ? `Tentativa ${currentRetry} - Montagem Iniciada` : 'Montagem Iniciada',
-        description: `Processamento iniciado! Duração estimada: ${Math.round(assemblyInstructions.estimatedDuration / 60)} minutos.`,
+        description: `Processamento iniciado! Duração estimada: ${Math.round((assemblyInstructions.totalEstimatedDuration || 0) / 60)} minutos.`,
       });
 
       return data.jobId;
