@@ -25,6 +25,10 @@ serve(async (req) => {
     let response;
 
     switch (action) {
+      case 'health_check':
+        console.log('Health check requested for session:', sessionId);
+        response = { status: 'healthy', timestamp: new Date().toISOString(), sessionId };
+        break;
       case 'classify_protocol':
         response = await classifyProtocol(supabase, userMessage);
         break;
