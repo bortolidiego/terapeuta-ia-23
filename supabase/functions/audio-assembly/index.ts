@@ -71,6 +71,14 @@ async function processAudioAssembly(supabase: any, job: any) {
   
   try {
     console.log(`[processAudioAssembly] Starting PROTOCOL assembly for job ${jobId}`);
+    console.log(`[processAudioAssembly] Assembly instructions:`, JSON.stringify(instructions, null, 2));
+    
+    // Validar se os dados necessários estão presentes
+    if (!instructions.metadata) {
+      console.error(`[processAudioAssembly] Missing metadata in assembly instructions`);
+      await updateJobStatus(supabase, jobId, 'failed', 0, 'Erro: Metadados ausentes nas instruções de assembly');
+      return;
+    }
     
     // Atualizar status para processing
     await updateJobStatus(supabase, jobId, 'processing', 10, 'Iniciando protocolo...');
@@ -119,8 +127,10 @@ async function processAudioAssembly(supabase: any, job: any) {
 
     // Validação do protocolo
     const { metadata } = instructions;
-    if (metadata.protocolType !== 'evento_traumatico_especifico') {
-      throw new Error('Protocolo não suportado');
+    const protocolType = metadata?.protocolType || 'evento_traumatico_especifico';
+    
+    if (protocolType !== 'evento_traumatico_especifico') {
+      throw new Error(`Protocolo não suportado: ${protocolType}`);
     }
 
     console.log(`[processAudioAssembly] Processing protocol with ${metadata.sentimentCount} sentiments + ${metadata.protocolStructure?.finalPhrases || 4} final phrases`);

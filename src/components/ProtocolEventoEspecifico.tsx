@@ -340,7 +340,8 @@ export const ProtocolEventoEspecifico = ({
         const assemblyInstructions = {
           sessionId,
           assemblySequence: data.assemblySequence,
-          totalEstimatedDuration: totalDuration
+          totalEstimatedDuration: totalDuration,
+          metadata: data.metadata || { protocolType: 'evento_traumatico_especifico' }
         };
         
         await startAudioAssembly(assemblyInstructions);
