@@ -375,28 +375,139 @@ async function updateJobStatus(supabase: any, jobId: string, status: string, pro
   console.log(`Job ${jobId} status updated: ${status} (${progress}%) - ${message || ''}`);
 }
 
-// FASE 1: Função para concatenação real de áudios
-async function concatenateAudioBuffers(buffers: ArrayBuffer[]): Promise<ArrayBuffer> {
-  // Implementação simplificada de concatenação
-  // Em produção, seria ideal usar FFmpeg via WebAssembly
+// Concatenate audio segments into a final MP3 file with proper MP3 structure handling
+async function concatenateAudioBuffers(audioBuffers: ArrayBuffer[]): Promise<ArrayBuffer> {
+  console.log(`[concatenateAudioBuffers] Starting MP3-aware concatenation of ${audioBuffers.length} audio buffers`);
   
-  if (buffers.length === 0) return new ArrayBuffer(0);
-  if (buffers.length === 1) return buffers[0];
-  
-  // Para MP3, vamos fazer uma concatenação básica
-  // Nota: Esta é uma implementação simplificada
-  let totalSize = 0;
-  for (const buffer of buffers) {
-    totalSize += buffer.byteLength;
+  if (audioBuffers.length === 0) {
+    throw new Error('No audio buffers to concatenate');
   }
   
-  const result = new Uint8Array(totalSize);
+  if (audioBuffers.length === 1) {
+    console.log(`[concatenateAudioBuffers] Only one buffer, returning as-is`);
+    return audioBuffers[0];
+  }
+  
+  const processedBuffers: Uint8Array[] = [];
+  let totalAudioSize = 0;
+  let firstId3Header: Uint8Array | null = null;
+  
+  for (let i = 0; i < audioBuffers.length; i++) {
+    const buffer = new Uint8Array(audioBuffers[i]);
+    console.log(`[concatenateAudioBuffers] Processing buffer ${i + 1}/${audioBuffers.length}, size: ${buffer.length} bytes`);
+    
+    const processed = extractMp3AudioData(buffer, i === 0);
+    
+    // Keep the first ID3 header if found
+    if (i === 0 && processed.id3Header) {
+      firstId3Header = processed.id3Header;
+      console.log(`[concatenateAudioBuffers] Preserved first ID3 header: ${processed.id3Header.length} bytes`);
+    }
+    
+    processedBuffers.push(processed.audioData);
+    totalAudioSize += processed.audioData.length;
+    console.log(`[concatenateAudioBuffers] Extracted ${processed.audioData.length} bytes of audio data`);
+  }
+  
+  // Calculate final size
+  const headerSize = firstId3Header ? firstId3Header.length : 0;
+  const finalSize = headerSize + totalAudioSize;
+  
+  console.log(`[concatenateAudioBuffers] Final composition: ${headerSize} bytes header + ${totalAudioSize} bytes audio = ${finalSize} bytes total`);
+  
+  // Create final buffer
+  const finalBuffer = new Uint8Array(finalSize);
   let offset = 0;
   
-  for (const buffer of buffers) {
-    result.set(new Uint8Array(buffer), offset);
-    offset += buffer.byteLength;
+  // Add ID3 header if present
+  if (firstId3Header) {
+    finalBuffer.set(firstId3Header, offset);
+    offset += firstId3Header.length;
   }
   
-  return result.buffer;
+  // Add all audio data
+  for (const audioData of processedBuffers) {
+    finalBuffer.set(audioData, offset);
+    offset += audioData.length;
+  }
+  
+  console.log(`[concatenateAudioBuffers] MP3 concatenation completed successfully: ${finalBuffer.buffer.byteLength} bytes`);
+  
+  // Validate the final MP3 structure
+  if (!validateMp3Structure(finalBuffer)) {
+    throw new Error('Generated MP3 file has invalid structure');
+  }
+  
+  return finalBuffer.buffer;
+}
+
+// Extract audio data from MP3, removing ID3 tags except for the first file
+function extractMp3AudioData(buffer: Uint8Array, keepId3: boolean): { audioData: Uint8Array; id3Header?: Uint8Array } {
+  let audioStart = 0;
+  let id3Header: Uint8Array | undefined;
+  
+  // Check for ID3v2 header (starts with "ID3")
+  if (buffer.length >= 10 && 
+      buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33) {
+    
+    // Calculate ID3v2 tag size (bytes 6-9 with synchsafe integers)
+    const size = ((buffer[6] & 0x7F) << 21) |
+                 ((buffer[7] & 0x7F) << 14) |
+                 ((buffer[8] & 0x7F) << 7) |
+                 (buffer[9] & 0x7F);
+    
+    const id3Size = 10 + size; // Header (10 bytes) + tag size
+    console.log(`[extractMp3AudioData] Found ID3v2 tag: ${id3Size} bytes`);
+    
+    if (keepId3 && id3Size <= buffer.length) {
+      id3Header = buffer.slice(0, id3Size);
+    }
+    
+    audioStart = Math.min(id3Size, buffer.length);
+  }
+  
+  // Find first MP3 frame (starts with sync bytes 0xFF 0xFB, 0xFF 0xFA, etc.)
+  while (audioStart < buffer.length - 1) {
+    if (buffer[audioStart] === 0xFF && (buffer[audioStart + 1] & 0xE0) === 0xE0) {
+      console.log(`[extractMp3AudioData] Found MP3 sync at offset ${audioStart}`);
+      break;
+    }
+    audioStart++;
+  }
+  
+  // Extract audio data (remove any trailing ID3v1 tags if present)
+  let audioEnd = buffer.length;
+  
+  // Check for ID3v1 tag at the end (128 bytes starting with "TAG")
+  if (buffer.length >= 128) {
+    const tagStart = buffer.length - 128;
+    if (buffer[tagStart] === 0x54 && buffer[tagStart + 1] === 0x41 && buffer[tagStart + 2] === 0x47) {
+      audioEnd = tagStart;
+      console.log(`[extractMp3AudioData] Found and removed ID3v1 tag (128 bytes)`);
+    }
+  }
+  
+  const audioData = buffer.slice(audioStart, audioEnd);
+  console.log(`[extractMp3AudioData] Extracted audio data: ${audioData.length} bytes (${audioStart} to ${audioEnd})`);
+  
+  return { audioData, id3Header };
+}
+
+// Validate MP3 structure
+function validateMp3Structure(buffer: Uint8Array): boolean {
+  if (buffer.length < 4) {
+    console.log(`[validateMp3Structure] Buffer too small: ${buffer.length} bytes`);
+    return false;
+  }
+  
+  // Look for MP3 sync pattern in the first part of the file
+  for (let i = 0; i < Math.min(buffer.length - 1, 200); i++) {
+    if (buffer[i] === 0xFF && (buffer[i + 1] & 0xE0) === 0xE0) {
+      console.log(`[validateMp3Structure] Found valid MP3 sync at offset ${i}`);
+      return true;
+    }
+  }
+  
+  console.log(`[validateMp3Structure] No valid MP3 sync found in first 200 bytes`);
+  return false;
 }
