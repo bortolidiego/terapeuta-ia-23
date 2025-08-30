@@ -243,6 +243,19 @@ async function processAudioAssembly(supabase: any, job: any) {
 
     // Concatenate all audio segments with proper spacing for protocol
     const finalAudioBuffer = concatenateAudioBuffers(audioSegments.map(seg => seg.buffer));
+    
+    // Validar integridade do arquivo final
+    if (!finalAudioBuffer || finalAudioBuffer.byteLength === 0) {
+      console.error('[processAudioAssembly] Arquivo final vazio ou inválido');
+      throw new Error('Arquivo de áudio final está vazio');
+    }
+    
+    if (finalAudioBuffer.byteLength < 1000) {
+      console.error('[processAudioAssembly] Arquivo final muito pequeno:', finalAudioBuffer.byteLength);
+      throw new Error('Arquivo de áudio final muito pequeno, provavelmente corrompido');
+    }
+    
+    console.log(`[processAudioAssembly] Arquivo final gerado com ${finalAudioBuffer.byteLength} bytes`);
 
     // Upload final audio file
     const finalFileName = `protocol_assembly_${jobId}_${Date.now()}.mp3`;
@@ -252,13 +265,26 @@ async function processAudioAssembly(supabase: any, job: any) {
       .from('audio-assembly')
       .upload(finalPath, finalAudioBuffer, {
         contentType: 'audio/mpeg',
-        upsert: true
+        upsert: true,
+        cacheControl: 'no-cache'
       });
 
     if (finalUploadError) {
       console.error('[processAudioAssembly] Final upload error:', finalUploadError);
       throw new Error(`Failed to upload final audio: ${finalUploadError.message}`);
     }
+    
+    // Verificar se o arquivo foi carregado corretamente
+    const { data: uploadedFile, error: verifyError } = await supabase.storage
+      .from('audio-assembly')
+      .list(finalPath.split('/').slice(0, -1).join('/'));
+      
+    if (verifyError || !uploadedFile?.some(file => file.name === finalFileName)) {
+      console.error('[processAudioAssembly] Falha na verificação do upload');
+      throw new Error('Arquivo não foi carregado corretamente');
+    }
+    
+    console.log(`[processAudioAssembly] Arquivo verificado com sucesso: ${finalPath}`);
 
     await updateJobStatus(supabase, jobId, 'processing', 95, 'Finalizando protocolo...');
 

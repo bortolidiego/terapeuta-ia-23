@@ -95,7 +95,7 @@ export const useAudioPlayer = () => {
     }
   };
 
-  // FASE 2: getAudioUrl com cache inteligente
+  // FASE 2: getAudioUrl com cache inteligente e validação
   const getAudioUrl = async (audioPath: string): Promise<string | undefined> => {
     try {
       console.log('🎵 [getAudioUrl] Requesting URL for path:', audioPath);
@@ -106,13 +106,26 @@ export const useAudioPlayer = () => {
       
       if (cached && cached.expiresAt > now) {
         console.log('🎵 [getAudioUrl] Using cached URL');
-        return cached.url;
+        
+        // Verificar se a URL ainda é válida
+        try {
+          const response = await fetch(cached.url, { method: 'HEAD' });
+          if (response.ok) {
+            return cached.url;
+          } else {
+            console.log('🎵 [getAudioUrl] Cached URL expired, removing from cache');
+            urlCache.delete(audioPath);
+          }
+        } catch (fetchError) {
+          console.log('🎵 [getAudioUrl] Cached URL invalid, removing from cache');
+          urlCache.delete(audioPath);
+        }
       }
       
       // Gerar nova URL se cache expirou ou não existe
       const { data, error } = await supabase.storage
         .from('audio-assembly')
-        .createSignedUrl(audioPath, 3600); // 1 hora
+        .createSignedUrl(audioPath, 7200); // 2 horas
       
       if (error) {
         console.error('🎵 [getAudioUrl] Error generating URL:', error);
@@ -124,13 +137,39 @@ export const useAudioPlayer = () => {
         return undefined;
       }
       
-      // Armazenar no cache (expira 50 minutos antes do limite de 1 hora)
+      if (!data?.signedUrl) {
+        console.error('🎵 [getAudioUrl] URL assinada não retornada');
+        return undefined;
+      }
+      
+      // Testar a URL antes de armazenar no cache
+      try {
+        const testResponse = await fetch(data.signedUrl, { method: 'HEAD' });
+        if (!testResponse.ok) {
+          console.error('🎵 [getAudioUrl] URL gerada não é acessível');
+          return undefined;
+        }
+        
+        // Verificar Content-Type
+        const contentType = testResponse.headers.get('content-type');
+        if (!contentType?.startsWith('audio/')) {
+          console.error('🎵 [getAudioUrl] Arquivo não é um áudio válido:', contentType);
+          return undefined;
+        }
+        
+        console.log('🎵 [getAudioUrl] URL validada, Content-Type:', contentType);
+      } catch (testError) {
+        console.error('🎵 [getAudioUrl] Erro ao testar URL:', testError);
+        return undefined;
+      }
+      
+      // Armazenar no cache (expira 1.5 horas antes do limite de 2 horas)
       urlCache.set(audioPath, {
         url: data.signedUrl,
-        expiresAt: now + (50 * 60 * 1000) // 50 minutos
+        expiresAt: now + (90 * 60 * 1000) // 1.5 horas
       });
       
-      console.log('🎵 [getAudioUrl] URL generated and cached successfully');
+      console.log('🎵 [getAudioUrl] URL generated, tested and cached successfully');
       return data.signedUrl;
       
     } catch (error: any) {
@@ -216,12 +255,39 @@ export const useAudioPlayer = () => {
         });
         
         audioRef.current.addEventListener('error', (e: any) => {
-          console.error('🎵 Erro no audio element:', e.target?.error);
+          const error = e.target?.error;
+          console.error('🎵 Erro no audio element:', error);
+          
+          let errorMessage = "O arquivo de áudio está corrompido ou inacessível.";
+          
+          // Diagnóstico específico do erro
+          if (error) {
+            switch (error.code) {
+              case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                errorMessage = "Formato de áudio não suportado. Tentando regenerar...";
+                break;
+              case MediaError.MEDIA_ERR_NETWORK:
+                errorMessage = "Erro de rede. Verifique sua conexão.";
+                break;
+              case MediaError.MEDIA_ERR_DECODE:
+                errorMessage = "Arquivo corrompido. Regenerando áudio...";
+                break;
+              case MediaError.MEDIA_ERR_ABORTED:
+                errorMessage = "Reprodução cancelada.";
+                break;
+              default:
+                errorMessage = `Erro desconhecido (${error.code}). Cache limpo, tente novamente.`;
+            }
+          }
+          
           // Limpar cache para este arquivo
           urlCache.delete(item.audioPath);
+          setIsPlaying(false);
+          setCurrentAudio(null);
+          
           toast({
             title: "Erro de reprodução",
-            description: "O arquivo de áudio está corrompido ou inacessível. Cache limpo, tente novamente.",
+            description: errorMessage,
             variant: "destructive",
           });
         });
