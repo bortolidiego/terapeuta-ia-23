@@ -19,6 +19,8 @@ DROP POLICY IF EXISTS "Everyone can view knowledge base" ON public.knowledge_bas
 DROP POLICY IF EXISTS "Everyone can create sentimentos" ON public.sentimentos;
 DROP POLICY IF EXISTS "Everyone can update sentimentos" ON public.sentimentos;
 DROP POLICY IF EXISTS "Everyone can view sentimentos" ON public.sentimentos;
+DROP POLICY IF EXISTS "Authenticated users can view sentimentos" ON public.sentimentos;
+DROP POLICY IF EXISTS "System can manage sentimentos" ON public.sentimentos;
 
 -- Permitir apenas leitura para usuários autenticados (necessário para funcionalidade)
 -- Apenas o sistema pode criar/atualizar sentimentos

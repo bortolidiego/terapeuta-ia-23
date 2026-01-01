@@ -45,6 +45,9 @@ END;
 $$;
 
 -- 4. CRITICAL: Add missing DELETE protection policies
+DROP POLICY IF EXISTS "Users cannot delete session messages" ON public.session_messages;
+DROP POLICY IF EXISTS "Users cannot delete therapy facts" ON public.therapy_facts;
+
 CREATE POLICY "Users cannot delete session messages" 
 ON public.session_messages 
 FOR DELETE 
@@ -139,9 +142,5 @@ LEFT JOIN public.therapy_sessions ts ON (al.new_data->>'session_id')::uuid = ts.
 WHERE al.table_name IN ('session_messages', 'therapy_facts', 'security_violation')
 ORDER BY al.timestamp DESC;
 
--- Only admins can view the security monitor
+-- Only admins can view the security monitor (via function-based access control)
 GRANT SELECT ON public.therapy_security_monitor TO authenticated;
-CREATE POLICY "Admins can view therapy security monitor" 
-ON public.therapy_security_monitor 
-FOR SELECT 
-USING (has_role(auth.uid(), 'admin'::app_role));

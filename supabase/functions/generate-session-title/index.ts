@@ -26,9 +26,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key não configurada');
+    const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+    if (!openRouterApiKey) {
+      throw new Error('OpenRouter API key não configurada');
     }
 
     // Buscar mensagens da sessão
@@ -47,7 +47,7 @@ serve(async (req) => {
       // Se não há mensagens, usar título padrão
       await supabase
         .from('therapy_sessions')
-        .update({ 
+        .update({
           auto_generated_title: 'Nova Sessão',
           updated_at: new Date().toISOString()
         })
@@ -70,15 +70,17 @@ serve(async (req) => {
 
     console.log(`Generating title from conversation context: ${conversationContext.substring(0, 100)}...`);
 
-    // Gerar título via OpenAI
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Gerar título via OpenRouter
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://terapeuta.app',
+        'X-Title': 'Terapeuta IA',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'openai/gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -103,7 +105,7 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
@@ -124,7 +126,7 @@ serve(async (req) => {
     // Atualizar título na sessão
     const { error: updateError } = await supabase
       .from('therapy_sessions')
-      .update({ 
+      .update({
         auto_generated_title: finalTitle,
         updated_at: new Date().toISOString()
       })
@@ -139,10 +141,10 @@ serve(async (req) => {
       .from('usage_tracking')
       .insert({
         user_id: null, // Será preenchido pelo RLS
-        service: 'openai',
+        service: 'openrouter',
         operation_type: 'title_generation',
         tokens_used: 50,
-        cost_usd: 0.01,
+        cost_usd: 0.00001, // Estimativa muito baixa para gpt-4o-mini
         metadata: {
           session_id: sessionId,
           generated_title: finalTitle,

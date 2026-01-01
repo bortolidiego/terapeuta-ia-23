@@ -15,6 +15,7 @@ import NotFound from "./pages/NotFound";
 import { Chat } from "./pages/Chat";
 import { Profile } from "./pages/Profile";
 import { Credits } from "./pages/Credits";
+import { RegrasAudicao } from "./pages/RegrasAudicao";
 
 const queryClient = new QueryClient();
 
@@ -28,8 +29,8 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route 
-              path="/" 
+            <Route
+              path="/"
               element={
                 <ProtectedRoute>
                   <div className="min-h-screen flex flex-col">
@@ -39,10 +40,10 @@ const App = () => (
                     </div>
                   </div>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/chat/:id?" 
+            <Route
+              path="/chat/:id?"
               element={
                 <ProtectedRoute>
                   <div className="h-screen flex flex-col">
@@ -52,10 +53,10 @@ const App = () => (
                     </div>
                   </div>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/profile" 
+            <Route
+              path="/profile"
               element={
                 <ProtectedRoute>
                   <div className="min-h-screen flex flex-col">
@@ -65,10 +66,10 @@ const App = () => (
                     </div>
                   </div>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/credits" 
+            <Route
+              path="/credits"
               element={
                 <ProtectedRoute>
                   <div className="min-h-screen flex flex-col">
@@ -78,10 +79,10 @@ const App = () => (
                     </div>
                   </div>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/admin" 
+            <Route
+              path="/admin"
               element={
                 <ProtectedRoute requireAdmin={true}>
                   <div className="min-h-screen flex flex-col">
@@ -91,10 +92,10 @@ const App = () => (
                     </div>
                   </div>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/security" 
+            <Route
+              path="/security"
               element={
                 <ProtectedRoute requireAdmin={true}>
                   <div className="min-h-screen flex flex-col">
@@ -104,7 +105,20 @@ const App = () => (
                     </div>
                   </div>
                 </ProtectedRoute>
-              } 
+              }
+            />
+            <Route
+              path="/regras-audicao"
+              element={
+                <ProtectedRoute>
+                  <div className="min-h-screen flex flex-col">
+                    <GlobalHeader />
+                    <div className="flex-1">
+                      <RegrasAudicao />
+                    </div>
+                  </div>
+                </ProtectedRoute>
+              }
             />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

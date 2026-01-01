@@ -24,7 +24,9 @@ Formato Markdown (para casos simples):
 '
 WHERE is_active = true;
 
--- Insert or update knowledge base entry for Fato Específico guidelines
+-- Delete existing entry if exists, then insert
+DELETE FROM public.knowledge_base WHERE title = 'Fato Específico – Diretrizes';
+
 INSERT INTO public.knowledge_base (title, content, category, keywords, priority, is_active)
 VALUES (
   'Fato Específico – Diretrizes',
@@ -61,8 +63,4 @@ EXEMPLOS de comandos:
   ARRAY['fato específico', 'sentimentos', 'comandos quânticos', 'protocolo'],
   1,
   true
-)
-ON CONFLICT (title) DO UPDATE SET
-  content = EXCLUDED.content,
-  keywords = EXCLUDED.keywords,
-  updated_at = now();
+);

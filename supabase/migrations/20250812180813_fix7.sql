@@ -3,6 +3,8 @@
 -- 1. USER_SENTIMENT_FILTERS: Atualmente qualquer usuário pode fazer qualquer coisa
 -- Vamos assumir que não há user_id nesta tabela, então todos os filtros são compartilhados
 DROP POLICY IF EXISTS "Authenticated users can manage their sentiment filters" ON public.user_sentiment_filters;
+DROP POLICY IF EXISTS "Users can view sentiment filters" ON public.user_sentiment_filters;
+DROP POLICY IF EXISTS "System can manage sentiment filters" ON public.user_sentiment_filters;
 
 -- Como não há user_id, permitir apenas leitura para usuários autenticados
 -- E apenas service_role pode gerenciar (criar/atualizar/deletar)
@@ -17,6 +19,8 @@ WITH CHECK (true);
 
 -- 2. SENTIMENTOS: Remover política permissiva para service_role e usar apenas a de leitura
 DROP POLICY IF EXISTS "System can manage sentimentos" ON public.sentimentos;
+DROP POLICY IF EXISTS "System can update sentimentos usage" ON public.sentimentos;
+DROP POLICY IF EXISTS "System can insert sentimentos" ON public.sentimentos;
 
 -- Manter apenas leitura para usuários e permitir que edge functions atualizem contadores
 CREATE POLICY "System can update sentimentos usage" ON public.sentimentos

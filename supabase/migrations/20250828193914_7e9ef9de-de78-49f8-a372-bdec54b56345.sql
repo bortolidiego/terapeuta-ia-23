@@ -45,6 +45,9 @@ END;
 $$;
 
 -- 4. CRITICAL: Add missing DELETE protection policies
+DROP POLICY IF EXISTS "Users cannot delete session messages" ON public.session_messages;
+DROP POLICY IF EXISTS "Users cannot delete therapy facts" ON public.therapy_facts;
+
 CREATE POLICY "Users cannot delete session messages" 
 ON public.session_messages 
 FOR DELETE 
@@ -104,13 +107,16 @@ END;
 $$;
 
 -- Add access monitoring triggers
-CREATE TRIGGER log_session_messages_access
-  AFTER SELECT ON public.session_messages
-  FOR EACH ROW EXECUTE FUNCTION public.log_therapy_data_access();
+-- NOTE: PostgreSQL does not support AFTER SELECT triggers
+-- Access logging should be done at the application level or via RLS policies
+-- The following triggers are commented out as they are not supported:
+-- CREATE TRIGGER log_session_messages_access
+--   AFTER SELECT ON public.session_messages
+--   FOR EACH ROW EXECUTE FUNCTION public.log_therapy_data_access();
 
-CREATE TRIGGER log_therapy_facts_access  
-  AFTER SELECT ON public.therapy_facts
-  FOR EACH ROW EXECUTE FUNCTION public.log_therapy_data_access();
+-- CREATE TRIGGER log_therapy_facts_access  
+--   AFTER SELECT ON public.therapy_facts
+--   FOR EACH ROW EXECUTE FUNCTION public.log_therapy_data_access();
 
 -- 7. ENHANCED: Add session validation function for extra security
 CREATE OR REPLACE FUNCTION public.validate_therapy_session_access(session_uuid uuid)

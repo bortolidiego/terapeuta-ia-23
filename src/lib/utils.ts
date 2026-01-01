@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 // Security headers for enhanced protection
 export const securityHeaders = {
-  'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://eexnsbcfuovpdjxphcmy.supabase.co https://api.elevenlabs.io https://api.openai.com;",
+  'Content-Security-Policy': `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ${import.meta.env.VITE_SUPABASE_URL} https://api.elevenlabs.io https://api.openai.com;`,
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'X-XSS-Protection': '1; mode=block',
@@ -18,7 +18,7 @@ export const securityHeaders = {
 // Data anonymization utilities
 export function anonymizeData(data: any, fields: string[]): any {
   const anonymized = { ...data };
-  
+
   fields.forEach(field => {
     if (anonymized[field]) {
       if (field === 'cpf') {
@@ -35,7 +35,7 @@ export function anonymizeData(data: any, fields: string[]): any {
       }
     }
   });
-  
+
   return anonymized;
 }
 
@@ -45,27 +45,27 @@ export class SessionManager {
   private static readonly WARNING_DURATION = 5 * 60 * 1000; // 5 minutes before timeout
   private static timeoutId: number | null = null;
   private static warningId: number | null = null;
-  
+
   static startSession(onTimeout: () => void, onWarning: () => void): void {
     this.clearTimers();
-    
+
     this.warningId = window.setTimeout(() => {
       onWarning();
     }, this.TIMEOUT_DURATION - this.WARNING_DURATION);
-    
+
     this.timeoutId = window.setTimeout(() => {
       onTimeout();
     }, this.TIMEOUT_DURATION);
   }
-  
+
   static resetSession(onTimeout: () => void, onWarning: () => void): void {
     this.startSession(onTimeout, onWarning);
   }
-  
+
   static clearSession(): void {
     this.clearTimers();
   }
-  
+
   private static clearTimers(): void {
     if (this.timeoutId) {
       clearTimeout(this.timeoutId);

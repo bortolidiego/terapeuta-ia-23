@@ -24,7 +24,9 @@ Formato Markdown (para casos simples):
 '
 WHERE is_active = true;
 
--- Insert knowledge base entry for Fato Específico guidelines
+-- Delete existing entry if exists, then insert
+DELETE FROM public.knowledge_base WHERE title = 'Fato Específico – Diretrizes';
+
 INSERT INTO public.knowledge_base (title, content, category, keywords, priority, is_active)
 VALUES (
   'Fato Específico – Diretrizes',
@@ -62,38 +64,3 @@ EXEMPLOS de comandos:
   1,
   true
 );
-
--- Update existing entry if it exists
-UPDATE public.knowledge_base 
-SET content = 'Protocolo para manejo de fatos específicos:
-
-PASSO 1: Confirmar o fato
-- Oferecer 3 sugestões de frases reformuladas
-- Aguardar confirmação do usuário
-
-PASSO 2: Seleção de sentimentos
-- Gerar no mínimo 40 sentimentos no PLURAL
-- Evitar adjetivos estritamente positivos
-- Focar em termos neutros, negativos ou ambíguos
-- Priorizar diversidade semântica
-- Usar [POPUP:sentimentos] para abrir a interface
-
-PASSO 3: Validação
-- Verificar se foram selecionados 40+ sentimentos
-- Se insuficiente: reabrir popup e solicitar mais
-- Se suficiente: prosseguir automaticamente
-
-PASSO 4: Comandos Quânticos (automático após 40+ sentimentos)
-Gerar 3 comandos no formato:
-"[Sentimento]: [Ação específica relacionada ao fato]"
-
-PASSO 5: Mensagem de encerramento
-"Ótimo! Seus comandos quânticos foram criados. Você gostaria de trabalhar na autocura deste fato agora ou prefere deixar para outro momento?"
-
-EXEMPLOS de comandos:
-- "Ansiedades: Respirar profundamente ao pensar no cavalo"
-- "Medos: Visualizar-se cuidando do animal com segurança"
-- "Tristezas: Honrar a memória do cavalo com gratidão"',
-    keywords = ARRAY['fato específico', 'sentimentos', 'comandos quânticos', 'protocolo'],
-    updated_at = now()
-WHERE title = 'Fato Específico – Diretrizes';

@@ -4,6 +4,9 @@
 DROP POLICY IF EXISTS "Everyone can create sessions" ON public.therapy_sessions;
 DROP POLICY IF EXISTS "Everyone can update their sessions" ON public.therapy_sessions; 
 DROP POLICY IF EXISTS "Everyone can view their sessions" ON public.therapy_sessions;
+DROP POLICY IF EXISTS "Users can create their own sessions" ON public.therapy_sessions;
+DROP POLICY IF EXISTS "Users can view only their own sessions" ON public.therapy_sessions;
+DROP POLICY IF EXISTS "Users can update only their own sessions" ON public.therapy_sessions;
 
 -- Políticas seguras para therapy_sessions - apenas usuários autenticados podem acessar suas próprias sessões
 CREATE POLICY "Users can create their own sessions" ON public.therapy_sessions
@@ -22,6 +25,8 @@ WITH CHECK (auth.uid() = user_id);
 -- 2. SESSION_MESSAGES: Proteger conversas de terapia - acesso apenas através de sessões próprias
 DROP POLICY IF EXISTS "Everyone can create session messages" ON public.session_messages;
 DROP POLICY IF EXISTS "Everyone can view session messages" ON public.session_messages;
+DROP POLICY IF EXISTS "Users can create messages in their own sessions" ON public.session_messages;
+DROP POLICY IF EXISTS "Users can view messages from their own sessions" ON public.session_messages;
 
 -- Função para verificar se usuário é dono da sessão
 CREATE OR REPLACE FUNCTION public.is_session_owner(session_uuid uuid)
@@ -49,6 +54,9 @@ USING (public.is_session_owner(session_id));
 DROP POLICY IF EXISTS "Everyone can insert therapy_facts" ON public.therapy_facts;
 DROP POLICY IF EXISTS "Everyone can update therapy_facts" ON public.therapy_facts;
 DROP POLICY IF EXISTS "Everyone can view therapy_facts" ON public.therapy_facts;
+DROP POLICY IF EXISTS "Users can create facts in their own sessions" ON public.therapy_facts;
+DROP POLICY IF EXISTS "Users can view facts from their own sessions" ON public.therapy_facts;
+DROP POLICY IF EXISTS "Users can update facts from their own sessions" ON public.therapy_facts;
 
 -- Políticas seguras para therapy_facts
 CREATE POLICY "Users can create facts in their own sessions" ON public.therapy_facts
@@ -66,6 +74,9 @@ WITH CHECK (public.is_session_owner(session_id));
 
 -- 4. USER_PROFILES: Proteger dados de perfil
 DROP POLICY IF EXISTS "Everyone can view and manage profiles" ON public.user_profiles;
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.user_profiles;
+DROP POLICY IF EXISTS "Users can create their own profile" ON public.user_profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.user_profiles;
 
 -- Políticas seguras para user_profiles
 CREATE POLICY "Users can view their own profile" ON public.user_profiles
@@ -86,6 +97,7 @@ DROP POLICY IF EXISTS "Everyone can create sentiment filters" ON public.user_sen
 DROP POLICY IF EXISTS "Everyone can view sentiment filters" ON public.user_sentiment_filters;
 DROP POLICY IF EXISTS "Everyone can update sentiment filters" ON public.user_sentiment_filters;
 DROP POLICY IF EXISTS "Everyone can delete sentiment filters" ON public.user_sentiment_filters;
+DROP POLICY IF EXISTS "Authenticated users can manage their sentiment filters" ON public.user_sentiment_filters;
 
 -- Políticas seguras para user_sentiment_filters (sem user_id, mas limitadas por autenticação)
 CREATE POLICY "Authenticated users can manage their sentiment filters" ON public.user_sentiment_filters

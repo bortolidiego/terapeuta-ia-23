@@ -1,5 +1,5 @@
--- Add 'paused' status to therapy_sessions table
-ALTER TYPE therapy_session_status ADD VALUE IF NOT EXISTS 'paused';
+-- Note: therapy_sessions.status is TEXT, not an enum type
+-- No need to alter type, just ensure the function handles 'paused' status
 
 -- Create function to pause consultation
 CREATE OR REPLACE FUNCTION public.pause_consultation(consultation_uuid uuid)

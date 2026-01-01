@@ -2,7 +2,6 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -41,16 +40,23 @@ serve(async (req) => {
 
     // Gerar sentimentos específicos baseados no contexto
     if (context && context.trim()) {
-      console.log('Chamando OpenAI para gerar sentimentos...');
-      
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      console.log('Chamando OpenRouter para gerar sentimentos...');
+
+      const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+      if (!openRouterApiKey) {
+        throw new Error('OpenRouter API key not configured');
+      }
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
+          'Authorization': `Bearer ${openRouterApiKey}`,
           'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://terapeuta.app',
+          'X-Title': 'Terapeuta IA',
         },
         body: JSON.stringify({
-          model: 'gpt-4.1-2025-04-14',
+          model: 'openai/gpt-4o-mini',
           messages: [
             {
               role: 'system',
@@ -83,11 +89,11 @@ Gere sentimentos negativos relacionados a esta situação:`
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Resposta completa da OpenAI:', JSON.stringify(data, null, 2));
-        
+        console.log('Resposta completa da OpenRouter:', JSON.stringify(data, null, 2));
+
         const generatedText = data.choices[0].message.content.trim();
         console.log('Texto gerado pela IA:', generatedText);
-        
+
         // Parse mais robusto da resposta
         generatedSentiments = generatedText
           .replace(/^\d+\.\s*/gm, '') // Remove numeração (1. 2. etc)
@@ -98,10 +104,10 @@ Gere sentimentos negativos relacionados a esta situação:`
           .filter(s => !s.includes(':') && !s.includes('exemplo'))
           .filter(s => !s.match(/^\d+$/)) // Remove números isolados
           .slice(0, 70); // Permitir até 70 para garantir 60 válidos
-          
+
         console.log('Sentimentos parseados:', generatedSentiments);
       } else {
-        console.error('Erro na resposta da OpenAI:', response.status, await response.text());
+        console.error('Erro na resposta da OpenRouter:', response.status, await response.text());
         usedFallback = true;
       }
     } else {
@@ -143,7 +149,7 @@ Gere sentimentos negativos relacionados a esta situação:`
       throw fetchError;
     }
 
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       sentiments: allSentiments,
       newSentimentsGenerated: generatedSentiments.length,
       usedFallback
@@ -153,7 +159,7 @@ Gere sentimentos negativos relacionados a esta situação:`
 
   } catch (error) {
     console.error('Error in generate-sentiments function:', error);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: error.message,
       sentiments: [],
       usedFallback: true

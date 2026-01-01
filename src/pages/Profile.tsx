@@ -17,7 +17,7 @@ export const Profile = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  
+
   const [profile, setProfile] = useState<any>({});
   const [credits, setCredits] = useState<any>({});
   const [audioLibrary, setAudioLibrary] = useState<any[]>([]);
@@ -53,7 +53,7 @@ export const Profile = () => {
       .select('*')
       .eq('user_id', user?.id)
       .single();
-    
+
     if (data) {
       // Decrypt sensitive data for display
       const decryptedProfile = { ...data };
@@ -67,7 +67,7 @@ export const Profile = () => {
         }
       }
       setProfile(decryptedProfile);
-      
+
       // Log profile access
       AuditLogger.logSecurityEvent('profile_accessed', {
         hasPersonalData: !!(data.cpf || data.full_name || data.birth_date)
@@ -79,18 +79,18 @@ export const Profile = () => {
 
   const updateProfile = async () => {
     if (!user?.id) return;
-    
+
     // Rate limiting check
     if (!RateLimiter.checkLimit(`profile_update_${user.id}`, 10, 60000)) {
       return;
     }
-    
+
     // Validate all inputs
     const cpfValidation = InputValidator.validateCPF(profile.cpf);
     const nameValidation = InputValidator.validateName(profile.full_name);
     const birthDateValidation = InputValidator.validateBirthDate(profile.birth_date);
     const cityValidation = InputValidator.validateCity(profile.birth_city);
-    
+
     if (!cpfValidation.isValid) {
       toast({
         title: "CPF inválido",
@@ -99,7 +99,7 @@ export const Profile = () => {
       });
       return;
     }
-    
+
     if (!nameValidation.isValid) {
       toast({
         title: "Nome inválido",
@@ -108,7 +108,7 @@ export const Profile = () => {
       });
       return;
     }
-    
+
     if (!birthDateValidation.isValid) {
       toast({
         title: "Data inválida",
@@ -117,7 +117,7 @@ export const Profile = () => {
       });
       return;
     }
-    
+
     if (!cityValidation.isValid) {
       toast({
         title: "Cidade inválida",
@@ -126,7 +126,7 @@ export const Profile = () => {
       });
       return;
     }
-    
+
     setIsSaving(true);
     try {
       // Sanitize and encrypt sensitive data
@@ -137,7 +137,7 @@ export const Profile = () => {
         birth_date: profile.birth_date,
         cpf: profile.cpf ? await DataEncryption.encrypt(profile.cpf.replace(/[^\d]/g, '')) : null,
       };
-      
+
       // Verificar se o perfil existe, se não, criar um
       const { data: existingProfile } = await supabase
         .from('user_profiles')
@@ -157,7 +157,7 @@ export const Profile = () => {
           });
 
         if (insertError) throw insertError;
-        
+
         // Log profile creation
         AuditLogger.logSecurityEvent('profile_created', {
           fields: Object.keys(sanitizedData).filter(key => sanitizedData[key as keyof typeof sanitizedData])
@@ -170,7 +170,7 @@ export const Profile = () => {
           .eq('user_id', user.id);
 
         if (error) throw error;
-        
+
         // Log profile update
         AuditLogger.logSecurityEvent('profile_updated', {
           fields: Object.keys(sanitizedData).filter(key => sanitizedData[key as keyof typeof sanitizedData])
@@ -181,14 +181,14 @@ export const Profile = () => {
         title: "Perfil salvo!",
         description: "Suas informações foram atualizadas com sucesso.",
       });
-      
+
       await loadProfile();
     } catch (error: any) {
       // Log failed update
       AuditLogger.logSecurityEvent('profile_update_failed', {
         error: error.message
       }, user.id);
-      
+
       toast({
         title: "Erro ao salvar",
         description: error.message,
@@ -209,7 +209,7 @@ export const Profile = () => {
       .select('*')
       .eq('user_id', user?.id)
       .single();
-    
+
     setCredits(data || {});
   };
 
@@ -219,7 +219,7 @@ export const Profile = () => {
       .select('*')
       .eq('user_id', user?.id)
       .order('created_at', { ascending: false });
-    
+
     setAudioLibrary(data || []);
   };
 
@@ -233,7 +233,7 @@ export const Profile = () => {
     setIsGeneratingText(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-voice-sample-text');
-      
+
       if (error) throw error;
       setSampleText(data.text);
     } catch (error: any) {
@@ -249,18 +249,18 @@ export const Profile = () => {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
           sampleRate: 44100,
           channelCount: 1,
           echoCancellation: true,
-          noiseSuppression: true 
+          noiseSuppression: true
         }
       });
-      
+
       const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
       const chunks: Blob[] = [];
-      
+
       recorder.ondataavailable = (e) => chunks.push(e.data);
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
@@ -271,7 +271,7 @@ export const Profile = () => {
         reader.readAsDataURL(blob);
         stream.getTracks().forEach(track => track.stop());
       };
-      
+
       setMediaRecorder(recorder);
       recorder.start();
       setIsRecording(true);
@@ -293,7 +293,7 @@ export const Profile = () => {
 
   const testVoice = async () => {
     const voiceId = tempVoiceId || profile.cloned_voice_id;
-    
+
     if (!voiceId) {
       toast({
         title: "Voz não disponível",
@@ -302,10 +302,10 @@ export const Profile = () => {
       });
       return;
     }
-    
+
     setIsTestingVoice(true);
     console.log('Testing voice with ID:', voiceId);
-    
+
     try {
       const { data, error } = await supabase.functions.invoke('voice-clone-test', {
         body: { voiceId }
@@ -319,13 +319,13 @@ export const Profile = () => {
         { type: 'audio/mp3' }
       );
       const audioUrl = URL.createObjectURL(audioBlob);
-      
+
       setTestAudio(audioUrl);
-      
+
       // Auto-play the test audio
       const audio = new Audio(audioUrl);
       audio.play();
-      
+
       toast({
         title: "Teste de voz gerado!",
         description: `Frase: "${data.testPhrase}"`,
@@ -342,6 +342,13 @@ export const Profile = () => {
     }
   };
 
+  const resetRecording = () => {
+    setRecordedAudio(null);
+    setMediaRecorder(null);
+    setTestAudio(null);
+    setShowVoiceTest(false);
+  };
+
   const cloneVoice = async () => {
     if (!recordedAudio || !voiceName.trim()) {
       toast({
@@ -354,31 +361,41 @@ export const Profile = () => {
 
     setIsCloning(true);
     try {
-      // Convert recordedAudio (data URL) to base64
-      const base64Audio = recordedAudio.split(',')[1];
-      
-      const { data, error } = await supabase.functions.invoke('voice-cloning', {
+      // Upload audio to storage first
+      const audioBlob = await (await fetch(recordedAudio)).blob();
+      const fileExt = 'webm';
+      const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${user?.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('voice_samples')
+        .upload(filePath, audioBlob);
+
+      if (uploadError) throw uploadError;
+
+      // Call voice-clone function
+      const { data, error } = await supabase.functions.invoke('voice-clone', {
         body: {
-          audioBase64: base64Audio,
-          voiceName: voiceName.trim(),
-          description: `Voz clonada de ${profile?.display_name || 'usuário'} - Português Brasileiro`
+          audioUrl: filePath,
+          voiceName: voiceName,
+          userId: user?.id
         }
       });
 
       if (error) throw error;
 
-      // Store temporary voice ID for testing
-      setTempVoiceId(data.voice_id);
+      setTempVoiceId(data.voiceId);
       setShowVoiceTest(true);
-      
+
       toast({
         title: "Voz clonada!",
-        description: "Agora teste sua qualidade antes de confirmar.",
+        description: "Agora você pode testar sua voz antes de salvar.",
       });
-      
+
     } catch (error: any) {
+      console.error('Error cloning voice:', error);
       toast({
-        title: "Erro ao clonar voz",
+        title: "Erro na clonagem",
         description: error.message,
         variant: "destructive",
       });
@@ -389,224 +406,65 @@ export const Profile = () => {
 
   const confirmVoice = async () => {
     if (!tempVoiceId) return;
-    
+
+    setIsSaving(true);
     try {
-      const { error } = await supabase.functions.invoke('voice-clone-confirm', {
-        body: {
-          voiceId: tempVoiceId,
-          voiceName: voiceName,
-          action: 'confirm'
-        }
-      });
+      // Update profile with new voice ID
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          cloned_voice_id: tempVoiceId,
+          voice_name: voiceName
+        })
+        .eq('user_id', user?.id);
 
       if (error) throw error;
 
+      // Trigger pre-generation of audio cache
+      toast({
+        title: "Voz salva com sucesso!",
+        description: "Iniciando geração da sua biblioteca de áudio...",
+      });
+
+      // Trigger background generation
+      supabase.functions.invoke('pre-generate-audio', {
+        body: {
+          userId: user?.id,
+          voiceId: tempVoiceId
+        }
+      });
+
+      setProfile((prev: any) => ({ ...prev, cloned_voice_id: tempVoiceId }));
+      setTempVoiceId(null);
       setShowVoiceTest(false);
-      setTempVoiceId(null);
-      setTestAudio(null);
-      resetRecording();
-      
-      toast({
-        title: "Voz confirmada!",
-        description: "Sua voz foi salva e está pronta para uso.",
-      });
-      
-      await loadProfile();
-      setIsRedoingCloning(false); // Reset flag após confirmação
+      setIsRedoingCloning(false);
+
+      // Refresh library
+      loadAudioLibrary();
+
     } catch (error: any) {
       toast({
-        title: "Erro ao confirmar voz",
+        title: "Erro ao salvar voz",
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const rejectVoice = async () => {
-    console.log('🔄 Iniciando rejeição da voz:', { tempVoiceId });
-    
-    // Reset do estado SEMPRE acontece, independente do sucesso da exclusão
-    const performReset = () => {
-      console.log('🧹 Limpando estados da gravação');
-      setTempVoiceId(null);
-      setTestAudioUrl(null);
-      setSampleText("");
-      resetRecording();
-      setIsCloning(false);
-      setIsTestingVoice(false);
-      setShowVoiceTest(false); // Volta para a tela inicial de clonagem
-      setIsRedoingCloning(true); // Força volta para tela inicial
-    };
-    
-    // Se não há tempVoiceId, apenas reseta o estado e volta para clonagem
-    if (!tempVoiceId) {
-      console.log('ℹ️ Nenhum tempVoiceId encontrado, apenas resetando interface');
-      toast({
-        title: "Voltando para clonagem",
-        description: "Retornando à tela inicial de clonagem de voz",
-      });
-      performReset();
-      return;
-    }
-    
-    try {
-      console.log('📡 Chamando voice-clone-confirm para rejeitar');
-      
-      // Timeout de 10 segundos para evitar travamentos
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout na conexão')), 10000)
-      );
-      
-      const rejectPromise = supabase.functions.invoke('voice-clone-confirm', {
-        body: {
-          voiceId: tempVoiceId,
-          action: 'reject'
-        }
-      });
-
-      const { error } = await Promise.race([rejectPromise, timeoutPromise]) as any;
-
-      if (error) {
-        console.error('❌ Erro na rejeição da voz:', error);
-        throw error;
-      }
-
-      console.log('✅ Voz rejeitada com sucesso');
-      performReset();
-      
-      // Reload profile to sync with database
-      await loadProfile();
-      
-      toast({
-        title: "Voz rejeitada",
-        description: "Agora você pode gravar uma nova voz.",
-      });
-      
-    } catch (error: any) {
-      console.error('❌ Falha na rejeição:', error);
-      
-      // IMPORTANTE: Fazer reset mesmo se a exclusão falhar
-      performReset();
-      
-      // Mensagem mais específica baseada no tipo de erro
-      let errorMessage = "Erro desconhecido";
-      if (error.message?.includes('Timeout')) {
-        errorMessage = "Conexão lenta. A interface foi resetada para você tentar novamente.";
-      } else if (error.message?.includes('Connection')) {
-        errorMessage = "Problema de conexão. A interface foi resetada para nova tentativa.";
-      } else {
-        errorMessage = "Falha na exclusão, mas você já pode gravar novamente.";
-      }
-      
-      toast({
-        title: "Reset realizado",
-        description: errorMessage,
-        variant: "default", // Não é destructive pois o reset funcionou
-      });
-    }
-  };
-
-  const resetRecording = () => {
-    setRecordedAudio(null);
-    setTestAudioUrl(null);
-    setVoiceName("");
-    setShowVoiceTest(false);
+  const rejectVoice = () => {
     setTempVoiceId(null);
+    setShowVoiceTest(false);
     setTestAudio(null);
-  };
-
-  const generateAudioLibrary = async () => {
-    if (!profile.cloned_voice_id) {
-      toast({
-        title: "Voz não clonada",
-        description: "Clone sua voz primeiro para gerar a biblioteca personalizada",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (isGeneratingLibrary) {
-      // Parar geração (implementar lógica de cancelamento)
-      setIsGeneratingLibrary(false);
-      toast({
-        title: "Geração interrompida",
-        description: "A geração de áudios foi cancelada.",
-      });
-      return;
-    }
-
-    try {
-      setIsGeneratingLibrary(true);
-      
-      // Buscar sentimentos disponíveis
-      const { data: sentiments } = await supabase
-        .from('sentimentos')
-        .select('nome')
-        .limit(10);
-
-      if (!sentiments || sentiments.length === 0) {
-        throw new Error('Nenhum sentimento encontrado para gerar áudios');
-      }
-
-      const sentimentNames = sentiments.map(s => s.nome);
-
-      await supabase.functions.invoke('batch-generate-audio-items', {
-        body: {
-          sessionId: 'profile-generation',
-          sentiments: sentimentNames,
-          userId: user?.id
-        }
-      });
-
-      toast({
-        title: "Gerando biblioteca",
-        description: "Suas bibliotecas de áudios estão sendo geradas. Você receberá uma notificação quando estiverem prontas.",
-      });
-
-      // Polling para atualizar progresso
-      const pollInterval = setInterval(async () => {
-        await loadAudioLibrary();
-        
-        // Verificar se geração foi completada ou parada
-        if (!isGeneratingLibrary) {
-          clearInterval(pollInterval);
-        }
-      }, 5000);
-
-      // Auto-stop após 5 minutos
-      setTimeout(() => {
-        setIsGeneratingLibrary(false);
-        clearInterval(pollInterval);
-      }, 300000);
-
-    } catch (error: any) {
-      toast({
-        title: "Erro ao gerar biblioteca",
-        description: error.message,
-        variant: "destructive",
-      });
-      setIsGeneratingLibrary(false);
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'processing':
-        return <Clock className="h-4 w-4 text-blue-500" />;
-      case 'failed':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
-    }
+    setIsRedoingCloning(true);
   };
 
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Perfil</h1>
-        
+
         <Tabs defaultValue="personal" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="personal">Dados Pessoais</TabsTrigger>
@@ -633,9 +491,9 @@ export const Profile = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="full_name">Nome Completo</Label>
-                    <Input 
-                      id="full_name" 
-                      value={profile.full_name || ''} 
+                    <Input
+                      id="full_name"
+                      value={profile.full_name || ''}
                       onChange={(e) => handleProfileChange('full_name', e.target.value)}
                       placeholder="Seu nome completo"
                     />
@@ -655,27 +513,27 @@ export const Profile = () => {
                   </div>
                   <div>
                     <Label htmlFor="birth_city">Cidade de Nascimento</Label>
-                    <Input 
-                      id="birth_city" 
-                      value={profile.birth_city || ''} 
+                    <Input
+                      id="birth_city"
+                      value={profile.birth_city || ''}
                       onChange={(e) => handleProfileChange('birth_city', e.target.value)}
                       placeholder="Onde você nasceu"
                     />
                   </div>
                   <div>
                     <Label htmlFor="birth_date">Data de Nascimento</Label>
-                    <Input 
-                      id="birth_date" 
-                      type="date" 
-                      value={profile.birth_date || ''} 
+                    <Input
+                      id="birth_date"
+                      type="date"
+                      value={profile.birth_date || ''}
                       onChange={(e) => handleProfileChange('birth_date', e.target.value)}
                     />
                   </div>
                   <div>
                     <Label htmlFor="cpf">CPF</Label>
-                    <Input 
-                      id="cpf" 
-                      value={profile.cpf || ''} 
+                    <Input
+                      id="cpf"
+                      value={profile.cpf || ''}
                       onChange={(e) => handleProfileChange('cpf', e.target.value)}
                       placeholder="000.000.000-00"
                     />
@@ -702,7 +560,7 @@ export const Profile = () => {
                     <div className="space-y-4">
                       <div>
                         <Label htmlFor="voice_name">Nome da Voz</Label>
-                        <Input 
+                        <Input
                           id="voice_name"
                           value={voiceName}
                           onChange={(e) => setVoiceName(e.target.value)}
@@ -710,15 +568,15 @@ export const Profile = () => {
                           className="mb-4"
                         />
                       </div>
-                      
-                      <Button 
+
+                      <Button
                         onClick={generateSampleText}
                         disabled={isGeneratingText}
                         variant="outline"
                       >
                         {isGeneratingText ? "Gerando..." : "Gerar Texto Inspiracional"}
                       </Button>
-                      
+
                       {sampleText && (
                         <div className="p-4 bg-muted rounded-lg">
                           <p className="text-sm leading-relaxed">{sampleText}</p>
@@ -736,7 +594,7 @@ export const Profile = () => {
                           <Mic className="h-4 w-4 mr-2" />
                           {isRecording ? "Parar Gravação" : "Gravar Voz"}
                         </Button>
-                        
+
                         {recordedAudio && (
                           <Button
                             onClick={resetRecording}
@@ -752,8 +610,8 @@ export const Profile = () => {
                       {recordedAudio && !showVoiceTest && (
                         <div className="space-y-4">
                           <audio controls src={recordedAudio} className="w-full" />
-                          
-                          <Button 
+
+                          <Button
                             onClick={cloneVoice}
                             disabled={!voiceName.trim() || isCloning}
                             className="w-full"
@@ -770,9 +628,9 @@ export const Profile = () => {
                             <p className="text-sm text-blue-700 mb-3">
                               Ouça como ficou sua voz clonada e decida se quer mantê-la ou refazer a gravação.
                             </p>
-                            
+
                             <div className="space-y-3">
-                              <Button 
+                              <Button
                                 onClick={testVoice}
                                 disabled={isTestingVoice}
                                 variant="outline"
@@ -788,16 +646,16 @@ export const Profile = () => {
                                   </audio>
                                 </div>
                               )}
-                              
+
                               <div className="flex gap-2">
-                                <Button 
+                                <Button
                                   onClick={confirmVoice}
                                   className="flex-1 bg-green-600 hover:bg-green-700"
                                 >
                                   <CheckCircle className="w-4 h-4 mr-2" />
                                   Salvar Voz
                                 </Button>
-                                <Button 
+                                <Button
                                   onClick={rejectVoice}
                                   variant="outline"
                                   className="flex-1"
@@ -833,7 +691,7 @@ export const Profile = () => {
                       </div>
 
                       <div className="space-y-3">
-                        <Button 
+                        <Button
                           onClick={testVoice}
                           disabled={isTestingVoice}
                           variant="outline"
@@ -852,7 +710,7 @@ export const Profile = () => {
                         )}
 
                         <div className="flex gap-2">
-                          <Button 
+                          <Button
                             onClick={rejectVoice}
                             variant="outline"
                             className="flex-1 border-orange-300 text-orange-700 hover:bg-orange-50"
@@ -876,34 +734,33 @@ export const Profile = () => {
           <TabsContent value="credits">
             <Card>
               <CardHeader>
-                <CardTitle>Créditos</CardTitle>
+                <CardTitle>Seus Créditos</CardTitle>
                 <CardDescription>
-                  Gerencie seus créditos OpenAI e ElevenLabs
+                  Gerencie seus créditos para geração de áudios
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold mb-2">OpenAI</h3>
-                    <p className="text-2xl font-bold text-primary">
-                      {credits.openai_credits || 0}
-                    </p>
-                    <p className="text-sm text-muted-foreground">créditos disponíveis</p>
+                  <div className="p-4 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="w-4 h-4 text-primary" />
+                      <span className="font-medium">Minutos Disponíveis</span>
+                    </div>
+                    <p className="text-2xl font-bold">{credits.minutes_balance || 0} min</p>
                   </div>
-                  
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold mb-2">ElevenLabs</h3>
-                    <p className="text-2xl font-bold text-secondary">
-                      {credits.elevenlabs_credits || 0}
-                    </p>
-                    <p className="text-sm text-muted-foreground">créditos disponíveis</p>
+                  <div className="p-4 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircle className="w-4 h-4 text-primary" />
+                      <span className="font-medium">Status</span>
+                    </div>
+                    <p className="text-2xl font-bold capitalize">{credits.subscription_status || 'Free'}</p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <h4 className="font-medium">Gastos Totais</h4>
                   <p className="text-sm text-muted-foreground">
-                    OpenAI: ${(credits.total_spent_openai || 0).toFixed(2)} | 
+                    OpenAI: ${(credits.total_spent_openai || 0).toFixed(2)} |
                     ElevenLabs: ${(credits.total_spent_elevenlabs || 0).toFixed(2)}
                   </p>
                 </div>

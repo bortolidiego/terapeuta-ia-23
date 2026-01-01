@@ -63,6 +63,9 @@ END;
 $$;
 
 -- 4. CRITICAL: Add missing DELETE protection policies
+DROP POLICY IF EXISTS "Users cannot delete session messages" ON public.session_messages;
+DROP POLICY IF EXISTS "Users cannot delete therapy facts" ON public.therapy_facts;
+
 CREATE POLICY "Users cannot delete session messages" 
 ON public.session_messages 
 FOR DELETE 

@@ -16,11 +16,15 @@ serve(async (req) => {
     const { sessionId, userMessage, action, actionData } = await req.json();
     console.log(`Protocol executor - Action: ${action}, Session: ${sessionId}`);
 
-    // Initialize Supabase
+    const authHeader = req.headers.get('Authorization');
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader || '' } } }
     );
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id;
 
     let response;
 
@@ -37,11 +41,10 @@ serve(async (req) => {
         break;
       case 'generate_commands':
         if (!actionData || !actionData.selectedEvent || !actionData.selectedSentiments) {
-          console.error('Missing actionData for generate_commands:', { actionData, fullRequest: JSON.stringify({ sessionId, userMessage, action, actionData }) });
           throw new Error('actionData with selectedEvent and selectedSentiments is required for generate_commands');
         }
         console.log('Generate commands - Event:', actionData.selectedEvent, 'Sentiments count:', actionData.selectedSentiments.length);
-        response = await generateQuantumCommands(actionData.selectedEvent, actionData.selectedSentiments, supabase);
+        response = await generateQuantumCommands(actionData.selectedEvent, actionData.selectedSentiments, supabase, sessionId, userId);
         break;
       default:
         throw new Error(`Unknown action: ${action}`);
@@ -61,41 +64,43 @@ serve(async (req) => {
 
 async function classifyProtocol(supabase: any, userMessage: string) {
   console.log(`Classifying message: "${userMessage}"`);
-  
-  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openaiApiKey) {
-    throw new Error('OpenAI API key not configured');
+
+  const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+  if (!openRouterApiKey) {
+    throw new Error('OpenRouter API key not configured');
   }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
+      'Authorization': `Bearer ${openRouterApiKey}`,
       'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://terapeuta.app',
+      'X-Title': 'Terapeuta IA',
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: 'openai/gpt-4o-mini',
       messages: [
         {
           role: 'system',
           content: `Você é um classificador especializado em protocolos terapêuticos. 
-
-Analise a mensagem do usuário e determine se ela descreve um evento específico que necessita de protocolo.
-
-PROTOCOLOS DISPONÍVEIS:
-- evento_traumatico_especifico: Para eventos específicos, traumas, situações particulares que aconteceram ("quando...", "primeira vez que...", "última vez que...", etc.)
-
-MENSAGENS QUE NÃO PRECISAM DE PROTOCOLO:
-- Saudações simples (oi, olá, bom dia)
-- Perguntas genéricas (como funciona?, o que você faz?)
-- Conversas casuais sem evento específico
-- Mensagens vagas ou muito curtas sem contexto
-
-RESPOSTA: Retorne apenas uma palavra:
-- "evento_traumatico_especifico" se detectar descrição de evento específico
-- "none" se for mensagem casual/saudação/pergunta genérica
-
-Seja criterioso - só classifique como protocolo se realmente houver descrição de um evento específico.`
+          
+          Analise a mensagem do usuário e determine se ela descreve um evento específico que necessita de protocolo.
+          
+          PROTOCOLOS DISPONÍVEIS:
+          - evento_traumatico_especifico: Para eventos específicos, traumas, situações particulares que aconteceram ("quando...", "primeira vez que...", "última vez que...", etc.)
+          
+          MENSAGENS QUE NÃO PRECISAM DE PROTOCOLO:
+          - Saudações simples (oi, olá, bom dia)
+          - Perguntas genéricas (como funciona?, o que você faz?)
+          - Conversas casuais sem evento específico
+          - Mensagens vagas ou muito curtas sem contexto
+          
+          RESPOSTA: Retorne apenas uma palavra:
+          - "evento_traumatico_especifico" se detectar descrição de evento específico
+          - "none" se for mensagem casual/saudação/pergunta genérica
+          
+          Seja criterioso - só classifique como protocolo se realmente houver descrição de um evento específico.`
         },
         {
           role: 'user',
@@ -108,47 +113,49 @@ Seja criterioso - só classifique como protocolo se realmente houver descrição
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
+    throw new Error(`OpenRouter API error: ${response.status}`);
   }
 
   const data = await response.json();
   const classification = data.choices[0].message.content.trim().toLowerCase();
-  
+
   console.log(`Classification result: "${classification}"`);
-  
+
   // Normalizar resposta
   if (classification.includes('none') || classification.includes('nenhum')) {
     return { protocol: null };
   }
-  
+
   return { protocol: classification };
 }
 
 async function normalizeEvent(userMessage: string) {
   console.log(`Normalizing event: "${userMessage}"`);
-  
-  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openaiApiKey) {
-    throw new Error('OpenAI API key not configured');
+
+  const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+  if (!openRouterApiKey) {
+    throw new Error('OpenRouter API key not configured');
   }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
+      'Authorization': `Bearer ${openRouterApiKey}`,
       'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://terapeuta.app',
+      'X-Title': 'Terapeuta IA',
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: 'openai/gpt-4o-mini',
       messages: [
         {
           role: 'system',
           content: `Você normaliza eventos em 3 variações EXATAS seguindo estes padrões:
-1. "Quando [evento]"
-2. "A primeira vez que [evento]" 
-3. "A última vez que [evento]"
-
-Mantenha o evento original, apenas ajuste para cada padrão. Seja preciso e natural.`
+          1. "Quando [evento]"
+          2. "A primeira vez que [evento]" 
+          3. "A última vez que [evento]"
+          
+          Mantenha o evento original, apenas ajuste para cada padrão. Seja preciso e natural.`
         },
         {
           role: 'user',
@@ -161,52 +168,52 @@ Mantenha o evento original, apenas ajuste para cada padrão. Seja preciso e natu
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
+    throw new Error(`OpenRouter API error: ${response.status}`);
   }
 
   const data = await response.json();
   const normalizedText = data.choices[0].message.content;
-  
+
   // Extrair as 3 frases do resultado
   const lines = normalizedText.split('\n').filter(line => line.trim()).slice(0, 3);
-  
-  return { 
+
+  return {
     variations: lines.map(line => line.replace(/^\d+\.\s*/, '').trim())
   };
 }
 
 // FASE 2: Quantum command generation - Protocolo Linear Simples
-async function generateQuantumCommands(selectedEvent: string, selectedSentiments: string[], supabase: any) {
+async function generateQuantumCommands(selectedEvent: string, selectedSentiments: string[], supabase: any, sessionId?: string, userId?: string) {
   try {
     console.log('[generateQuantumCommands] Starting with:', { selectedEvent, selectedSentiments });
-    
+
     // VALIDAÇÃO CRÍTICA: Mínimo 40 sentimentos obrigatórios
     if (selectedSentiments.length < 40) {
       throw new Error(`Protocolo requer mínimo 40 sentimentos. Recebidos: ${selectedSentiments.length}`);
     }
-    
+
     // Extract the essence of the event
     const eventEssence = extractEventEssence(selectedEvent);
     console.log('[generateQuantumCommands] Event essence:', eventEssence);
-    
+
     // Fetch available base components from audio_components
     const { data: audioComponents, error: audioError } = await supabase
       .from('audio_components')
       .select('component_key, text_content, component_type')
       .eq('component_type', 'base_word')
       .eq('is_available', true);
-    
+
     if (audioError) {
       console.error('[generateQuantumCommands] Error fetching audio components:', audioError);
       throw new Error('Failed to fetch audio components');
     }
-    
+
     console.log('[generateQuantumCommands] Available audio components:', audioComponents);
-    
+
     // SEQUÊNCIA LINEAR EXATA DO PROTOCOLO
     const assemblySequence = [];
     let sequenceId = 1;
-    
+
     // PARTE 1: Frases individuais para cada sentimento
     // "Código ALMA, a minha consciência escolhe: [SENTIMENT] que eu senti [EVENT], ACABARAM!"
     for (const sentiment of selectedSentiments) {
@@ -214,7 +221,7 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
         sequenceId: sequenceId++,
         components: [
           'base_code_alma',
-          'base_minha_consciencia_escolhe', 
+          'base_minha_consciencia_escolhe',
           sentiment,
           'base_que_senti',
           eventEssence,
@@ -223,9 +230,9 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
         estimatedDuration: 8
       });
     }
-    
+
     // PARTE 2: 4 Frases finais obrigatórias do protocolo
-    
+
     // 1. "Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu recebi [EVENT], ACABARAM!"
     assemblySequence.push({
       sequenceId: sequenceId++,
@@ -239,7 +246,7 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
       ],
       estimatedDuration: 8
     });
-    
+
     // 2. "Código ALMA, a minha consciência escolhe: TODOS OS SENTIMENTOS PREJUDICIAIS que eu senti [EVENT], ACABARAM!"
     assemblySequence.push({
       sequenceId: sequenceId++,
@@ -253,7 +260,7 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
       ],
       estimatedDuration: 8
     });
-    
+
     // 3. "Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu gerei [EVENT], ACABARAM!"
     assemblySequence.push({
       sequenceId: sequenceId++,
@@ -265,7 +272,7 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
       ],
       estimatedDuration: 8
     });
-    
+
     // 4. "Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu recebi [EVENT], ACABARAM!"
     assemblySequence.push({
       sequenceId: sequenceId++,
@@ -277,7 +284,7 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
       ],
       estimatedDuration: 8
     });
-    
+
     // Verificar componentes necessários
     const requiredComponents = [
       'base_code_alma',
@@ -290,14 +297,14 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
       'base_informacoes_prejudiciais_gerei',
       'base_informacoes_prejudiciais_recebi'
     ];
-    
-    const availableComponentKeys = audioComponents.map(comp => comp.component_key);
+
+    const availableComponentKeys = audioComponents.map((comp: any) => comp.component_key);
     const missingComponents = requiredComponents.filter(comp => !availableComponentKeys.includes(comp));
-    
+
     if (missingComponents.length > 0) {
       console.warn('[generateQuantumCommands] Missing components:', missingComponents);
     }
-    
+
     const assemblyInstructions = {
       assemblySequence,
       metadata: {
@@ -316,9 +323,33 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
       },
       readyForAssembly: missingComponents.length === 0
     };
-    
+
     console.log('[generateQuantumCommands] Generated linear protocol assembly instructions:', assemblyInstructions);
-    
+
+    // ANALYTICS INSERTION
+    if (userId && sessionId) {
+      try {
+        console.log('[generateQuantumCommands] Generating embedding for analytics...');
+        const embedding = await generateEmbedding(selectedEvent);
+
+        await supabase.from('autocura_analytics').insert({
+          session_id: sessionId,
+          user_id: userId,
+          protocol_type: 'evento_traumatico_especifico',
+          event_description: selectedEvent,
+          event_embedding: embedding,
+          sentiments: selectedSentiments,
+          sentiments_count: selectedSentiments.length,
+          generated_commands_count: assemblySequence.length,
+          execution_duration_seconds: assemblyInstructions.metadata.estimatedTotalDuration
+        });
+        console.log('[generateQuantumCommands] Analytics recorded successfully');
+      } catch (analyticsError) {
+        console.error('[generateQuantumCommands] Failed to record analytics:', analyticsError);
+        // Don't fail the main request
+      }
+    }
+
     return assemblyInstructions;
   } catch (error) {
     console.error('[generateQuantumCommands] Error:', error);
@@ -326,12 +357,41 @@ async function generateQuantumCommands(selectedEvent: string, selectedSentiments
   }
 }
 
+async function generateEmbedding(text: string) {
+  // OpenRouter doesn't support embeddings yet, so we try OpenAI if key exists, otherwise skip
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openaiApiKey) {
+    console.log('Skipping embedding generation: OPENAI_API_KEY not found');
+    return null;
+  }
+
+  const response = await fetch('https://api.openai.com/v1/embeddings', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      input: text,
+      model: 'text-embedding-3-small'
+    }),
+  });
+
+  if (!response.ok) {
+    console.error('Embedding API error:', await response.text());
+    return null;
+  }
+
+  const data = await response.json();
+  return data.data[0].embedding;
+}
+
 function extractEventEssence(event: string): string {
   // Remover apenas aspas no início e fim, mantendo o contexto temporal
   let essence = event.replace(/^["']|["']$/g, '');
-  
+
   // Remover apenas pontuação final, mas manter prefixos temporais
   essence = essence.replace(/[,.]?\s*$/, '').trim();
-  
+
   return essence;
 }

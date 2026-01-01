@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { LogOut, Settings, User, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
+import { VersionBadge } from '@/components/VersionBadge';
 
 const GlobalHeader = () => {
   const { user, userRole, signOut, isAdmin } = useAuth();
@@ -26,12 +27,13 @@ const GlobalHeader = () => {
       <div className="container flex h-14 items-center justify-between">
         {/* Logo/Título à esquerda */}
         <div className="flex items-center gap-2">
-          <h1 
+          <h1
             className="text-lg font-semibold text-primary cursor-pointer hover:text-primary/80 transition-colors"
             onClick={() => navigate('/')}
           >
             MyHealing Chat
           </h1>
+          <VersionBadge />
         </div>
 
         {/* Botões à direita */}
@@ -40,9 +42,9 @@ const GlobalHeader = () => {
 
           {/* Botão Admin - apenas se for admin */}
           {isAdmin() && (
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleAdminClick}
               className="gap-2"
             >

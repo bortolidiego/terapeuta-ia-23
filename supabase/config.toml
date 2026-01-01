@@ -1,4 +1,44 @@
-project_id = "eexnsbcfuovpdjxphcmy"
+project_id = "kajrbruhcpaahhoitwtv"
+
+[api]
+enabled = true
+port = 54331
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54332
+shadow_port = 54333
+major_version = 15
+
+[studio]
+enabled = true
+port = 54334
+api_url = "http://127.0.0.1"
+
+[inbucket]
+enabled = true
+port = 54335
+smtp_port = 54336
+pop3_port = 54337
+
+[analytics]
+enabled = true
+port = 54338
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+enable_confirmations = false
 
 [functions.generate-sentiments]
 verify_jwt = false
