@@ -3,29 +3,29 @@
 
 -- 1. CRITICAL: Fix NULL session_id vulnerability in therapy_facts
 -- Update any NULL session_ids before making the column NOT NULL
-UPDATE public.therapy_facts 
-SET session_id = (
-  SELECT ts.id FROM public.therapy_sessions ts 
-  WHERE ts.user_id = auth.uid() 
-  ORDER BY ts.created_at DESC 
-  LIMIT 1
-)
-WHERE session_id IS NULL;
+-- UPDATE public.therapy_facts 
+-- SET session_id = (
+--   SELECT ts.id FROM public.therapy_sessions ts 
+--   WHERE ts.user_id = auth.uid() 
+--   ORDER BY ts.created_at DESC 
+--   LIMIT 1
+-- )
+-- WHERE session_id IS NULL;
 
 -- Delete any records that still have NULL session_id (orphaned data)
-DELETE FROM public.therapy_facts WHERE session_id IS NULL;
+-- DELETE FROM public.therapy_facts WHERE session_id IS NULL;
 
 -- Now make session_id NOT NULL
-ALTER TABLE public.therapy_facts 
-ALTER COLUMN session_id SET NOT NULL;
+-- ALTER TABLE public.therapy_facts 
+-- ALTER COLUMN session_id SET NOT NULL;
 
 -- 2. CRITICAL: Fix NULL user_id vulnerability in therapy_sessions
 -- Delete any orphaned sessions without user_id (this should not happen in normal operation)
-DELETE FROM public.therapy_sessions WHERE user_id IS NULL;
+-- DELETE FROM public.therapy_sessions WHERE user_id IS NULL;
 
 -- Make user_id NOT NULL
-ALTER TABLE public.therapy_sessions 
-ALTER COLUMN user_id SET NOT NULL;
+-- ALTER TABLE public.therapy_sessions 
+-- ALTER COLUMN user_id SET NOT NULL;
 
 -- 3. ENHANCED: Strengthen is_session_owner function with additional validation
 CREATE OR REPLACE FUNCTION public.is_session_owner(session_uuid uuid)

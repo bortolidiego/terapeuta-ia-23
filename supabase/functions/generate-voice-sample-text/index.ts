@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -19,14 +19,17 @@ serve(async (req) => {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
+
     // Get user from authorization header
     const authHeader = req.headers.get('authorization')!;
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+
     if (authError || !user) {
-      throw new Error('Unauthorized');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Get user profile for personalization
@@ -40,47 +43,66 @@ serve(async (req) => {
     const userGender = profile?.gender || 'neutro';
     const userCity = profile?.birth_city || 'sua cidade';
 
-    // Generate personalized inspirational text for voice cloning
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Generate personalized inspirational text for voice cloning via OpenRouter
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${openRouterApiKey}`,
+        'HTTP-Referer': 'https://autocura.app', // Required by OpenRouter
+        'X-Title': 'Terapueta IA', // Required by OpenRouter
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'google/gemini-2.0-flash-001',
         messages: [
           {
             role: 'system',
-            content: `Você é um especialista em gerar textos para clonagem de voz que sejam:
-            1. Inspiracionais e motivacionais
-            2. Com diversidade fonética rica (todas as letras, sons, entonações)
-            3. Incluam emoções variadas (alegria, tranquilidade, determinação, esperança)
-            4. Duração de aproximadamente 2 minutos quando lidos
-            5. Personalizados para terapia de auto-cura
+            content: `Você é um roteirista especializado em textos para clonagem de voz.
             
-            O texto deve ter cerca de 300-400 palavras e incluir:
-            - Variações de tom emocional
-            - Palavras com todos os fonemas do português
-            - Frases com interrogações, exclamações e afirmações
-            - Ritmo variado (frases curtas e longas)
-            - Conteúdo inspiracional sobre superação e crescimento pessoal`
+            OBJETIVO:
+            Criar um texto contínuo, poético e inspiracional para ser lido em voz alta (aprox. 1 minuto).
+            
+            REGRAS DE FORMATAÇÃO (CRÍTICAS):
+            1. TEXTO LIMPO: Não inclua títulos (ex: "Título: ...") nem direções de palco (ex: "(Início: Tom calmo...)"). Gere APENAS o texto a ser lido.
+            2. ZERO PLACEHOLDERS: Nunca use colchetes como [Nome da Cidade]. Integre o nome da cidade e da pessoa naturalmente no fluxo do texto.
+            3. SEM INTERRUPÇÕES: Não peça para o usuário completar frases. O texto deve estar 100% pronto.
+            4. ESTILO VISUAL: Use *itálico* suavemente para palavras que pedem ênfase. Evite excesso de negrito ou símbolos estranhos. Pode usar emojis pontuais (🌸, ✨) para dar leveza, mas sem exageros.
+            
+            CONTEÚDO E FONÉTICA:
+            - Capture a riqueza do português (rr, ss, lh, nh, ão, ões).
+            - Alterne o ritmo: comece suave, suba a energia para algo vibrante e motivador, e termine em paz.
+            - O tema CENTRAL é: Potencial Humano, Autocura e Renascimento sob a ótica da Física Quântica.
+            - **INSPIRAÇÃO TEMÁTICA (Obrigatória):**
+              - **Joe Dispenza:** Focar na mudança de energia/assinatura eletromagnética.
+              - **Nassim Haramein:** Conexão com o todo/vácuo quântico.
+              - **Osho:** Consciência como observador.
+              - **Eckhart Tolle:** O poder do Agora, quietude e presença.
+              - Use termos como: campo unificado, colapso da função de onda (poeticamente), frequência vibracional, coerência cardíaca.`
           },
           {
             role: 'user',
-            content: `Gere um texto inspiracional personalizado para ${userName} (${userGender}) de ${userCity}. 
-            O texto deve ser perfeito para clonagem de voz, incluindo rica diversidade fonética e emocional.
-            Foque em temas de auto-cura, crescimento pessoal, superação de desafios e descoberta do potencial interior.`
+            content: `Escreva o roteiro de leitura para ${userName} (${userGender}).
+            Quero um texto profundo e transformador (aprox. 150 a 200 palavras, para leitura de 1 minuto).
+            
+            O texto deve guiar a pessoa a sentir que ela é criadora da própria realidade.
+            NÃO mencione cidade ou localização física. O foco é UNIVERSAL e INTERNO.
+            Comece saudando a pessoa e convidando-a para essa jornada interior.`
           }
         ],
-        max_tokens: 600,
+        max_tokens: 1500, // Aumentado para permitir texto mais longo
         temperature: 0.8,
       }),
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
+      const errorText = await response.text();
+      let errorJson;
+      try {
+        errorJson = JSON.parse(errorText);
+      } catch {
+        errorJson = { error: { message: errorText } };
+      }
+      throw new Error(`OpenRouter API error: ${errorJson.error?.message || errorText}`);
     }
 
     const data = await response.json();
@@ -89,14 +111,14 @@ serve(async (req) => {
     // Track usage
     await supabase.from('usage_tracking').insert({
       user_id: user.id,
-      service: 'openai',
+      service: 'openrouter',
       operation_type: 'voice_sample_text',
-      tokens_used: data.usage.total_tokens,
-      cost_usd: (data.usage.total_tokens * 0.000001), // Approximate cost
-      metadata: { model: 'gpt-4o-mini', character_count: generatedText.length }
+      tokens_used: data.usage?.total_tokens || 0,
+      cost_usd: 0, // Simplified for now
+      metadata: { model: 'google/gemini-2.0-flash-001', character_count: generatedText.length }
     });
 
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       text: generatedText,
       estimated_duration: Math.ceil(generatedText.length / 2.5), // ~2.5 chars per second
       word_count: generatedText.split(' ').length
@@ -105,8 +127,13 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Error in generate-voice-sample-text function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('CRITICAL ERROR in generate-voice-sample-text:', error);
+    if (!openRouterApiKey) console.error('MISSING OPENROUTER_API_KEY variable');
+
+    return new Response(JSON.stringify({
+      error: error.message || 'Internal Server Error',
+      details: error.toString()
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

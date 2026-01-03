@@ -21,22 +21,9 @@ serve(async (req) => {
     const { context } = await req.json();
     console.log('Generating sentiments for context:', context);
 
-    // Initialize variables first
+    // Initialize variables
     let usedFallback = false;
-    let generatedSentiments = [];
-
-    // Buscar o prompt da base de conhecimento
-    const { data: knowledgeBase, error: kbError } = await supabase
-      .from('knowledge_base')
-      .select('content')
-      .eq('category', 'fato_especifico')
-      .eq('is_active', true)
-      .single();
-
-    if (kbError) {
-      console.warn('Base de conhecimento não encontrada ou inativa; seguindo com fallback.', kbError);
-      usedFallback = true;
-    }
+    let generatedSentiments: string[] = [];
 
     // Gerar sentimentos específicos baseados no contexto
     if (context && context.trim()) {
@@ -56,7 +43,7 @@ serve(async (req) => {
           'X-Title': 'Terapeuta IA',
         },
         body: JSON.stringify({
-          model: 'openai/gpt-4o-mini',
+          model: 'google/gemini-2.0-flash-001',
           messages: [
             {
               role: 'system',
@@ -82,8 +69,7 @@ Exemplo de formato esperado: medos, angústias, nervosismos, receios, ansiedades
 Gere sentimentos negativos relacionados a esta situação:`
             }
           ],
-          temperature: 0.8,
-          max_tokens: 800
+          temperature: 0.7,
         }),
       });
 
@@ -99,10 +85,10 @@ Gere sentimentos negativos relacionados a esta situação:`
           .replace(/^\d+\.\s*/gm, '') // Remove numeração (1. 2. etc)
           .replace(/^[-•*]\s*/gm, '') // Remove bullets (- • *)
           .split(/[,\n;]/) // Divide por vírgula, quebra de linha ou ponto e vírgula
-          .map(s => s.trim().toLowerCase())
-          .filter(s => s.length > 3 && s.length < 50)
-          .filter(s => !s.includes(':') && !s.includes('exemplo'))
-          .filter(s => !s.match(/^\d+$/)) // Remove números isolados
+          .map((s: string) => s.trim().replace(/\.$/, '').toLowerCase()) // Remove ponto final
+          .filter((s: string) => s.length > 3 && s.length < 50)
+          .filter((s: string) => !s.includes(':') && !s.includes('exemplo'))
+          .filter((s: string) => !s.match(/^\d+$/)) // Remove números isolados
           .slice(0, 70); // Permitir até 70 para garantir 60 válidos
 
         console.log('Sentimentos parseados:', generatedSentiments);
@@ -116,9 +102,10 @@ Gere sentimentos negativos relacionados a esta situação:`
 
     console.log('Generated sentiments:', generatedSentiments);
 
-    // Inserir apenas sentimentos novos usando ON CONFLICT DO NOTHING
+    // Inserir sentimentos novos (ignorando duplicatas via banco)
     if (generatedSentiments.length > 0) {
-      const { data: insertedSentiments, error: insertError } = await supabase
+      // Tentar inserir (se falhar por duplicata, tudo bem)
+      await supabase
         .from('sentimentos')
         .insert(
           generatedSentiments.map(sentiment => ({
@@ -128,25 +115,52 @@ Gere sentimentos negativos relacionados a esta situação:`
             contexto: context
           }))
         )
-        .select();
-
-      // Log apenas para debugging, não falha por duplicatas
-      if (insertError) {
-        console.log('Insert result (pode incluir conflitos):', insertError.message);
-      }
-
-      const newSentimentsCount = insertedSentiments ? insertedSentiments.length : 0;
-      console.log(`Successfully inserted ${newSentimentsCount} new sentiments`);
+        .select()
+        .then(({ error }) => {
+          if (error) console.log('Insert note (duplicates skipped):', error.message);
+        });
     }
 
     // Retornar todos os sentimentos disponíveis
-    const { data: allSentiments, error: fetchError } = await supabase
+    let { data: allSentiments, error: fetchError } = await supabase
       .from('sentimentos')
       .select('*')
       .order('frequencia_uso', { ascending: false });
 
     if (fetchError) {
       throw fetchError;
+    }
+
+    // OTIMIZAÇÃO CRÍTICA: Priorizar visualmente os sentimentos gerados agora
+    // Mesmo que já existissem no banco, vamos marcar como 'gerado_contexto' nesta resposta
+    // para que o frontend os mostre no topo.
+    // MATCH CASE-INSENSITIVE
+    if (allSentiments && generatedSentiments.length > 0) {
+      let matchCount = 0;
+      allSentiments = allSentiments.map(s => {
+        if (generatedSentiments.includes(s.nome.toLowerCase())) {
+          matchCount++;
+          return { ...s, categoria: 'gerado_contexto' }; // Força categoria para ordenação no front
+        }
+        return s;
+      });
+
+      console.log(`Matched ${matchCount} existing sentiments for highlighting`);
+
+      // Adicionar sentimentos que talvez não tenham sido retornados no select (novos inseridos)
+      // se o select original não pegou por algum motivo de delay ou ordenação
+      for (const genName of generatedSentiments) {
+        // Verificar case-insensitive
+        if (!allSentiments.find(s => s.nome.toLowerCase() === genName)) {
+          allSentiments.unshift({
+            id: crypto.randomUUID(), // ID temporário apenas para renderização
+            nome: genName,
+            categoria: 'gerado_contexto',
+            frequencia_uso: 0,
+            criado_por: 'sistema'
+          });
+        }
+      }
     }
 
     return new Response(JSON.stringify({

@@ -46,9 +46,6 @@ npm run dev
 
 # Build produção
 npm run build
-
-# Supabase local
-supabase start
 ```
 
 ## 📦 Versão Atual

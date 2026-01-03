@@ -60,7 +60,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
     try {
       if (context && context.trim()) {
         setLoadingSentimentos(true);
-        
+
         const { data: functionData, error: functionError } = await supabase.functions.invoke('generate-sentiments', {
           body: { context }
         });
@@ -72,7 +72,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
             description: "Erro ao gerar sentimentos contextuais. Usando sentimentos padrão.",
             variant: "default",
           });
-          
+
           const { data, error } = await supabase
             .from('sentimentos')
             .select('*')
@@ -84,7 +84,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
           setSentimentos(data || []);
         } else {
           setSentimentos(functionData.sentiments || []);
-          
+
           if (functionData.newSentimentsGenerated > 0) {
             toast({
               title: "Sentimentos gerados!",
@@ -125,7 +125,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
 
   const regenerarSentimentos = async () => {
     if (!context || !context.trim()) return;
-    
+
     setLoadingSentimentos(true);
     try {
       const { data: functionData, error: functionError } = await supabase.functions.invoke('generate-sentiments', {
@@ -134,7 +134,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
 
       if (!functionError && functionData) {
         setSentimentos(functionData.sentiments || []);
-        
+
         toast({
           title: "Sentimentos regenerados!",
           description: `${functionData.newSentimentsGenerated} novos sentimentos contextuais foram criados.`,
@@ -209,11 +209,11 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
 
   const converterParaPlural = (sentimento: string): string => {
     if (sentimento.trim().length === 0) return sentimento;
-    
+
     const palavra = sentimento.trim().toLowerCase();
-    
+
     if (palavra.endsWith('s')) return palavra;
-    
+
     if (palavra.endsWith('ão')) {
       return palavra.slice(0, -2) + 'ões';
     }
@@ -223,7 +223,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
     if (palavra.endsWith('r') || palavra.endsWith('z')) {
       return palavra + 'es';
     }
-    
+
     return palavra + 's';
   };
 
@@ -232,7 +232,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
 
     try {
       const sentimentoPlural = converterParaPlural(termoBuscaEAdicao);
-      
+
       const { error } = await supabase
         .from('sentimentos')
         .insert({
@@ -283,10 +283,10 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
       try {
         // Primeiro, garantir que todos os sentimentos selecionados existem no BD
         const sentimentosExistentes = sentimentos.map(s => s.nome);
-        const sentimentosNaoExistentes = sentimentosSelecionados.filter(s => 
+        const sentimentosNaoExistentes = sentimentosSelecionados.filter(s =>
           !sentimentosExistentes.includes(s)
         );
-        
+
         // Inserir sentimentos que ainda não existem
         if (sentimentosNaoExistentes.length > 0) {
           const { error: insertError } = await supabase
@@ -299,7 +299,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
                 contexto: context
               }))
             );
-            
+
           if (insertError) {
             console.error('Erro ao inserir sentimentos faltantes:', insertError);
           }
@@ -309,9 +309,9 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
           nome: novoFiltroNome.trim(),
           sentimentos: [...sentimentosSelecionados]
         };
-        
+
         const filtroSalvo = await salvarFiltroNoBanco(novoFiltroData);
-        
+
         if (filtroSalvo) {
           const novoFiltro: FiltroPersonalizado = {
             id: filtroSalvo.id,
@@ -320,10 +320,10 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
             created_at: filtroSalvo.created_at,
             updated_at: filtroSalvo.updated_at
           };
-          
+
           setFiltrosPersonalizados([...filtrosPersonalizados, novoFiltro]);
           setNovoFiltroNome('');
-          
+
           toast({
             title: "Filtro criado com sucesso!",
             description: `O filtro "${novoFiltro.nome}" foi salvo com ${novoFiltro.sentimentos.length} sentimentos.`,
@@ -349,19 +349,19 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
   const aplicarFiltroPersonalizado = (filtro: FiltroPersonalizado) => {
     // Verificar quais sentimentos do filtro estão disponíveis na tela atual
     const sentimentosDisponiveis = sentimentosOrdenadosEFiltrados.map(s => s.nome);
-    const sentimentosDoFiltroDisponiveis = filtro.sentimentos.filter(s => 
+    const sentimentosDoFiltroDisponiveis = filtro.sentimentos.filter(s =>
       sentimentosDisponiveis.includes(s)
     );
-    
+
     setSentimentosSelecionados(sentimentosDoFiltroDisponiveis);
     setFiltroAtivo(filtro.id);
-    
+
     const total = filtro.sentimentos.length;
     const aplicados = sentimentosDoFiltroDisponiveis.length;
-    
+
     toast({
       title: "Filtro aplicado",
-      description: aplicados === total 
+      description: aplicados === total
         ? `${aplicados} sentimentos selecionados.`
         : `${aplicados} de ${total} sentimentos aplicados (alguns não estão disponíveis na tela atual).`,
     });
@@ -374,23 +374,23 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
       .filter(s => s.frequencia_uso > 0)
       .map(s => {
         // Calcular score combinando frequência e recência
-        const diasDesdeUltimaSelecao = s.ultima_selecao 
+        const diasDesdeUltimaSelecao = s.ultima_selecao
           ? Math.floor((agora.getTime() - new Date(s.ultima_selecao).getTime()) / (1000 * 60 * 60 * 24))
           : 365; // Se nunca foi selecionado, considerar muito antigo
-        
+
         // Score: frequência ponderada pela recência (quanto mais recente, maior o peso)
         const pesoRecencia = Math.max(0.1, 1 - (diasDesdeUltimaSelecao / 30)); // Peso diminui ao longo de 30 dias
         const score = s.frequencia_uso * pesoRecencia;
-        
+
         return { ...s, score };
       })
       .sort((a, b) => b.score - a.score)
       .slice(0, 50)
       .map(s => s.nome);
-    
+
     setSentimentosSelecionados(sentimentosComScore);
     setFiltroAtivo('mais-frequentes');
-    
+
     toast({
       title: "Filtro aplicado",
       description: `${sentimentosComScore.length} sentimentos mais relevantes selecionados (baseado em frequência + recência).`,
@@ -400,7 +400,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
   const limparFiltro = () => {
     setFiltroAtivo(null);
     setSentimentosSelecionados([]);
-    
+
     toast({
       title: "Filtro limpo",
       description: "Todos os sentimentos foram desmarcados.",
@@ -426,12 +426,12 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
 
       const novosFiltros = filtrosPersonalizados.filter(f => f.id !== id);
       setFiltrosPersonalizados(novosFiltros);
-      
+
       // Se estávamos editando este filtro, cancelar a edição
       if (filtroEmEdicao === id) {
         cancelarEdicaoFiltro();
       }
-      
+
       toast({
         title: "Filtro excluído",
         description: "O filtro foi removido com sucesso.",
@@ -450,14 +450,14 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
     setFiltroEmEdicao(filtro.id);
     setSentimentosOriginaisEdicao([...sentimentosSelecionados]);
     setFiltroAtivo(null);
-    
+
     // Carregar sentimentos do filtro como selecionados
     const sentimentosDisponiveis = sentimentosOrdenadosEFiltrados.map(s => s.nome);
-    const sentimentosDoFiltroDisponiveis = filtro.sentimentos.filter(s => 
+    const sentimentosDoFiltroDisponiveis = filtro.sentimentos.filter(s =>
       sentimentosDisponiveis.includes(s)
     );
     setSentimentosSelecionados(sentimentosDoFiltroDisponiveis);
-    
+
     toast({
       title: "Modo de edição ativado",
       description: `Editando o filtro "${filtro.nome}". Selecione/deselecione sentimentos e clique em "Salvar Alterações".`,
@@ -468,7 +468,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
     setFiltroEmEdicao(null);
     setSentimentosSelecionados(sentimentosOriginaisEdicao);
     setSentimentosOriginaisEdicao([]);
-    
+
     toast({
       title: "Edição cancelada",
       description: "As alterações foram descartadas.",
@@ -504,23 +504,23 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
       }
 
       // Atualizar lista local
-      const filtrosAtualizados = filtrosPersonalizados.map(f => 
-        f.id === filtroEmEdicao 
+      const filtrosAtualizados = filtrosPersonalizados.map(f =>
+        f.id === filtroEmEdicao
           ? { ...f, sentimentos: [...sentimentosSelecionados] }
           : f
       );
       setFiltrosPersonalizados(filtrosAtualizados);
 
-      const sentimentosAdicionados = sentimentosSelecionados.filter(s => 
+      const sentimentosAdicionados = sentimentosSelecionados.filter(s =>
         !sentimentosOriginaisEdicao.includes(s)
       ).length;
-      const sentimentosRemovidos = sentimentosOriginaisEdicao.filter(s => 
+      const sentimentosRemovidos = sentimentosOriginaisEdicao.filter(s =>
         !sentimentosSelecionados.includes(s)
       ).length;
 
       setFiltroEmEdicao(null);
       setSentimentosOriginaisEdicao([]);
-      
+
       toast({
         title: "Filtro atualizado!",
         description: `${sentimentosAdicionados} adicionados, ${sentimentosRemovidos} removidos.`,
@@ -536,10 +536,10 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
   };
 
   const confirmar = async () => {
-    if (sentimentosSelecionados.length < 40) {
+    if (sentimentosSelecionados.length < 20) {
       toast({
         title: "Seleção insuficiente",
-        description: "Selecione pelo menos 40 sentimentos.",
+        description: "Selecione pelo menos 20 sentimentos.",
         variant: "destructive",
       });
       return;
@@ -549,7 +549,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
       for (const nome of sentimentosSelecionados) {
         const { error } = await supabase
           .rpc('increment_sentiment_usage', { sentiment_name: nome });
-        
+
         if (error) {
           console.error('Error updating sentiment frequency:', error);
         }
@@ -584,14 +584,14 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
   }, [sentimentos, termoBuscaEAdicao]);
 
   // Verificar se o termo de busca não encontrou resultados
-  const podeAdicionarSentimento = termoBuscaEAdicao.trim() && 
-    !sentimentosOrdenadosEFiltrados.some(s => 
+  const podeAdicionarSentimento = termoBuscaEAdicao.trim() &&
+    !sentimentosOrdenadosEFiltrados.some(s =>
       s.nome.toLowerCase() === termoBuscaEAdicao.toLowerCase()
     );
 
   const renderSentimentButton = (sentimento: Sentimento) => {
     const isSelected = sentimentosSelecionados.includes(sentimento.nome);
-    
+
     return (
       <Button
         key={sentimento.id}
@@ -617,7 +617,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
             Selecione os Sentimentos
             <div className="flex items-center gap-2">
               <div className="text-sm font-normal bg-primary/10 px-3 py-1 rounded-full">
-                {sentimentosSelecionados.length} selecionados (mín. 40)
+                {sentimentosSelecionados.length} selecionados (mín. 20)
               </div>
               {sentimentosSelecionados.length > 0 && (
                 <Button
@@ -633,10 +633,10 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Escolha pelo menos 40 sentimentos negativos relacionados ao seu fato para gerar a autocura.
+            Escolha pelo menos 20 sentimentos negativos relacionados ao seu fato para gerar a autocura.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-3 border-b pb-3">
           {/* Campo unificado de busca e adição */}
           <div className="flex gap-2">
@@ -653,10 +653,10 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
               </Button>
             )}
             {context && (
-              <Button 
-                onClick={regenerarSentimentos} 
-                size="sm" 
-                variant="outline" 
+              <Button
+                onClick={regenerarSentimentos}
+                size="sm"
+                variant="outline"
                 className="h-8"
                 disabled={loadingSentimentos}
               >
@@ -680,25 +680,25 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
                   Mais Frequentes ({sentimentos.filter(s => s.frequencia_uso > 0).length})
                 </Button>
               )}
-              
+
               {/* Filtros personalizados */}
               {filtrosPersonalizados.map((filtro) => {
                 const sentimentosDisponiveis = sentimentosOrdenadosEFiltrados.map(s => s.nome);
-                const sentimentosDoFiltroDisponiveis = filtro.sentimentos.filter(s => 
+                const sentimentosDoFiltroDisponiveis = filtro.sentimentos.filter(s =>
                   sentimentosDisponiveis.includes(s)
                 );
                 const total = filtro.sentimentos.length;
                 const disponiveis = sentimentosDoFiltroDisponiveis.length;
                 const estaEditando = filtroEmEdicao === filtro.id;
                 const estaAtivo = filtroAtivo === filtro.id;
-                
+
                 return (
-                  <div 
-                    key={filtro.id} 
+                  <div
+                    key={filtro.id}
                     className={cn(
                       "flex items-center gap-1 px-2 py-1 border rounded-lg transition-all",
-                      estaEditando ? "bg-blue-50 border-blue-300 ring-1 ring-blue-200" : 
-                      estaAtivo ? "bg-primary/10 border-primary" : "bg-background"
+                      estaEditando ? "bg-blue-50 border-blue-300 ring-1 ring-blue-200" :
+                        estaAtivo ? "bg-primary/10 border-primary" : "bg-background"
                     )}
                   >
                     <Button
@@ -801,7 +801,7 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
                 {sentimentosOrdenadosEFiltrados.map(sentimento => renderSentimentButton(sentimento))}
               </div>
-              
+
               {sentimentosOrdenadosEFiltrados.length === 0 && !loadingSentimentos && (
                 <div className="flex flex-col items-center justify-center h-full space-y-4">
                   <p className="text-muted-foreground">Nenhum sentimento encontrado</p>
@@ -820,9 +820,9 @@ const SentimentosPopup: React.FC<SentimentosPopupProps> = ({
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button 
-            onClick={confirmar} 
-            disabled={sentimentosSelecionados.length < 40}
+          <Button
+            onClick={confirmar}
+            disabled={sentimentosSelecionados.length < 20}
           >
             Confirmar
           </Button>

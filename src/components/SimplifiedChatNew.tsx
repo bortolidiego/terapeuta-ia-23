@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import SentimentosPopup from "./SentimentosPopup";
 import { NotesDialog } from "./NotesDialog";
 import { ProtocolExecutor } from "@/components/ProtocolExecutor";
+import { InteractiveChatForm } from "@/components/InteractiveChatForm";
 import { AudioAssemblyNotification } from "@/components/AudioAssemblyNotification";
 import { useVoiceRecording } from "@/hooks/useVoiceRecording";
 import { useDraftMessage } from "@/hooks/useDraftMessage";
@@ -28,6 +29,7 @@ interface Message {
 export const SimplifiedChatNew = () => {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -75,22 +77,22 @@ export const SimplifiedChatNew = () => {
   useEffect(() => {
     const urlPath = window.location.pathname;
     const sessionIdFromUrl = urlPath.split('/chat/')[1];
-    
+
     if (sessionIdFromUrl) {
       setCurrentConsultationId(sessionIdFromUrl);
       loadSessionMessages(sessionIdFromUrl);
       checkActiveProtocol(sessionIdFromUrl);
-      
+
       // Setup automatic session pausing on page unload
       const handleBeforeUnload = () => {
         pauseSession(sessionIdFromUrl);
       };
-      
+
       window.addEventListener('beforeunload', handleBeforeUnload);
-      
+
       // Setup inactivity timeout (30 minutes)
       let inactivityTimer: NodeJS.Timeout;
-      
+
       const resetInactivityTimer = () => {
         clearTimeout(inactivityTimer);
         inactivityTimer = setTimeout(() => {
@@ -101,15 +103,15 @@ export const SimplifiedChatNew = () => {
           });
         }, 30 * 60 * 1000); // 30 minutes
       };
-      
+
       // Reset timer on user activity
       const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
       events.forEach(event => {
         document.addEventListener(event, resetInactivityTimer, true);
       });
-      
+
       resetInactivityTimer();
-      
+
       return () => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
         clearTimeout(inactivityTimer);
@@ -118,7 +120,7 @@ export const SimplifiedChatNew = () => {
         });
       };
     }
-    
+
     // Clean up orphaned sessions when component loads
     cleanupOrphanedSessions();
   }, [pauseSession, cleanupOrphanedSessions, toast]);
@@ -126,7 +128,7 @@ export const SimplifiedChatNew = () => {
   // Pausar sessão automaticamente quando sair do chat
   useEffect(() => {
     const sessionId = id || currentConsultationId;
-    
+
     return () => {
       // Componente está sendo desmontado - pausar a sessão
       if (sessionId) {
@@ -152,7 +154,7 @@ export const SimplifiedChatNew = () => {
       if (activeProtocol) {
         console.log('Protocolo ativo encontrado, ativando protocolo:', activeProtocol);
         setProtocolActive(true);
-        
+
         // Mostrar feedback de continuação
         toast({
           title: "Protocolo retomado",
@@ -173,7 +175,7 @@ export const SimplifiedChatNew = () => {
         .order("created_at", { ascending: true });
 
       if (error) throw error;
-      
+
       const typedMessages = (data || []).map(msg => ({
         id: msg.id,
         role: msg.role as "user" | "assistant" | "protocol",
@@ -181,7 +183,17 @@ export const SimplifiedChatNew = () => {
         created_at: msg.created_at,
         metadata: (msg as any).metadata
       }));
-      setMessages(typedMessages);
+
+      // Deduplicar mensagens (mesmo conteúdo e role num intervalo de 10s)
+      const uniqueMessages = typedMessages.filter((msg, index, self) =>
+        index === self.findIndex((m) => (
+          m.role === msg.role &&
+          m.content === msg.content &&
+          Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 10000
+        ))
+      );
+
+      setMessages(uniqueMessages);
     } catch (error) {
       console.error("Erro ao carregar mensagens da sessão:", error);
     }
@@ -190,7 +202,7 @@ export const SimplifiedChatNew = () => {
   const createNewConsultation = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         toast({
           title: "Erro de autenticação",
@@ -202,7 +214,7 @@ export const SimplifiedChatNew = () => {
 
       const { data, error } = await supabase
         .from("therapy_sessions")
-        .insert({ 
+        .insert({
           title: `Consulta ${new Date().toLocaleString()}`,
           user_id: user.id
         })
@@ -217,7 +229,7 @@ export const SimplifiedChatNew = () => {
         });
         throw error;
       }
-      
+
       setCurrentConsultationId(data.id);
       return data.id;
     } catch (error) {
@@ -226,27 +238,134 @@ export const SimplifiedChatNew = () => {
     }
   };
 
+  // Gerar título resumido a partir da primeira mensagem do usuário
+  const updateSessionTitle = async (sessionId: string, userMessage: string) => {
+    try {
+      // Criar título a partir da mensagem (max 50 chars)
+      let title = userMessage.trim();
+
+      // Remover prefixos comuns de conversa
+      const prefixesToRemove = [
+        'quero tratar',
+        'preciso de ajuda com',
+        'estou tendo problemas com',
+        'eu tenho',
+        'eu estou',
+        'me sinto',
+      ];
+
+      for (const prefix of prefixesToRemove) {
+        if (title.toLowerCase().startsWith(prefix)) {
+          title = title.substring(prefix.length).trim();
+          break;
+        }
+      }
+
+      // Capitalizar primeira letra
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+
+      // Truncar se muito longo
+      if (title.length > 50) {
+        title = title.substring(0, 47) + '...';
+      }
+
+      // Atualizar no banco
+      await supabase
+        .from('therapy_sessions')
+        .update({ title })
+        .eq('id', sessionId);
+
+      console.log('Título da sessão atualizado para:', title);
+    } catch (error) {
+      console.error('Erro ao atualizar título da sessão:', error);
+    }
+  };
+
   const startProtocol = async (userMessage: string) => {
     if (!currentConsultationId) return;
 
-    setProtocolActive(true);
-    
-    // Classificar protocolo
-    const { data: classifyResult, error } = await supabase.functions.invoke('protocol-executor', {
-      body: {
-        sessionId: currentConsultationId,
-        action: 'classify_protocol',
-        userMessage
+    try {
+      // Chamar therapy-chat com Gemini Flash 3.0 e metodologia completa
+      const { data: chatResponse, error } = await supabase.functions.invoke('therapy-chat', {
+        body: {
+          message: userMessage,
+          sessionId: currentConsultationId,
+          history: messages.filter(m => m.role !== "protocol").map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          userId: (await supabase.auth.getUser()).data.user?.id
+        }
+      });
+
+      if (error) {
+        console.error('Erro ao chamar therapy-chat:', error);
+        throw error;
       }
-    });
 
-    if (error) {
-      console.error('Erro ao classificar protocolo:', error);
-      setProtocolActive(false);
-      return;
+      console.log('Resposta therapy-chat:', chatResponse);
+
+      // Verificar se detectou um protocolo
+      const detectedProtocol = chatResponse.detectedProtocol;
+
+      // Limpar marcadores de popup da resposta para exibição
+      const cleanReply = chatResponse.reply
+        .replace(/\[POPUP:sentimentos\]/g, '')
+        .replace(/\[POPUP:.*?\]/g, '')
+        .trim();
+
+      // Verificar se a resposta contém popup de sentimentos
+      const hasSentimentPopup = chatResponse.reply.includes('[POPUP:sentimentos]');
+
+      // Sempre mostrar a resposta do terapeuta primeiro (se houver conteúdo)
+      if (cleanReply) {
+        const assistantMessage: Message = {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: cleanReply,
+          created_at: new Date().toISOString(),
+          metadata: {
+            detectedProtocol,
+            model: chatResponse.model
+          }
+        };
+
+        setMessages(prev => [...prev, assistantMessage]);
+
+        // Salvar no banco
+        await supabase.from("session_messages").insert({
+          session_id: currentConsultationId,
+          role: "assistant",
+          content: cleanReply,
+          metadata: { detectedProtocol, model: chatResponse.model }
+        });
+      }
+
+      // Se tem popup de sentimentos, ativar o protocolo
+      if (hasSentimentPopup) {
+        console.log('Ativando popup de sentimentos');
+        setProtocolActive(true);
+        return;
+      }
+
+      // Se detectou protocolo (sem popup), ativar ProtocolExecutor
+      if (detectedProtocol && detectedProtocol !== 'none') {
+        console.log('Ativando protocolo:', detectedProtocol);
+        setProtocolActive(true);
+      }
+
+    } catch (error) {
+      console.error('Erro no therapy-chat:', error);
+
+      // Fallback: mostrar mensagem genérica
+      const fallbackMessage: Message = {
+        id: `fallback-${Date.now()}`,
+        role: "assistant",
+        content: "Desculpe, tive um problema técnico. Pode repetir o que você disse?",
+        created_at: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, fallbackMessage]);
     }
-
-    console.log('Protocolo classificado:', classifyResult.protocol);
   };
 
   const handleProtocolComplete = async (result: any) => {
@@ -257,12 +376,12 @@ export const SimplifiedChatNew = () => {
     try {
       if (result.type === 'assembly_instructions') {
         const { assemblyInstructions, ready, optimized } = result;
-        
+
         if (ready) {
           // OTIMIZAÇÃO: Iniciar montagem de áudio EM BACKGROUND
           const jobId = await startAudioAssembly(assemblyInstructions);
           console.log('Optimized audio assembly started with job ID:', jobId);
-          
+
           // CONTINUIDADE CONVERSACIONAL: Dr. Healing não para de conversar
           const continuationMessage = {
             id: `protocol-continuation-${Date.now()}`,
@@ -282,16 +401,16 @@ Como você imagina que se sentirá depois de liberar esses sentimentos que carre
 
 *Você receberá notificações do progresso e será avisado assim que sua autocura estiver pronta para ser ouvida.*`,
             created_at: new Date().toISOString(),
-            metadata: { 
+            metadata: {
               type: 'protocol_continuation',
               jobId,
               assemblyInstructions: assemblyInstructions,
               optimized: optimized || false
             }
           };
-          
+
           setMessages(prev => [...prev, continuationMessage]);
-          
+
           // FEEDBACK OTIMIZADO: Toast menos intrusivo
           toast({
             title: '🎯 Autocura Iniciada',
@@ -313,9 +432,9 @@ Enquanto isso, conte-me mais sobre como esses sentimentos se manifestam no seu d
             created_at: new Date().toISOString(),
             metadata: { type: 'protocol_error' }
           };
-          
+
           setMessages(prev => [...prev, errorMessage]);
-          
+
           toast({
             title: 'Componentes Temporariamente Indisponíveis',
             description: 'Continuando conversa enquanto aguardamos disponibilidade.',
@@ -323,8 +442,10 @@ Enquanto isso, conte-me mais sobre como esses sentimentos se manifestam no seu d
           });
         }
       } else if (result.type === 'no_protocol') {
-        // Continuar conversa normal
-        console.log('No protocol needed, continuing chat');
+        // Chatbot já conversou, não precisamos de mensagem genérica aqui.
+        console.log('No protocol needed, continuing chat (suppressed generic message)');
+
+        /* CÓDIGO SUPRIMIDO PARA EVITAR MENSAGEM DUPLICADA
         const helpMessage: Message = {
           id: Date.now().toString(),
           role: "assistant",
@@ -332,9 +453,9 @@ Enquanto isso, conte-me mais sobre como esses sentimentos se manifestam no seu d
           created_at: new Date().toISOString(),
           metadata: { type: 'help_message' }
         };
-        
+
         setMessages(prev => [...prev, helpMessage]);
-        
+
         if (currentConsultationId) {
           await supabase.from("session_messages").insert({
             session_id: currentConsultationId,
@@ -343,6 +464,11 @@ Enquanto isso, conte-me mais sobre como esses sentimentos se manifestam no seu d
             metadata: helpMessage.metadata
           });
         }
+        */
+      } else if (result.type === 'cancelled') {
+        // Protocolo cancelado pelo usuário
+        console.log('Protocol cancelled by user');
+        // O toast já foi exibido pelo ProtocolExecutor, apenas resetar o estado
       }
     } catch (error) {
       console.error('Erro ao processar resultado do protocolo:', error);
@@ -357,7 +483,7 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
         created_at: new Date().toISOString(),
         metadata: { type: 'error' }
       }]);
-      
+
       toast({
         title: 'Erro Temporário',
         description: 'Continuando conversa. Podemos tentar o protocolo novamente.',
@@ -407,7 +533,12 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
       if (useProtocolMode) {
         await startProtocol(userMessage);
       }
-      
+
+      // Atualizar título da sessão se é a primeira mensagem
+      if (messages.length === 0) {
+        updateSessionTitle(consultationId, userMessage);
+      }
+
       clearDraft();
       clearAudioDraft();
 
@@ -449,6 +580,12 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
     }
   };
 
+  const handleFormSubmit = (answers: string[], questions: string[]) => {
+    // Formatar respostas para enviar como mensagem
+    const formattedResponse = questions.map((q, i) => `**${q}**\n${answers[i] || 'Sem resposta'}`).join('\n\n');
+    sendMessage(formattedResponse);
+  };
+
   const pauseCurrentConsultation = async () => {
     if (!currentConsultationId) return;
 
@@ -461,7 +598,7 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
 
       setCurrentConsultationId(null);
       setMessages([]);
-      
+
       toast({
         title: "Consulta pausada",
         description: "Você pode retomá-la na tela inicial.",
@@ -497,36 +634,92 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 </p>
               </div>
             )}
-            
+
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex gap-2 sm:gap-3 ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
+                className={`flex gap-2 sm:gap-3 ${message.role === "user" ? "justify-end" : "justify-start"
+                  }`}
               >
                 {message.role === "assistant" && (
                   <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
                     <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
                   </div>
                 )}
-                
+
                 <div
-                  className={`max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-xl sm:rounded-2xl ${
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground border border-border"
-                  }`}
+                  className={`max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-xl sm:rounded-2xl ${message.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground border border-border"
+                    }`}
                 >
-                  <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                  
-                  <div className={`text-xs mt-1 sm:mt-2 ${
-                    message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
-                  }`}>
+                  <div className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">
+                    {(() => {
+                      // Verificar se há formulário interativo
+                      // Suporta fechamento opcional [/FORMULARIO] para separar rodapé
+                      const formRegex = /\[FORMULARIO\](.*?)(\[\/FORMULARIO\]|$)/s;
+                      const match = message.content.match(formRegex);
+
+                      if (match && message.role === 'assistant') {
+                        const introText = message.content.substring(0, match.index).trim();
+                        let questionsStr = match[1];
+                        let footerText = message.content.substring(match.index + match[0].length).trim();
+
+                        // Heurística: Se não tem tag de fechamento e a última parte parece ter um rodapé (texto após quebra de linha que não é pergunta)
+                        if (!match[2].includes('[/FORMULARIO]')) {
+                          const parts = questionsStr.split('|');
+                          const lastPart = parts[parts.length - 1];
+                          const splitLast = lastPart.split(/\n\n+/);
+
+                          if (splitLast.length > 1) {
+                            const potentialFooter = splitLast[splitLast.length - 1].trim();
+                            // Se o potencial rodapé não termina com ? e tem tamanho razoável, assumimos que é texto de encerramento
+                            if (!potentialFooter.endsWith('?') && potentialFooter.length > 5) {
+                              footerText = potentialFooter;
+                              // Remove o rodapé da string de questões
+                              questionsStr = questionsStr.substring(0, questionsStr.lastIndexOf(potentialFooter)).trim();
+                            }
+                          }
+                        }
+
+                        const questions = questionsStr.split('|').map(q => q.trim()).filter(q => q);
+
+                        return (
+                          <>
+                            {introText && <p className="mb-4">{introText}</p>}
+                            <InteractiveChatForm
+                              questions={questions}
+                              onSubmit={(answers) => handleFormSubmit(answers, questions)}
+                              isSubmitting={isLoading}
+                            />
+                            {footerText && <p className="mt-4 text-muted-foreground italic">{footerText}</p>}
+                          </>
+                        );
+                      }
+
+                      return message.content;
+                    })()}
+                  </div>
+
+                  {message.content.includes("Mapa Astral ainda não está configurado") && (
+                    <div className="mt-3">
+                      <Button
+                        size="sm"
+                        onClick={() => navigate('/profile')}
+                        className="bg-purple-600 hover:bg-purple-700 text-white border-none text-xs"
+                      >
+                        <User className="mr-2 h-3 w-3" />
+                        Configurar meu Mapa Astral agora
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className={`text-xs mt-1 sm:mt-2 ${message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
+                    }`}>
                     {new Date(message.created_at).toLocaleTimeString()}
                   </div>
                 </div>
-                
+
                 {message.role === "user" && (
                   <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent flex items-center justify-center border border-border">
                     <User className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
@@ -534,7 +727,7 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 )}
               </div>
             ))}
-            
+
             {/* Protocol Executor */}
             {protocolActive && currentConsultationId && (
               <div className="flex gap-2 sm:gap-3 justify-start">
@@ -544,7 +737,7 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 <div className="max-w-[85%] sm:max-w-[80%]">
                   <ProtocolExecutor
                     sessionId={currentConsultationId}
-                    userMessage={messages[messages.length - 1]?.content || ""}
+                    userMessage={messages.filter(m => m.role === 'user').pop()?.content || ""}
                     onComplete={handleProtocolComplete}
                   />
                 </div>
@@ -553,7 +746,7 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
 
             {/* Audio Assembly Notification */}
             {currentConsultationId && (
-              <AudioAssemblyNotification 
+              <AudioAssemblyNotification
                 sessionId={currentConsultationId}
                 onAudioReady={(audioUrl) => {
                   // Adicionar mensagem com link do áudio quando pronto
@@ -568,7 +761,7 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 }}
               />
             )}
-            
+
             {isLoading && !protocolActive && (
               <div className="flex gap-2 sm:gap-3 justify-start">
                 <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
@@ -582,7 +775,7 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 </div>
               </div>
             )}
-            
+
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
@@ -598,12 +791,12 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 {audioDraft && <span>🎤</span>}
               </div>
             )}
-            
+
             <div className="flex flex-wrap gap-1 sm:gap-2">
               <div className="flex gap-1">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setNotesDialogOpen(true)}
                   className="h-8 px-2 text-xs"
                   title="Minhas anotações"
@@ -611,9 +804,9 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                   <NotebookPen className="h-3 w-3" />
                 </Button>
                 {currentConsultationId && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={pauseCurrentConsultation}
                     className="h-8 px-2 text-xs"
                     title="Pausar consulta"
@@ -630,7 +823,7 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                     const value = e.target.value;
                     setInput(value);
                     updateDraft(value);
-                    
+
                     if (value.trim() && !currentConsultationId && !pendingSessionCreation) {
                       setPendingSessionCreation(true);
                       createNewConsultation().then((sessionId) => {
@@ -646,9 +839,9 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                   disabled={isLoading || isRecording || isProcessing || protocolActive}
                   className="flex-1 border-primary/30 focus:border-primary h-10 sm:h-11 text-sm"
                 />
-                
+
                 {isRecording && !isPaused && (
-                  <Button 
+                  <Button
                     onClick={pauseRecording}
                     disabled={isLoading || isProcessing}
                     variant="outline"
@@ -658,9 +851,9 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                     <Pause className="h-4 w-4" />
                   </Button>
                 )}
-                
+
                 {isPaused && (
-                  <Button 
+                  <Button
                     onClick={resumeRecording}
                     disabled={isLoading || isProcessing}
                     variant="outline"
@@ -670,8 +863,8 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                     <Play className="h-4 w-4" />
                   </Button>
                 )}
-                
-                <Button 
+
+                <Button
                   onClick={isRecording ? handleStopRecording : handleStartRecording}
                   disabled={isLoading || isProcessing || protocolActive}
                   variant={isRecording ? "destructive" : "outline"}
@@ -680,9 +873,9 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 >
                   {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                 </Button>
-                
-                <Button 
-                  onClick={() => sendMessage()} 
+
+                <Button
+                  onClick={() => sendMessage()}
                   disabled={isLoading || !(draftContent || input).trim() || (isRecording && !isPaused) || isProcessing || protocolActive}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-11 w-10 sm:w-11 flex-shrink-0"
                   size="icon"
@@ -691,7 +884,7 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 </Button>
               </div>
             </div>
-          
+
             {/* Status indicators */}
             {isRecording && !isPaused && (
               <div className="mt-2 flex items-center gap-2 text-sm text-destructive">
@@ -699,14 +892,14 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 Gravando... {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
               </div>
             )}
-            
+
             {isPaused && (
               <div className="mt-2 flex items-center gap-2 text-sm text-amber-600">
                 <div className="w-2 h-2 bg-amber-600 rounded-full"></div>
                 Gravação pausada - salva como rascunho
               </div>
             )}
-            
+
             {isDraftSaving && (
               <div className="mt-2 flex items-center gap-2 text-sm text-primary">
                 <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
@@ -717,8 +910,8 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
         </Card>
       </div>
 
-      <NotesDialog 
-        open={notesDialogOpen} 
+      <NotesDialog
+        open={notesDialogOpen}
         onOpenChange={setNotesDialogOpen}
       />
     </div>

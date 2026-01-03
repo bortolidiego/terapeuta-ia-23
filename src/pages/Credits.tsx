@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { CreditCheckout } from "@/components/CreditCheckout";
 
 interface UsageItem {
   id: string;
@@ -111,10 +112,8 @@ export const Credits = () => {
   };
 
   const purchaseCredits = async (type: 'llm' | 'voice', amount: number) => {
-    toast({
-      title: "Em breve!",
-      description: "Integração com Asaas em desenvolvimento. Você poderá comprar créditos via PIX, cartão ou boleto.",
-    });
+    // Scroll para o checkout
+    document.getElementById('checkout-section')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const getServiceIcon = (service: string) => {
@@ -301,68 +300,17 @@ export const Credits = () => {
           </Card>
         )}
 
-        {/* Pacotes de Créditos */}
-        <Card>
+        {/* Checkout de Créditos - Integração Asaas */}
+        <Card id="checkout-section">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="h-5 w-5" />
-              Pacotes de Créditos
+              Comprar Créditos
             </CardTitle>
-            <CardDescription>Escolha o melhor pacote para suas necessidades</CardDescription>
+            <CardDescription>Pague via PIX, Cartão de Crédito ou Boleto</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Pacote Básico */}
-              <div className="p-4 border rounded-lg space-y-3">
-                <div className="text-center">
-                  <h3 className="font-semibold">Básico</h3>
-                  <p className="text-2xl font-bold text-primary">R$ 29</p>
-                  <p className="text-sm text-muted-foreground">por mês</p>
-                </div>
-                <ul className="space-y-2 text-sm">
-                  <li>✓ 500 créditos LLM</li>
-                  <li>✓ 250 créditos de Voz</li>
-                  <li>✓ 10 sessões de terapia</li>
-                  <li>✓ Clonagem de voz</li>
-                </ul>
-                <Button variant="outline" className="w-full">Escolher Básico</Button>
-              </div>
-
-              {/* Pacote Premium */}
-              <div className="p-4 border-2 border-primary rounded-lg space-y-3 relative">
-                <Badge className="absolute -top-2 left-1/2 transform -translate-x-1/2">Mais Popular</Badge>
-                <div className="text-center">
-                  <h3 className="font-semibold">Premium</h3>
-                  <p className="text-2xl font-bold text-primary">R$ 79</p>
-                  <p className="text-sm text-muted-foreground">por mês</p>
-                </div>
-                <ul className="space-y-2 text-sm">
-                  <li>✓ 1500 créditos LLM</li>
-                  <li>✓ 750 créditos de Voz</li>
-                  <li>✓ 30 sessões de terapia</li>
-                  <li>✓ Mapa astral integrado</li>
-                  <li>✓ Suporte prioritário</li>
-                </ul>
-                <Button className="w-full">Escolher Premium</Button>
-              </div>
-
-              {/* Pacote Pro */}
-              <div className="p-4 border rounded-lg space-y-3">
-                <div className="text-center">
-                  <h3 className="font-semibold">Pro</h3>
-                  <p className="text-2xl font-bold text-primary">R$ 149</p>
-                  <p className="text-sm text-muted-foreground">por mês</p>
-                </div>
-                <ul className="space-y-2 text-sm">
-                  <li>✓ 3000 créditos LLM</li>
-                  <li>✓ 1500 créditos de Voz</li>
-                  <li>✓ Sessões ilimitadas</li>
-                  <li>✓ Múltiplas vozes clonadas</li>
-                  <li>✓ API access</li>
-                </ul>
-                <Button variant="outline" className="w-full">Escolher Pro</Button>
-              </div>
-            </div>
+            <CreditCheckout onSuccess={() => loadCreditsData()} />
           </CardContent>
         </Card>
 

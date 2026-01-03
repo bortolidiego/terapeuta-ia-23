@@ -1,5 +1,5 @@
 -- Criar tabela de protocolos
-CREATE TABLE public.therapy_protocols (
+CREATE TABLE IF NOT EXISTS public.therapy_protocols (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
   description TEXT NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE public.therapy_protocols (
 );
 
 -- Criar tabela de passos de protocolo
-CREATE TABLE public.protocol_steps (
+CREATE TABLE IF NOT EXISTS public.protocol_steps (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   protocol_id UUID NOT NULL,
   step_number INTEGER NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE public.protocol_steps (
 );
 
 -- Criar tabela de templates de áudio
-CREATE TABLE public.audio_templates (
+CREATE TABLE IF NOT EXISTS public.audio_templates (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   template_key TEXT NOT NULL UNIQUE,
   template_text TEXT NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE public.audio_templates (
 );
 
 -- Criar tabela de execução de protocolos por sessão
-CREATE TABLE public.session_protocols (
+CREATE TABLE IF NOT EXISTS public.session_protocols (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   session_id UUID NOT NULL,
   protocol_id UUID NOT NULL,
@@ -51,42 +51,61 @@ ALTER TABLE public.audio_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.session_protocols ENABLE ROW LEVEL SECURITY;
 
 -- Políticas RLS
-CREATE POLICY "Admins can manage protocols" ON public.therapy_protocols
-  FOR ALL USING (has_role(auth.uid(), 'admin'::app_role))
-  WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
+-- (Note: Dropping policies if exists is good practice but simplistic here. Assuming table creation was atomic or retry handled).
+DO $$ BEGIN
+    CREATE POLICY "Admins can manage protocols" ON public.therapy_protocols
+    FOR ALL USING (has_role(auth.uid(), 'admin'::app_role))
+    WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Users can view active protocols" ON public.therapy_protocols
-  FOR SELECT USING (is_active = true);
+DO $$ BEGIN
+    CREATE POLICY "Users can view active protocols" ON public.therapy_protocols
+    FOR SELECT USING (is_active = true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Admins can manage protocol steps" ON public.protocol_steps
-  FOR ALL USING (has_role(auth.uid(), 'admin'::app_role))
-  WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
+DO $$ BEGIN
+    CREATE POLICY "Admins can manage protocol steps" ON public.protocol_steps
+    FOR ALL USING (has_role(auth.uid(), 'admin'::app_role))
+    WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Users can view protocol steps" ON public.protocol_steps
-  FOR SELECT USING (true);
+DO $$ BEGIN
+    CREATE POLICY "Users can view protocol steps" ON public.protocol_steps
+    FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Admins can manage audio templates" ON public.audio_templates
-  FOR ALL USING (has_role(auth.uid(), 'admin'::app_role))
-  WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
+DO $$ BEGIN
+    CREATE POLICY "Admins can manage audio templates" ON public.audio_templates
+    FOR ALL USING (has_role(auth.uid(), 'admin'::app_role))
+    WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Users can view audio templates" ON public.audio_templates
-  FOR SELECT USING (true);
+DO $$ BEGIN
+    CREATE POLICY "Users can view audio templates" ON public.audio_templates
+    FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Users can manage their session protocols" ON public.session_protocols
-  FOR ALL USING (is_session_owner(session_id))
-  WITH CHECK (is_session_owner(session_id));
+DO $$ BEGIN
+    CREATE POLICY "Users can manage their session protocols" ON public.session_protocols
+    FOR ALL USING (is_session_owner(session_id))
+    WITH CHECK (is_session_owner(session_id));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Triggers para updated_at
+-- (Triggers with same name error out if exists, so drop first or ignore error. Using DROP IF EXISTS is cleaner)
+DROP TRIGGER IF EXISTS update_therapy_protocols_updated_at ON public.therapy_protocols;
 CREATE TRIGGER update_therapy_protocols_updated_at
   BEFORE UPDATE ON public.therapy_protocols
   FOR EACH ROW
   EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_audio_templates_updated_at ON public.audio_templates;
 CREATE TRIGGER update_audio_templates_updated_at
   BEFORE UPDATE ON public.audio_templates
   FOR EACH ROW
   EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_session_protocols_updated_at ON public.session_protocols;
 CREATE TRIGGER update_session_protocols_updated_at
   BEFORE UPDATE ON public.session_protocols
   FOR EACH ROW
@@ -100,7 +119,8 @@ INSERT INTO public.therapy_protocols (name, description, trigger_keywords, steps
    {"step": 1, "type": "ai_normalize", "content": {"prompt": "Normalize o evento em 3 variações: Quando..., A primeira vez que..., A última vez que..."}},
    {"step": 2, "type": "sentiment_popup", "content": {"message": "Selecione os sentimentos relacionados ao evento"}},
    {"step": 3, "type": "generate_commands", "content": {"template": "quantum_commands"}}
- ]'::jsonb);
+ ]'::jsonb)
+ ON CONFLICT (name) DO NOTHING;
 
 -- Inserir templates de áudio fixos
 INSERT INTO public.audio_templates (template_key, template_text, is_fixed) VALUES 
@@ -108,7 +128,8 @@ INSERT INTO public.audio_templates (template_key, template_text, is_fixed) VALUE
 ('quantum_suffix_prejudiciais_recebi', 'ACABARAM!', true),
 ('quantum_suffix_prejudiciais_senti', 'ACABARAM!', true),
 ('quantum_espirito_gerou', 'Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu gerei', true),
-('quantum_espirito_recebi', 'Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu recebi', true);
+('quantum_espirito_recebi', 'Código ESPÍRITO, a minha consciência escolhe: todas as informações prejudiciais que eu recebi', true)
+ON CONFLICT (template_key) DO NOTHING;
 
 -- Criar função para classificar protocolo
 CREATE OR REPLACE FUNCTION public.classify_protocol(user_message text)

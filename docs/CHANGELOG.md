@@ -5,7 +5,25 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
-## [1.0.0] - 2026-01-01
+## [1.1.0] - 2026-01-03
+
+### ✨ Adicionado
+- **Mapa Astral Completo**: Inclusão de Quíron (Ferida Sagrada) e Saturno (Limitações) na visualização.
+- **Geocodificação Precisa**: Novo componente `CityAutocomplete` integrado ao Nominatim (OpenStreetMap) para busca global de cidades.
+- **Armazenamento de Coordenadas**: Campos `birth_latitude` e `birth_longitude` no perfil para cálculos astronômicos precisos.
+- **Seleção de Horário Intuitiva**: Novos seletores dedicados para Hora e Minuto com formato 24h claro.
+
+### 🐛 Corrigido
+- **Bug da Meia-Noite**: Corrigido erro onde hora "00:xx" era interpretada como meio-dia ("12:xx") no cálculo do mapa.
+- **Extração de Dados da API**: Ajuste para garantir que planetas terapêuticos (Quíron, Saturno) sejam sempre retornados pela API.
+- **Contexto do Terapeuta**: Correção para garantir que o assistente receba o contexto astrológico completo (incluindo trânsitos e aspectos).
+
+### 🔧 Técnico
+- Otimização da Edge Function `astro-chart` com fallback inteligente (usa coordenadas salvas se disponíveis).
+- Validação reforçada nos campos de data, hora e cidade antes do cálculo.
+- Inclusão dos campos `chiron_sign` e `saturn_sign` na resposta da API `astro-chart`.
+
+---
 
 ### ✨ Adicionado
 - Sistema de créditos com histórico por provider (LLM/Voz)
@@ -14,6 +32,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Economia de cache visível na página de créditos
 - Tabs de filtro no histórico de uso (Todos/LLM/Voz)
 - Edge Functions para Asaas (`asaas-webhook`, `asaas-create-charge`)
+- Componente `CreditCheckout` com seleção de pacotes e pagamento
+- Modal de pagamento PIX com QR Code e copia-cola
+- Tabela `credit_purchases` para histórico de compras
 - Componente de badge de versão (`VersionBadge`)
 - Notificação de nova versão com botão "Atualizar"
 - Dialog para visualizar changelog

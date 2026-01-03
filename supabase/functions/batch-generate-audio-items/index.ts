@@ -18,14 +18,14 @@ async function retryWithBackoff<T>(
       return await fn();
     } catch (error: any) {
       const isLastAttempt = attempt === maxRetries - 1;
-      const isRateLimit = error.message?.includes('429') || 
-                          error.message?.includes('too_many_concurrent_requests') ||
-                          error.message?.includes('rate limit');
-      
+      const isRateLimit = error.message?.includes('429') ||
+        error.message?.includes('too_many_concurrent_requests') ||
+        error.message?.includes('rate limit');
+
       if (isLastAttempt || !isRateLimit) {
         throw error;
       }
-      
+
       const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 2000;
       console.log(`Rate limit hit, retrying attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -106,7 +106,7 @@ serve(async (req) => {
       for (const fragment of baseFragments) {
         try {
           console.log(`Generating base fragment: ${fragment.component_key}`);
-          await retryWithBackoff(() => 
+          await retryWithBackoff(() =>
             generateBaseFragment(supabase, {
               fragment,
               sessionId,
@@ -121,7 +121,7 @@ serve(async (req) => {
           console.error(`Failed to generate base fragment ${fragment.component_key}:`, error.message);
           failedBase.push({ key: fragment.component_key, error: error.message });
         }
-        
+
         // Pausa entre cada fragmento
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
@@ -136,7 +136,7 @@ serve(async (req) => {
       for (const sentiment of limitedSentiments) {
         try {
           console.log(`Generating sentiment audio: ${sentiment}`);
-          await retryWithBackoff(() => 
+          await retryWithBackoff(() =>
             generateSentimentAudio(supabase, {
               sentiment,
               sessionId,
@@ -151,7 +151,7 @@ serve(async (req) => {
           console.error(`Failed to generate sentiment ${sentiment}:`, error.message);
           failedSentiments.push({ sentiment, error: error.message });
         }
-        
+
         // Pausa entre cada sentimento
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
@@ -164,7 +164,7 @@ serve(async (req) => {
     const safeFailedSentiments = Array.isArray(failedSentiments) ? failedSentiments : [];
     const safeBaseFragments = Array.isArray(baseFragments) ? baseFragments : [];
     const safeLimitedSentiments = Array.isArray(limitedSentiments) ? limitedSentiments : [];
-    
+
     const totalSuccessful = safeSuccessfulBase.length + safeSuccessfulSentiments.length;
     const totalFailed = safeFailedBase.length + safeFailedSentiments.length;
     const totalItems = safeBaseFragments.length + safeLimitedSentiments.length;
@@ -184,8 +184,8 @@ serve(async (req) => {
           successful_count: totalSuccessful,
           failed_count: totalFailed,
           total_fragments: totalItems,
-          successful_base: successfulBase.length,
-          successful_sentiments: successfulSentiments.length,
+          successful_base: safeSuccessfulBase.length,
+          successful_sentiments: safeSuccessfulSentiments.length,
           failed_details: [...failedBase, ...failedSentiments],
           limited_sentiments: limitedSentiments
         }
@@ -206,14 +206,14 @@ serve(async (req) => {
         sentiments: {
           requested: sentiments.length,
           processed: limitedSentiments.length,
-          successful: successfulSentiments.length,
-          failed: failedSentiments.length
+          successful: safeSuccessfulSentiments.length,
+          failed: safeFailedSentiments.length
         },
         details: {
-          successful_base,
-          successful_sentiments,
-          failed_base: failedBase,
-          failed_sentiments: failedSentiments
+          successful_base: safeSuccessfulBase,
+          successful_sentiments: safeSuccessfulSentiments,
+          failed_base: safeFailedBase,
+          failed_sentiments: safeFailedSentiments
         }
       }
     }), {
@@ -238,7 +238,7 @@ async function generateBaseFragment(supabase: any, options: {
   elevenLabsApiKey: string;
 }) {
   const { fragment, sessionId, userId, userName, voiceId, elevenLabsApiKey } = options;
-  
+
   try {
     console.log(`Generating base fragment: ${fragment.component_key}`);
 
@@ -257,10 +257,11 @@ async function generateBaseFragment(supabase: any, options: {
         text: textToGenerate,
         model_id: 'eleven_multilingual_v2',
         voice_settings: {
-          stability: 0.5,
+          stability: 0.6,
           similarity_boost: 0.8,
           style: 0.5,
-          use_speaker_boost: true
+          use_speaker_boost: true,
+          speed: 0.85
         }
       }),
     });
@@ -337,31 +338,19 @@ async function generateSentimentAudio(supabase: any, options: {
   elevenLabsApiKey: string;
 }) {
   const { sentiment, sessionId, userId, userName, voiceId, elevenLabsApiKey } = options;
-  
+
   // Sanitizar nome do sentimento para evitar caracteres especiais
   const sanitizedSentiment = sentiment
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // Remove acentos
     .replace(/[^a-zA-Z0-9_]/g, '_')  // Replace special chars with underscore
     .toLowerCase();
-  
+
   try {
     console.log(`Generating sentiment audio: ${sentiment}`);
 
-    // Buscar contexto do sentimento da tabela sentimentos
-    const { data: sentimentData, error: sentimentError } = await supabase
-      .from('sentimentos')
-      .select('contexto')
-      .eq('nome', sentiment)
-      .single();
-
-    if (sentimentError) {
-      console.error('Erro ao buscar sentimento:', sentimentError);
-      // Fallback para contexto genérico
-      var textToGenerate = `${sentiment}s que eu senti`;
-    } else {
-      var textToGenerate = sentimentData.contexto || `${sentiment}s que eu senti`;
-    }
+    // Use context phrase for better Portuguese pronunciation
+    const contextText = `${sentiment}. que eu senti`;
 
     // Gerar áudio via ElevenLabs
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -372,13 +361,14 @@ async function generateSentimentAudio(supabase: any, options: {
         'xi-api-key': elevenLabsApiKey,
       },
       body: JSON.stringify({
-        text: textToGenerate,
+        text: contextText,
         model_id: 'eleven_multilingual_v2',
         voice_settings: {
-          stability: 0.5,
+          stability: 0.6,
           similarity_boost: 0.8,
           style: 0.5,
-          use_speaker_boost: true
+          use_speaker_boost: true,
+          speed: 0.85
         }
       }),
     });
@@ -427,12 +417,12 @@ async function generateSentimentAudio(supabase: any, options: {
         user_id: userId,
         service: 'elevenlabs',
         operation_type: 'text_to_speech',
-        tokens_used: textToGenerate.length,
+        tokens_used: contextText.length,
         cost_usd: 0.30, // Estimativa
         metadata: {
           sentiment,
           voice_id: voiceId,
-          text_length: textToGenerate.length,
+          text_length: contextText.length,
           session_id: sessionId
         }
       });

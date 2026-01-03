@@ -7,11 +7,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Mic, Play, Pause, RotateCcw, CheckCircle, AlertCircle, Clock, PlayCircle, Library } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Loader2, User, Mic, Square, Trash2, Edit2, Check, X, AlertCircle,
+  RotateCcw, CheckCircle, Clock, PlayCircle, Shield, AlertTriangle, Timer
+} from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { DataEncryption, InputValidator, RateLimiter, AuditLogger } from "@/lib/security";
+import { AudioLibraryNew } from '@/components/AudioLibraryNew';
+import { CityAutocomplete } from '@/components/CityAutocomplete';
+import { MyProcedures } from '@/components/MyProcedures';
 
 export const Profile = () => {
   const { user } = useAuth();
@@ -28,14 +45,50 @@ export const Profile = () => {
   const [isCloning, setIsCloning] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [voiceName, setVoiceName] = useState("");
+  const [selectedLanguage, setSelectedLanguage] = useState("Portuguese");
   const [isTestingVoice, setIsTestingVoice] = useState(false);
   const [testAudioUrl, setTestAudioUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [tempVoiceId, setTempVoiceId] = useState<string | null>(null);
   const [testAudio, setTestAudio] = useState<string | null>(null);
+  const [testPhraseText, setTestPhraseText] = useState<string | null>(null);
   const [showVoiceTest, setShowVoiceTest] = useState(false);
   const [isGeneratingLibrary, setIsGeneratingLibrary] = useState(false);
   const [isRedoingCloning, setIsRedoingCloning] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [showRecordingWarning, setShowRecordingWarning] = useState(false);
+  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isCalculatingAstro, setIsCalculatingAstro] = useState(false);
+  const [astroData, setAstroData] = useState<any>(null);
+
+  // Timer effect
+  useEffect(() => {
+    if (isRecording) {
+      const interval = setInterval(() => {
+        setRecordingTime((prev) => {
+          if (prev >= 60) {
+            stopRecording();
+            toast({
+              title: "Tempo limite atingido",
+              description: "A gravação foi encerrada automaticamente após 1 minuto.",
+            });
+            return 60;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+      setTimerInterval(interval);
+      return () => clearInterval(interval);
+    } else {
+      if (timerInterval) clearInterval(timerInterval);
+    }
+  }, [isRecording]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     if (!user) {
@@ -67,6 +120,17 @@ export const Profile = () => {
         }
       }
       setProfile(decryptedProfile);
+
+      // Buscar dados astrológicos
+      const { data: astro } = await supabase
+        .from('user_astro_data')
+        .select('*')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (astro) {
+        setAstroData(astro);
+      }
 
       // Log profile access
       AuditLogger.logSecurityEvent('profile_accessed', {
@@ -135,6 +199,9 @@ export const Profile = () => {
         gender: InputValidator.sanitizeText(profile.gender),
         birth_city: InputValidator.sanitizeText(profile.birth_city),
         birth_date: profile.birth_date,
+        birth_time: profile.birth_time,
+        birth_latitude: profile.birth_latitude || null,
+        birth_longitude: profile.birth_longitude || null,
         cpf: profile.cpf ? await DataEncryption.encrypt(profile.cpf.replace(/[^\d]/g, '')) : null,
       };
 
@@ -199,8 +266,60 @@ export const Profile = () => {
     }
   };
 
+  const calculateAstroChart = async () => {
+    if (!user?.id) return;
+
+    if (!profile.birth_date || !profile.birth_city) {
+      toast({
+        title: "Dados incompletos",
+        description: "Preencha sua data e cidade de nascimento primeiro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCalculatingAstro(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('astro-chart', {
+        body: { userId: user.id }
+      });
+
+      if (error) throw error;
+
+      setAstroData(data.data);
+      toast({
+        title: "Mapa Astral calculado!",
+        description: `Seu Sol está em ${data.data.sun_sign}, Lua em ${data.data.moon_sign} e seu Ascendente é ${data.data.rising_sign}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao calcular mapa",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsCalculatingAstro(false);
+    }
+  };
+
   const handleProfileChange = (field: string, value: string) => {
     setProfile((prev: any) => ({ ...prev, [field]: value }));
+  };
+
+  // Handler especial para cidade que também salva coordenadas
+  const handleCityChange = (value: string, selection?: { name: string; lat: number; lng: number }) => {
+    if (selection) {
+      // Se selecionou do autocomplete, salvar coordenadas também
+      setProfile((prev: any) => ({
+        ...prev,
+        birth_city: selection.name,
+        birth_latitude: selection.lat,
+        birth_longitude: selection.lng
+      }));
+    } else {
+      // Se apenas digitou, salvar só o nome
+      setProfile((prev: any) => ({ ...prev, birth_city: value }));
+    }
   };
 
   const loadCredits = async () => {
@@ -224,7 +343,7 @@ export const Profile = () => {
   };
 
   const getProfileCompleteness = () => {
-    const fields = ['full_name', 'gender', 'birth_city', 'birth_date', 'cpf'];
+    const fields = ['full_name', 'gender', 'birth_city', 'birth_date', 'birth_time', 'cpf'];
     const completed = fields.filter(field => profile[field]).length;
     return Math.round((completed / fields.length) * 100);
   };
@@ -248,6 +367,8 @@ export const Profile = () => {
   };
 
   const startRecording = async () => {
+    setShowRecordingWarning(false);
+    setRecordingTime(0);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -284,6 +405,18 @@ export const Profile = () => {
     }
   };
 
+  const handleStartRecordingClick = () => {
+    if (!sampleText) {
+      toast({
+        title: "Gere um texto primeiro",
+        description: "Você precisa gerar um texto inspiracional para ler durante a gravação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowRecordingWarning(true);
+  };
+
   const stopRecording = () => {
     if (mediaRecorder && isRecording) {
       mediaRecorder.stop();
@@ -308,7 +441,7 @@ export const Profile = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('voice-clone-test', {
-        body: { voiceId }
+        body: { voiceId, language: selectedLanguage }
       });
 
       if (error) throw error;
@@ -321,14 +454,13 @@ export const Profile = () => {
       const audioUrl = URL.createObjectURL(audioBlob);
 
       setTestAudio(audioUrl);
+      setTestPhraseText(data.testPhrase);
 
-      // Auto-play the test audio
-      const audio = new Audio(audioUrl);
-      audio.play();
+      // Audio will be played through the visible player - no auto-play
 
       toast({
         title: "Teste de voz gerado!",
-        description: `Frase: "${data.testPhrase}"`,
+        description: "Ouça o áudio para conferir sua voz clonada.",
       });
     } catch (error: any) {
       console.error('Voice test error:', error);
@@ -373,18 +505,29 @@ export const Profile = () => {
 
       if (uploadError) throw uploadError;
 
+      // Convert blob to base64 for the Edge Function
+      const reader = new FileReader();
+      const audioBase64 = await new Promise<string>((resolve) => {
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          resolve(base64.split(',')[1]); // Remove data:audio/webm;base64, prefix
+        };
+        reader.readAsDataURL(audioBlob);
+      });
+
       // Call voice-clone function
       const { data, error } = await supabase.functions.invoke('voice-clone', {
         body: {
-          audioUrl: filePath,
+          audioBase64: audioBase64,
           voiceName: voiceName,
+          language: selectedLanguage, // Send selected language
           userId: user?.id
         }
       });
 
       if (error) throw error;
 
-      setTempVoiceId(data.voiceId);
+      setTempVoiceId(data.voice_id);
       setShowVoiceTest(true);
 
       toast({
@@ -453,7 +596,27 @@ export const Profile = () => {
     }
   };
 
-  const rejectVoice = () => {
+  const rejectVoice = async () => {
+    // If we have a temp voice ID, delete it from ElevenLabs
+    if (tempVoiceId) {
+      try {
+        await supabase.functions.invoke('voice-clone-confirm', {
+          body: {
+            voiceId: tempVoiceId,
+            voiceName: voiceName,
+            action: 'reject'
+          }
+        });
+        toast({
+          title: "Voz excluída",
+          description: "Você pode refazer a gravação.",
+        });
+      } catch (error) {
+        console.error('Error deleting voice:', error);
+        // Continue anyway, just log the error
+      }
+    }
+
     setTempVoiceId(null);
     setShowVoiceTest(false);
     setTestAudio(null);
@@ -466,12 +629,18 @@ export const Profile = () => {
         <h1 className="text-3xl font-bold mb-8">Perfil</h1>
 
         <Tabs defaultValue="personal" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="personal">Dados Pessoais</TabsTrigger>
             <TabsTrigger value="voice">Clonagem de Voz</TabsTrigger>
-            <TabsTrigger value="library">Biblioteca de Áudios</TabsTrigger>
+            <TabsTrigger value="procedures">Procedimentos</TabsTrigger>
+            <TabsTrigger value="library">Biblioteca</TabsTrigger>
             <TabsTrigger value="credits">Créditos</TabsTrigger>
+            <TabsTrigger value="privacy">Privacidade</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="procedures">
+            <MyProcedures />
+          </TabsContent>
 
           <TabsContent value="personal">
             <Card>
@@ -512,22 +681,74 @@ export const Profile = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="birth_city">Cidade de Nascimento</Label>
-                    <Input
-                      id="birth_city"
+                    <Label htmlFor="birth_city" className="flex items-center gap-1">
+                      Cidade de Nascimento
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <CityAutocomplete
                       value={profile.birth_city || ''}
-                      onChange={(e) => handleProfileChange('birth_city', e.target.value)}
-                      placeholder="Onde você nasceu"
+                      onChange={handleCityChange}
+                      placeholder="Digite e selecione sua cidade"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="birth_date">Data de Nascimento</Label>
+                    <Label htmlFor="birth_date" className="flex items-center gap-1">
+                      Data de Nascimento
+                      <span className="text-red-500">*</span>
+                    </Label>
                     <Input
                       id="birth_date"
                       type="date"
                       value={profile.birth_date || ''}
                       onChange={(e) => handleProfileChange('birth_date', e.target.value)}
+                      required
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="birth_time" className="flex items-center gap-2">
+                      Hora de Nascimento
+                      <span className="text-red-500">*</span>
+                      <span className="text-xs text-muted-foreground font-normal">(formato 24h)</span>
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={profile.birth_time?.split(':')[0] || ''}
+                        onValueChange={(hour) => {
+                          const currentMinute = profile.birth_time?.split(':')[1] || '00';
+                          handleProfileChange('birth_time', `${hour}:${currentMinute}`);
+                        }}
+                      >
+                        <SelectTrigger className="w-20">
+                          <SelectValue placeholder="Hora" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 24 }, (_, i) => (
+                            <SelectItem key={i} value={i.toString().padStart(2, '0')}>
+                              {i.toString().padStart(2, '0')}h
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <span className="text-lg font-bold text-muted-foreground">:</span>
+                      <Select
+                        value={profile.birth_time?.split(':')[1]?.substring(0, 2) || ''}
+                        onValueChange={(minute) => {
+                          const currentHour = profile.birth_time?.split(':')[0] || '12';
+                          handleProfileChange('birth_time', `${currentHour}:${minute}`);
+                        }}
+                      >
+                        <SelectTrigger className="w-20">
+                          <SelectValue placeholder="Min" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 60 }, (_, i) => (
+                            <SelectItem key={i} value={i.toString().padStart(2, '0')}>
+                              {i.toString().padStart(2, '0')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div>
                     <Label htmlFor="cpf">CPF</Label>
@@ -539,9 +760,184 @@ export const Profile = () => {
                     />
                   </div>
                 </div>
-                <Button onClick={updateProfile} disabled={isSaving}>
-                  {isSaving ? "Salvando..." : "Salvar Alterações"}
-                </Button>
+
+                <div className="flex gap-4">
+                  <Button onClick={updateProfile} disabled={isSaving}>
+                    {isSaving ? "Salvando..." : "Salvar Alterações"}
+                  </Button>
+
+                  {profile.birth_date && profile.birth_city && profile.birth_time ? (
+                    <Button
+                      onClick={calculateAstroChart}
+                      disabled={isCalculatingAstro}
+                      variant="outline"
+                      className="border-purple-200 hover:bg-purple-50 text-purple-700"
+                    >
+                      {isCalculatingAstro ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Calculando Mapa...
+                        </>
+                      ) : (
+                        "Calcular Mapa Astral"
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
+                      <AlertCircle className="h-4 w-4 text-amber-500" />
+                      <span>Preencha cidade, data e hora de nascimento para calcular o mapa</span>
+                    </div>
+                  )}
+                </div>
+
+                {astroData && (
+                  <div className="mt-6 animate-in fade-in slide-in-from-top-4">
+                    {/* Header do Mapa Astral */}
+                    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-600 via-indigo-600 to-violet-700 p-6 text-white shadow-xl">
+                      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-30"></div>
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center text-2xl">
+                            ✨
+                          </div>
+                          <div>
+                            <h4 className="text-xl font-bold">Seu Mapa Astral</h4>
+                            <p className="text-purple-100 text-sm">Configurado e pronto para as sessões</p>
+                          </div>
+                        </div>
+
+                        {/* Trindade Principal - Sol, Lua, Ascendente */}
+                        <div className="grid grid-cols-3 gap-4 mt-4">
+                          <div className="bg-white/10 backdrop-blur rounded-lg p-4 text-center border border-white/20 hover:bg-white/20 transition-all">
+                            <span className="text-3xl mb-2 block">☀️</span>
+                            <span className="text-xs text-purple-200 block">Sol</span>
+                            <span className="font-bold text-lg">{astroData.sun_sign || '—'}</span>
+                            <span className="text-xs text-purple-200 block mt-1">Essência</span>
+                          </div>
+                          <div className="bg-white/10 backdrop-blur rounded-lg p-4 text-center border border-white/20 hover:bg-white/20 transition-all">
+                            <span className="text-3xl mb-2 block">🌙</span>
+                            <span className="text-xs text-purple-200 block">Lua</span>
+                            <span className="font-bold text-lg">{astroData.moon_sign || '—'}</span>
+                            <span className="text-xs text-purple-200 block mt-1">Emoções</span>
+                          </div>
+                          <div className="bg-white/10 backdrop-blur rounded-lg p-4 text-center border border-white/20 hover:bg-white/20 transition-all">
+                            <span className="text-3xl mb-2 block">⬆️</span>
+                            <span className="text-xs text-purple-200 block">Ascendente</span>
+                            <span className="font-bold text-lg">{astroData.rising_sign || '—'}</span>
+                            <span className="text-xs text-purple-200 block mt-1">Personalidade</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Planetas Terapêuticos */}
+                    <div className="mt-4 grid grid-cols-2 gap-4">
+                      <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">🔑</span>
+                          <div>
+                            <span className="text-xs text-amber-600 font-medium">Quíron</span>
+                            <p className="font-bold text-amber-900">{astroData.chiron_sign || '—'}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-amber-700 mt-2">Sua ferida sagrada e potencial de cura</p>
+                      </div>
+                      <div className="bg-gradient-to-br from-slate-50 to-gray-100 border border-slate-200 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">🪨</span>
+                          <div>
+                            <span className="text-xs text-slate-600 font-medium">Saturno</span>
+                            <p className="font-bold text-slate-900">{astroData.saturn_sign || '—'}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-2">Onde sente medo e precisa de estrutura</p>
+                      </div>
+                    </div>
+
+                    {/* Aspectos de Tensão */}
+                    {astroData.aspects_summary && astroData.aspects_summary.length > 0 && (
+                      <div className="mt-4 bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xl">⚡</span>
+                          <span className="font-semibold text-rose-900 text-sm">Pontos de Tensão (Padrões Sistêmicos)</span>
+                        </div>
+                        <div className="space-y-2">
+                          {astroData.aspects_summary.map((aspect: any, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2 text-sm">
+                              <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                              <span className="text-rose-800">
+                                <strong>{aspect.p1}</strong> em <span className="text-rose-600">{aspect.type}</span> com <strong>{aspect.p2}</strong>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-rose-500 mt-3 italic">
+                          Esses aspectos indicam conflitos internos que aparecem como padrões repetitivos na sua vida.
+                        </p>
+                      </div>
+                    )}
+
+
+
+                    {/* Trânsitos do Dia (Horóscopo) */}
+                    {astroData?.transits_data && (
+                      <div className="mt-4 bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xl">📅</span>
+                          <div>
+                            <span className="font-semibold text-indigo-900 text-sm block">Energia do Dia</span>
+                            <span className="text-xs text-indigo-600">Influências astrológicas para hoje</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          {(astroData.transits_data?.chart_data?.aspects || [])
+                            .filter((a: any) => ['conjunction', 'square', 'opposition'].includes(a.aspect_type?.toLowerCase()))
+                            .slice(0, 3)
+                            .map((tr: any, idx: number) => (
+                              <div key={idx} className="flex items-center gap-2 text-sm bg-white/60 p-2 rounded-lg border border-indigo-100/50">
+                                <span className="text-lg">
+                                  {['square', 'opposition'].includes(tr.aspect_type?.toLowerCase()) ? '⚠️' : '✨'}
+                                </span>
+                                <span className="text-indigo-800">
+                                  {tr.point1} (céu) em <strong>{tr.aspect_type}</strong> com {tr.point2} (natal)
+                                </span>
+                              </div>
+                            ))}
+
+                          {(!astroData.transits_data?.chart_data?.aspects ||
+                            astroData.transits_data.chart_data.aspects.filter((a: any) => ['conjunction', 'square', 'opposition'].includes(a.aspect_type?.toLowerCase())).length === 0
+                          ) && (
+                              <div className="text-sm text-indigo-700 italic flex items-center gap-2">
+                                <span>🕊️</span> O céu está calmo para você hoje. Aproveite o fluxo harmonioso.
+                              </div>
+                            )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Todos os Planetas - Expandível */}
+                    {astroData.astro_chart?.all_planets && (
+                      <details className="mt-4 group">
+                        <summary className="cursor-pointer bg-purple-50 hover:bg-purple-100 transition-all rounded-lg p-3 flex items-center justify-between text-purple-700 font-medium text-sm border border-purple-100">
+                          <span className="flex items-center gap-2">
+                            <span>🌌</span> Ver Todos os Planetas
+                          </span>
+                          <span className="text-purple-400 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div className="mt-2 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 p-4 bg-purple-50/50 rounded-lg border border-purple-100">
+                          {Object.entries(astroData.astro_chart.all_planets).map(([planet, data]: [string, any]) => (
+                            <div key={planet} className="bg-white rounded-lg p-2 text-center border border-purple-100 shadow-sm">
+                              <span className="text-lg block">{data.emoji || '🔮'}</span>
+                              <span className="text-xs text-muted-foreground capitalize">{planet}</span>
+                              <span className="font-medium text-purple-800 text-sm block">{data.sign || '—'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -558,6 +954,24 @@ export const Profile = () => {
                 {(!profile.cloned_voice_id || isRedoingCloning) ? (
                   <>
                     <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="language">Idioma da Gravação</Label>
+                        <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                          <SelectTrigger className="mb-4">
+                            <SelectValue placeholder="Selecione o idioma" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Portuguese">Português (Brasil)</SelectItem>
+                            <SelectItem value="English">Inglês</SelectItem>
+                            <SelectItem value="Spanish">Espanhol</SelectItem>
+                            <SelectItem value="German">Alemão</SelectItem>
+                            <SelectItem value="Italian">Italiano</SelectItem>
+                            <SelectItem value="French">Francês</SelectItem>
+                            <SelectItem value="Polish">Polonês</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
                       <div>
                         <Label htmlFor="voice_name">Nome da Voz</Label>
                         <Input
@@ -578,8 +992,18 @@ export const Profile = () => {
                       </Button>
 
                       {sampleText && (
-                        <div className="p-4 bg-muted rounded-lg">
-                          <p className="text-sm leading-relaxed">{sampleText}</p>
+                        <div className="mt-6 space-y-2">
+                          <Label className="text-base font-semibold">Roteiro para Gravação</Label>
+                          <ScrollArea className="h-[300px] w-full rounded-md border p-4 bg-muted/30">
+                            <article className="prose prose-sm dark:prose-invert max-w-none">
+                              <div className="whitespace-pre-wrap text-base font-medium leading-relaxed font-serif text-foreground/90">
+                                {sampleText}
+                              </div>
+                            </article>
+                          </ScrollArea>
+                          <div className="text-xs text-muted-foreground text-center">
+                            Leia o texto acima com naturalidade e emoção. Pause brevemente nas pontuações.
+                          </div>
                         </div>
                       )}
                     </div>
@@ -587,22 +1011,22 @@ export const Profile = () => {
                     <div className="space-y-4">
                       <div className="flex items-center gap-4">
                         <Button
-                          onClick={isRecording ? stopRecording : startRecording}
-                          disabled={!sampleText}
+                          onClick={isRecording ? stopRecording : handleStartRecordingClick}
                           variant={isRecording ? "destructive" : "default"}
+                          className={isRecording ? "animate-pulse" : ""}
                         >
-                          <Mic className="h-4 w-4 mr-2" />
-                          {isRecording ? "Parar Gravação" : "Gravar Voz"}
+                          {isRecording ? <Square className="h-4 w-4 mr-2" /> : <Mic className="h-4 w-4 mr-2" />}
+                          {isRecording ? `Parar (${formatTime(recordingTime)} / 1:00)` : "Gravar Voz"}
                         </Button>
 
-                        {recordedAudio && (
+                        {recordedAudio && !showVoiceTest && (
                           <Button
                             onClick={resetRecording}
                             variant="outline"
                             size="sm"
                           >
                             <RotateCcw className="h-4 w-4 mr-2" />
-                            Refazer
+                            Refazer Gravação
                           </Button>
                         )}
                       </div>
@@ -640,10 +1064,21 @@ export const Profile = () => {
                               </Button>
 
                               {testAudio && (
-                                <div className="p-3 bg-gray-50 border rounded-lg">
-                                  <audio controls className="w-full" src={testAudio}>
-                                    Seu navegador não suporta áudio.
-                                  </audio>
+                                <div className="space-y-3">
+                                  <div className="p-3 bg-gray-50 border rounded-lg">
+                                    <audio controls className="w-full" src={testAudio}>
+                                      Seu navegador não suporta áudio.
+                                    </audio>
+                                  </div>
+
+                                  {testPhraseText && (
+                                    <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                      <p className="text-xs font-medium text-indigo-700 mb-2">Texto lido pela voz clonada:</p>
+                                      <ScrollArea className="h-24">
+                                        <p className="text-sm text-indigo-900 whitespace-pre-line">{testPhraseText}</p>
+                                      </ScrollArea>
+                                    </div>
+                                  )}
                                 </div>
                               )}
 
@@ -723,6 +1158,42 @@ export const Profile = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Alert Dialog for Recording Warning */}
+                <AlertDialog open={showRecordingWarning} onOpenChange={setShowRecordingWarning}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Preparação para Gravação</AlertDialogTitle>
+                      <AlertDialogDescription asChild>
+                        <div className="space-y-4 text-sm text-muted-foreground">
+                          <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100 text-amber-900">
+                            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-semibold block mb-1">Atenção ao Ambiente</span>
+                              <span>Certifique-se de estar em um local silencioso, sem ruídos de fundo (trânsito, ventilador, outras pessoas falando).</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100 text-blue-900">
+                            <Mic className="w-5 h-5 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-semibold block mb-1">Qualidade do Microfone</span>
+                              <span>Use um microfone de boa qualidade e mantenha-o a uma distância constante da boca (aprox. 15cm).</span>
+                            </div>
+                          </div>
+
+                          <span>A gravação terá duração máxima de <strong>1 minuto</strong>.</span>
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={startRecording}>
+                        Estou pronto, Iniciar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </CardContent>
             </Card>
           </TabsContent>
@@ -771,14 +1242,315 @@ export const Profile = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="privacy">
+            <PrivacyTab userId={user?.id} />
+          </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </div >
   );
 };
 
-import { AudioLibraryNew } from '@/components/AudioLibraryNew';
+
 
 const AudioLibraryTab = () => {
   return <AudioLibraryNew />;
+};
+
+const PrivacyTab = ({ userId }: { userId?: string }) => {
+  const [showDeleteConversations, setShowDeleteConversations] = useState(false);
+  const [showDeleteSentiments, setShowDeleteSentiments] = useState(false);
+  const [showDeleteAll, setShowDeleteAll] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [stats, setStats] = useState<{ sessions: number; messages: number; sentiments: number }>({
+    sessions: 0,
+    messages: 0,
+    sentiments: 0
+  });
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (userId) loadStats();
+  }, [userId]);
+
+  const loadStats = async () => {
+    const { count: sessionsCount } = await supabase
+      .from('therapy_sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    const { count: messagesCount } = await supabase
+      .from('session_messages')
+      .select('*', { count: 'exact', head: true });
+
+    // Sentimentos personalizados (criados pelo sistema durante sessões)
+    const { count: sentimentsCount } = await supabase
+      .from('sentimentos')
+      .select('*', { count: 'exact', head: true })
+      .eq('criado_por', 'sistema');
+
+    setStats({
+      sessions: sessionsCount || 0,
+      messages: messagesCount || 0,
+      sentiments: sentimentsCount || 0
+    });
+  };
+
+  const deleteConversations = async () => {
+    if (!userId) return;
+    setIsDeleting(true);
+    try {
+      // Deletar assembly_jobs primeiro (FK para therapy_sessions)
+      await supabase.from('assembly_jobs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+      // Deletar autocura_analytics (FK para therapy_sessions)
+      await supabase.from('autocura_analytics' as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+      // Deletar mensagens (FK)
+      await supabase.from('session_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+      // Deletar protocolos
+      await supabase.from('session_protocols').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+      // Deletar sessões
+      await supabase.from('therapy_sessions').delete().eq('user_id', userId);
+
+      toast({
+        title: "Conversas excluídas",
+        description: "Todas as suas conversas foram excluídas com sucesso.",
+      });
+
+      setShowDeleteConversations(false);
+      loadStats();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const deleteSentiments = async () => {
+    if (!userId) return;
+    setIsDeleting(true);
+    try {
+      // Deletar sentimentos criados pelo sistema
+      await supabase
+        .from('sentimentos')
+        .delete()
+        .eq('criado_por', 'sistema');
+
+      toast({
+        title: "Sentimentos excluídos",
+        description: "Todos os sentimentos personalizados foram excluídos.",
+      });
+
+      setShowDeleteSentiments(false);
+      loadStats();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const deleteAllData = async () => {
+    if (!userId) return;
+    setIsDeleting(true);
+    try {
+      // Deletar tudo em ordem de dependências
+      await supabase.from('assembly_jobs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('autocura_analytics' as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('session_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('session_protocols').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('therapy_sessions').delete().eq('user_id', userId);
+      await supabase.from('sentimentos').delete().eq('criado_por', 'sistema');
+      await supabase.from('user_audio_library').delete().eq('user_id', userId);
+
+      toast({
+        title: "Dados excluídos",
+        description: "Todos os seus dados sensíveis foram excluídos permanentemente.",
+      });
+
+      setShowDeleteAll(false);
+      setConfirmEmail("");
+      loadStats();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Shield className="h-5 w-5" />
+          Privacidade e Dados
+        </CardTitle>
+        <CardDescription>
+          Gerencie e exclua seus dados pessoais
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Estatísticas */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="p-4 bg-muted rounded-lg text-center">
+            <p className="text-2xl font-bold">{stats.sessions}</p>
+            <p className="text-sm text-muted-foreground">Sessões</p>
+          </div>
+          <div className="p-4 bg-muted rounded-lg text-center">
+            <p className="text-2xl font-bold">{stats.messages}</p>
+            <p className="text-sm text-muted-foreground">Mensagens</p>
+          </div>
+          <div className="p-4 bg-muted rounded-lg text-center">
+            <p className="text-2xl font-bold">{stats.sentiments}</p>
+            <p className="text-sm text-muted-foreground">Sentimentos</p>
+          </div>
+        </div>
+
+        {/* Excluir Conversas */}
+        <div className="p-4 border rounded-lg space-y-3">
+          <div className="flex items-start gap-3">
+            <Trash2 className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div className="flex-1">
+              <h4 className="font-medium">Excluir Todas as Conversas</h4>
+              <p className="text-sm text-muted-foreground">
+                Remove todas as sessões de terapia e mensagens. Sentimentos e outros dados permanecem.
+              </p>
+            </div>
+            <Button variant="destructive" size="sm" onClick={() => setShowDeleteConversations(true)}>
+              Excluir
+            </Button>
+          </div>
+        </div>
+
+        {/* Excluir Sentimentos */}
+        <div className="p-4 border rounded-lg space-y-3">
+          <div className="flex items-start gap-3">
+            <Trash2 className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div className="flex-1">
+              <h4 className="font-medium">Excluir Sentimentos e Palavras-Base</h4>
+              <p className="text-sm text-muted-foreground">
+                Remove todos os sentimentos personalizados criados durante suas sessões.
+              </p>
+            </div>
+            <Button variant="destructive" size="sm" onClick={() => setShowDeleteSentiments(true)}>
+              Excluir
+            </Button>
+          </div>
+        </div>
+
+        {/* Excluir Tudo */}
+        <div className="p-4 border border-destructive/50 bg-destructive/5 rounded-lg space-y-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
+            <div className="flex-1">
+              <h4 className="font-medium text-destructive">Excluir TODOS os Dados</h4>
+              <p className="text-sm text-muted-foreground">
+                Remove permanentemente todas as conversas, sentimentos, áudios e dados personalizados. Esta ação não pode ser desfeita.
+              </p>
+            </div>
+            <Button variant="destructive" size="sm" onClick={() => setShowDeleteAll(true)}>
+              Excluir Tudo
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+
+      {/* Dialog: Excluir Conversas */}
+      <AlertDialog open={showDeleteConversations} onOpenChange={setShowDeleteConversations}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir todas as conversas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso excluirá permanentemente {stats.sessions} sessões e {stats.messages} mensagens.
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteConversations}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground"
+            >
+              {isDeleting ? "Excluindo..." : "Excluir Conversas"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog: Excluir Sentimentos */}
+      <AlertDialog open={showDeleteSentiments} onOpenChange={setShowDeleteSentiments}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir sentimentos personalizados?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso excluirá os {stats.sentiments} sentimentos criados durante suas sessões.
+              Sentimentos padrão do sistema não serão afetados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteSentiments}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground"
+            >
+              {isDeleting ? "Excluindo..." : "Excluir Sentimentos"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog: Excluir Tudo */}
+      <AlertDialog open={showDeleteAll} onOpenChange={setShowDeleteAll}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">
+              ⚠️ Exclusão Total de Dados
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  Esta é uma ação <strong>irreversível</strong>. Todos os seguintes dados serão excluídos permanentemente:
+                </p>
+                <ul className="list-disc list-inside">
+                  <li>Todas as sessões de terapia ({stats.sessions})</li>
+                  <li>Todas as mensagens ({stats.messages})</li>
+                  <li>Todos os sentimentos personalizados ({stats.sentiments})</li>
+                  <li>Sua biblioteca de áudios</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteAllData}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground"
+            >
+              {isDeleting ? "Excluindo..." : "Excluir TUDO"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
 };

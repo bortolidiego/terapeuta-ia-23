@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Play, 
-  Pause, 
-  Download, 
-  Volume2, 
+import {
+  Play,
+  Pause,
+  Download,
+  Volume2,
   VolumeX,
   Music,
   Calendar,
@@ -47,11 +48,29 @@ export const AudioPlayer = ({ className }: AudioPlayerProps) => {
   const [isMuted, setIsMuted] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  // Auto-play from URL parameter
+  useEffect(() => {
+    const audioToPlay = searchParams.get('play');
+    if (audioToPlay && !isLoading && audioItems.length > 0 && !isPlaying && !currentAudio) {
+      const itemToPlay = audioItems.find(item => item.audioPath === audioToPlay);
+      if (itemToPlay) {
+        playAudio(itemToPlay);
+        // Clear param to prevent loop
+        setSearchParams(params => {
+          params.delete('play');
+          return params;
+        });
+      }
+    }
+  }, [searchParams, isLoading, audioItems, isPlaying, currentAudio, playAudio, setSearchParams]);
 
   const filteredAudioItems = audioItems.filter(item =>
     item.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -125,110 +144,110 @@ export const AudioPlayer = ({ className }: AudioPlayerProps) => {
               </p>
             </div>
 
-        {/* Search */}
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Buscar áudios..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 bg-input border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
+            {/* Search */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Buscar áudios..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 bg-input border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
 
-        {/* Current Playing */}
-        {currentAudio && (
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <h3 className="font-medium text-foreground">{currentAudio.title}</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(currentAudio.createdAt), "d 'de' MMMM, yyyy", { locale: ptBR })}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => downloadAudio(currentAudio)}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Player Controls */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={isPlaying ? pause : resume}
-                    className="h-10 w-10 rounded-full"
-                  >
-                    {isPlaying ? (
-                      <Pause className="h-5 w-5" />
-                    ) : (
-                      <Play className="h-5 w-5" />
-                    )}
-                  </Button>
-
-                  <div className="flex-1 space-y-2">
-                    <Slider
-                      value={[currentTime]}
-                      max={duration}
-                      step={1}
-                      onValueChange={([value]) => seek(value)}
-                      className="w-full"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{formatTime(currentTime)}</span>
-                      <span>{formatTime(duration)}</span>
+            {/* Current Playing */}
+            {currentAudio && (
+              <Card className="bg-primary/5 border-primary/20">
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <h3 className="font-medium text-foreground">{currentAudio.title}</h3>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(currentAudio.createdAt), "d 'de' MMMM, yyyy", { locale: ptBR })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => downloadAudio(currentAudio)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={toggleMute}
-                    >
-                      {isMuted ? (
-                        <VolumeX className="h-4 w-4" />
-                      ) : (
-                        <Volume2 className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Slider
-                      value={[volume]}
-                      max={1}
-                      step={0.1}
-                      onValueChange={([value]) => changeVolume(value)}
-                      className="w-20"
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  {/* Player Controls */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={isPlaying ? pause : resume}
+                        className="h-10 w-10 rounded-full"
+                      >
+                        {isPlaying ? (
+                          <Pause className="h-5 w-5" />
+                        ) : (
+                          <Play className="h-5 w-5" />
+                        )}
+                      </Button>
 
-        {/* Audio List */}
-        <div className="space-y-3">
-          <h3 className="font-medium text-foreground">Biblioteca ({filteredAudioItems.length})</h3>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {filteredAudioItems.map((item) => (
-              <AudioListItem
-                key={item.id}
-                item={item}
-                isActive={currentAudio?.id === item.id}
-                onPlay={() => playAudio(item)}
-                onDownload={() => downloadAudio(item)}
-              />
-            ))}
-          </div>
-        </div>
+                      <div className="flex-1 space-y-2">
+                        <Slider
+                          value={[currentTime]}
+                          max={duration}
+                          step={1}
+                          onValueChange={([value]) => seek(value)}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{formatTime(currentTime)}</span>
+                          <span>{formatTime(duration)}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={toggleMute}
+                        >
+                          {isMuted ? (
+                            <VolumeX className="h-4 w-4" />
+                          ) : (
+                            <Volume2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Slider
+                          value={[volume]}
+                          max={1}
+                          step={0.1}
+                          onValueChange={([value]) => changeVolume(value)}
+                          className="w-20"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Audio List */}
+            <div className="space-y-3">
+              <h3 className="font-medium text-foreground">Biblioteca ({filteredAudioItems.length})</h3>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {filteredAudioItems.map((item) => (
+                  <AudioListItem
+                    key={item.id}
+                    item={item}
+                    isActive={currentAudio?.id === item.id}
+                    onPlay={() => playAudio(item)}
+                    onDownload={() => downloadAudio(item)}
+                  />
+                ))}
+              </div>
+            </div>
 
             {/* Hidden audio element */}
             <audio ref={audioRef} />
@@ -239,7 +258,7 @@ export const AudioPlayer = ({ className }: AudioPlayerProps) => {
           </TabsContent>
 
           <TabsContent value="controls" className="mt-6">
-            <AudioQualityControls 
+            <AudioQualityControls
               currentAudio={currentAudio}
               isPlaying={isPlaying}
               onPlayPause={isPlaying ? pause : resume}
@@ -278,7 +297,7 @@ const AudioListItem = ({ item, isActive, onPlay, onDownload }: AudioListItemProp
             >
               <Play className="h-3 w-3" />
             </Button>
-            
+
             <div className="flex-1 min-w-0">
               <h4 className="font-medium text-sm text-foreground truncate">
                 {item.title}

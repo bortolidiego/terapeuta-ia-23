@@ -8,27 +8,27 @@ export const useVoiceRecording = (sessionId?: string) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   const { toast } = useToast();
   const { saveAudioDraft } = useAudioDraft(sessionId);
 
   const startRecording = useCallback(async () => {
     try {
       console.log('🎤 Iniciando gravação...');
-      
+
       // Verificar se o navegador suporta getUserMedia
       console.log('🎤 Starting recording...');
-      
+
       // Check microphone permissions
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const audioInputs = devices.filter(device => device.kind === 'audioinput');
-        
+
         if (audioInputs.length === 0) {
           throw new Error('Nenhum microfone encontrado');
         }
@@ -37,7 +37,7 @@ export const useVoiceRecording = (sessionId?: string) => {
         console.log('🎤 Microphone permissions granted');
       } catch (permissionError: any) {
         console.error('🎤 Permission error:', permissionError);
-        
+
         if (permissionError.name === 'NotAllowedError') {
           throw new Error('Permissão de microfone negada. Permita o acesso ao microfone.');
         } else if (permissionError.name === 'NotFoundError') {
@@ -61,18 +61,18 @@ export const useVoiceRecording = (sessionId?: string) => {
           sampleRate: 44100
         }
       });
-      
+
       streamRef.current = stream;
 
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-        ? 'audio/webm;codecs=opus' 
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
         : 'audio/webm';
 
-      const mediaRecorder = new MediaRecorder(stream, { 
+      const mediaRecorder = new MediaRecorder(stream, {
         mimeType,
-        audioBitsPerSecond: 128000
+        audioBitsPerSecond: 192000
       });
-      
+
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -98,7 +98,7 @@ export const useVoiceRecording = (sessionId?: string) => {
       }, 1000);
 
       console.log('🎤 Recording started successfully');
-      
+
     } catch (error: any) {
       console.error('🎤 Failed to start recording:', error);
       setIsRecording(false);
@@ -106,6 +106,57 @@ export const useVoiceRecording = (sessionId?: string) => {
       throw error;
     }
   }, [toast]);
+
+  const stopRecordingBlob = useCallback((): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      if (!mediaRecorderRef.current || !isRecording) {
+        reject(new Error('Recording not active'));
+        return;
+      }
+
+      setIsProcessing(true);
+
+      mediaRecorderRef.current.onstop = () => {
+        try {
+          console.log('🛑 Parando gravação (blob)...');
+
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+          }
+
+          const audioBlob = new Blob(audioChunksRef.current, {
+            type: 'audio/webm;codecs=opus'
+          });
+
+          console.log('📦 Blob de áudio extraído:', audioBlob.size, 'bytes');
+
+          setIsRecording(false);
+          setIsProcessing(false);
+          setRecordingTime(0);
+
+          if (audioBlob.size === 0) {
+            reject(new Error('Nenhum áudio foi gravado'));
+          } else {
+            resolve(audioBlob);
+          }
+        } catch (error) {
+          console.error('❌ Erro ao extrair blob:', error);
+          setIsRecording(false);
+          setIsProcessing(false);
+          setRecordingTime(0);
+          reject(error);
+        }
+      };
+
+      mediaRecorderRef.current.stop();
+    });
+  }, [isRecording]);
 
   const stopRecording = useCallback((): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -119,7 +170,7 @@ export const useVoiceRecording = (sessionId?: string) => {
       mediaRecorderRef.current.onstop = async () => {
         try {
           console.log('🛑 Parando gravação...');
-          
+
           // Stop timer
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
@@ -133,8 +184,8 @@ export const useVoiceRecording = (sessionId?: string) => {
           }
 
           // Create audio blob
-          const audioBlob = new Blob(audioChunksRef.current, { 
-            type: 'audio/webm;codecs=opus' 
+          const audioBlob = new Blob(audioChunksRef.current, {
+            type: 'audio/webm;codecs=opus'
           });
 
           console.log('📦 Blob de áudio criado:', audioBlob.size, 'bytes');
@@ -148,7 +199,7 @@ export const useVoiceRecording = (sessionId?: string) => {
           reader.onloadend = async () => {
             try {
               const base64Audio = (reader.result as string).split(',')[1];
-              
+
               console.log('🔄 Enviando áudio para transcrição...');
 
               // Send to Supabase edge function
@@ -166,25 +217,25 @@ export const useVoiceRecording = (sessionId?: string) => {
               setIsRecording(false);
               setIsProcessing(false);
               setRecordingTime(0);
-              
+
               toast({
                 title: 'Transcrição concluída',
                 description: 'Áudio processado com sucesso.',
               });
-              
+
               resolve(data.text || '');
             } catch (error) {
               console.error('❌ Erro no processamento:', error);
               setIsRecording(false);
               setIsProcessing(false);
               setRecordingTime(0);
-              
+
               toast({
                 title: 'Erro no processamento',
                 description: 'Não foi possível processar o áudio. Tente novamente.',
                 variant: 'destructive',
               });
-              
+
               reject(error);
             }
           };
@@ -206,7 +257,7 @@ export const useVoiceRecording = (sessionId?: string) => {
   const cancelRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
-      
+
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -232,13 +283,13 @@ export const useVoiceRecording = (sessionId?: string) => {
 
     try {
       // Create audio blob from current chunks
-      const audioBlob = new Blob(audioChunksRef.current, { 
-        type: 'audio/webm;codecs=opus' 
+      const audioBlob = new Blob(audioChunksRef.current, {
+        type: 'audio/webm;codecs=opus'
       });
 
       // Save as draft
       await saveAudioDraft(audioBlob, recordingTime);
-      
+
       toast({
         title: 'Gravação pausada',
         description: 'Áudio salvo como rascunho. Você pode continuar ou enviar depois.',
@@ -267,6 +318,7 @@ export const useVoiceRecording = (sessionId?: string) => {
     isPaused,
     startRecording,
     stopRecording,
+    stopRecordingBlob,
     cancelRecording,
     pauseRecording,
     resumeRecording,

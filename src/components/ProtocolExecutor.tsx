@@ -1,13 +1,45 @@
 import { useState, useEffect } from "react";
 import { ProtocolEventoEspecifico } from "@/components/ProtocolEventoEspecifico";
+import { ProtocolSimples } from "@/components/ProtocolSimples";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 
 interface ProtocolExecutorProps {
   sessionId: string;
   userMessage: string;
   onComplete: (result: any) => void;
 }
+
+// Protocolos que requerem seleção de sentimentos (40+ itens)
+const PROTOCOLS_WITH_SENTIMENTS = [
+  'tee',
+  'ter',
+  'evento_traumatico_especifico',
+  'privacoes',
+  'periodo_inconsciente'
+];
+
+// Protocolos simples (não requerem seleção de sentimentos)
+const SIMPLE_PROTOCOLS = [
+  'condicionamentos',
+  'crencas',
+  'hereditariedades',
+  'sequencia_generica',
+  'sequencia_dependencia',
+  'desconexao_parcial',
+  'desconexao_total',
+  'desconexao_fora_materia',
+  'limpeza_diaria',
+  'limpeza_pos_desconexao',
+  'programacao_emocional',
+  'programacao_mental',
+  'programacao_material',
+  'desintoxicacao_quantica',
+  'antes_ingerir_substancias',
+  'gerar_substancias'
+];
 
 export const ProtocolExecutor = ({ sessionId, userMessage, onComplete }: ProtocolExecutorProps) => {
   const [protocolType, setProtocolType] = useState<string>('');
@@ -61,7 +93,7 @@ export const ProtocolExecutor = ({ sessionId, userMessage, onComplete }: Protoco
       });
 
       if (error) throw error;
-      
+
       const protocol = data?.protocol;
       if (!protocol || protocol === 'none') {
         // Não é um protocolo, retornar para chat normal
@@ -81,6 +113,27 @@ export const ProtocolExecutor = ({ sessionId, userMessage, onComplete }: Protoco
     }
   };
 
+  const cancelProtocol = async () => {
+    try {
+      // Cancelar protocolo ativo no banco
+      await supabase
+        .from('session_protocols')
+        .update({ status: 'cancelled' })
+        .eq('session_id', sessionId)
+        .eq('status', 'active');
+
+      toast({
+        title: "Protocolo cancelado",
+        description: "Você pode continuar a conversa normalmente.",
+      });
+
+      onComplete({ type: 'cancelled', message: 'Protocolo cancelado pelo usuário.' });
+    } catch (error) {
+      console.error('Erro ao cancelar protocolo:', error);
+    }
+  };
+
+  // Estado de carregamento
   if (isClassifying) {
     return (
       <div className="p-6 text-center">
@@ -90,8 +143,21 @@ export const ProtocolExecutor = ({ sessionId, userMessage, onComplete }: Protoco
     );
   }
 
-  // Renderizar protocolo específico
-  if (protocolType === 'evento_traumatico_especifico') {
+  // Se não há protocolo identificado
+  if (!protocolType) {
+    return (
+      <div className="p-6 text-center space-y-4">
+        <p className="text-muted-foreground">Não foi possível identificar o protocolo.</p>
+        <Button variant="outline" size="sm" onClick={cancelProtocol}>
+          <X className="h-4 w-4 mr-2" />
+          Cancelar e voltar ao chat
+        </Button>
+      </div>
+    );
+  }
+
+  // Protocolos que requerem seleção de sentimentos
+  if (PROTOCOLS_WITH_SENTIMENTS.includes(protocolType)) {
     return (
       <ProtocolEventoEspecifico
         sessionId={sessionId}
@@ -101,9 +167,26 @@ export const ProtocolExecutor = ({ sessionId, userMessage, onComplete }: Protoco
     );
   }
 
+  // Protocolos simples
+  if (SIMPLE_PROTOCOLS.includes(protocolType)) {
+    return (
+      <ProtocolSimples
+        sessionId={sessionId}
+        protocolType={protocolType}
+        userMessage={userMessage}
+        onComplete={onComplete}
+      />
+    );
+  }
+
+  // Protocolo não reconhecido
   return (
-    <div className="p-6 text-center">
+    <div className="p-6 text-center space-y-4">
       <p className="text-muted-foreground">Protocolo não reconhecido: {protocolType}</p>
+      <Button variant="outline" size="sm" onClick={cancelProtocol}>
+        <X className="h-4 w-4 mr-2" />
+        Cancelar e voltar ao chat
+      </Button>
     </div>
   );
 };

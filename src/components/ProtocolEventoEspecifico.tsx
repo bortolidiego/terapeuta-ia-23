@@ -5,7 +5,7 @@ import SentimentosPopup from "@/components/SentimentosPopup";
 import { supabase } from "@/integrations/supabase/client";
 import { useAudioAssembly } from "@/hooks/useAudioAssembly";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, AlertCircle, Wifi, WifiOff } from "lucide-react";
+import { RefreshCw, AlertCircle, Wifi, WifiOff, X } from "lucide-react";
 
 interface ProtocolEventoEspecificoProps {
   sessionId: string;
@@ -13,10 +13,10 @@ interface ProtocolEventoEspecificoProps {
   onComplete: (result: any) => void;
 }
 
-export const ProtocolEventoEspecifico = ({ 
-  sessionId, 
-  userMessage, 
-  onComplete 
+export const ProtocolEventoEspecifico = ({
+  sessionId,
+  userMessage,
+  onComplete
 }: ProtocolEventoEspecificoProps) => {
   const [currentStep, setCurrentStep] = useState('health_check');
   const [eventVariations, setEventVariations] = useState<string[]>([]);
@@ -30,7 +30,7 @@ export const ProtocolEventoEspecifico = ({
   const [retryCount, setRetryCount] = useState(0);
   const [sessionReactivated, setSessionReactivated] = useState(false);
   const [isHealthy, setIsHealthy] = useState<boolean | null>(null);
-  
+
   const { toast } = useToast();
   const { currentJob, isProcessing: isAssemblyProcessing, startAudioAssembly, clearCurrentJob, retryAssembly, canRetry } = useAudioAssembly(sessionId);
 
@@ -44,7 +44,7 @@ export const ProtocolEventoEspecifico = ({
   // Verificação de saúde das edge functions
   const performHealthCheck = async () => {
     addLog("Iniciando verificação de saúde do sistema...");
-    
+
     try {
       // Testar conectividade básica
       addLog("Testando conectividade com protocol-executor...");
@@ -52,7 +52,7 @@ export const ProtocolEventoEspecifico = ({
         supabase.functions.invoke('protocol-executor', {
           body: { action: 'health_check', sessionId }
         }),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Timeout na verificação de saúde')), 5000)
         )
       ]);
@@ -137,7 +137,7 @@ export const ProtocolEventoEspecifico = ({
     try {
       addLog("Inicializando protocolo...");
       setCurrentStep('processing');
-      
+
       // Garantir que a sessão está ativa
       const sessionOk = await ensureSessionActive();
       if (!sessionOk) {
@@ -161,24 +161,24 @@ export const ProtocolEventoEspecifico = ({
       if (existingProtocol) {
         addLog("📋 Restaurando protocolo existente...");
         const protocolData = existingProtocol.protocol_data as any;
-        
+
         setProtocolId(existingProtocol.id);
-        
+
+        // IMPORTANTE: Verificar selectedEvent PRIMEIRO (step 3 = seleção de sentimentos)
+        if (protocolData.selectedEvent && existingProtocol.current_step >= 3) {
+          setSelectedEvent(protocolData.selectedEvent);
+          setCurrentStep('selecting_sentiments');
+          setShowSentiments(true);
+          addLog("✅ Protocolo restaurado - seleção de sentimentos");
+          return;
+        }
+
+        // Se não tem selectedEvent, verificar eventVariations (step 2 = seleção de evento)
         if (protocolData.eventVariations && protocolData.eventVariations.length > 0) {
           setEventVariations(protocolData.eventVariations);
           setCurrentStep('selecting_event');
           addLog("✅ Protocolo restaurado - seleção de evento");
           return;
-        }
-        
-        if (protocolData.selectedEvent) {
-          setSelectedEvent(protocolData.selectedEvent);
-          if (existingProtocol.current_step === 3) {
-            setCurrentStep('selecting_sentiments');
-            setShowSentiments(true);
-            addLog("✅ Protocolo restaurado - seleção de sentimentos");
-            return;
-          }
         }
       }
 
@@ -237,10 +237,10 @@ export const ProtocolEventoEspecifico = ({
   const normalizeEvent = async () => {
     setIsProcessing(true);
     setError(null);
-    
+
     try {
       addLog("🔄 Normalizando evento...");
-      
+
       const normalizePromise = supabase.functions.invoke('protocol-executor', {
         body: {
           sessionId,
@@ -260,7 +260,7 @@ export const ProtocolEventoEspecifico = ({
         addLog(`❌ Erro na normalização: ${error.message}`);
         throw error;
       }
-      
+
       if (data?.variations && data.variations.length > 0) {
         addLog(`✅ Evento normalizado - ${data.variations.length} variações recebidas`);
         setEventVariations(data.variations);
@@ -272,7 +272,7 @@ export const ProtocolEventoEspecifico = ({
     } catch (error) {
       addLog(`❌ Falha na normalização: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       setRetryCount(prev => prev + 1);
-      
+
       if (retryCount < 2) {
         addLog(`🔄 Tentativa ${retryCount + 1}/3 em 3 segundos...`);
         setTimeout(() => normalizeEvent(), 3000);
@@ -298,15 +298,15 @@ export const ProtocolEventoEspecifico = ({
     setShowSentiments(false);
     setCurrentStep('generating_audio');
     setError(null);
-    
+
     await saveProtocolState(4, { selectedSentiments: sentiments });
-    
+
     try {
       // Garantir sessão ativa novamente
       await ensureSessionActive();
 
       addLog("🎵 Gerando comandos de montagem de áudio...");
-      
+
       const generatePromise = supabase.functions.invoke('protocol-executor', {
         body: {
           sessionId,
@@ -329,35 +329,37 @@ export const ProtocolEventoEspecifico = ({
         addLog(`❌ Erro na geração: ${error.message}`);
         throw error;
       }
-      
+
       if (data?.assemblySequence) {
         addLog(`✅ Instruções geradas - iniciando montagem de áudio`);
         addLog(`📊 Sequências: ${data.assemblySequence.length}, Componentes faltantes: ${data.missingComponents?.length || 0}`);
-        
+
         // Calcular duração total a partir das sequências
         const totalDuration = data.assemblySequence.reduce((total, seq) => total + (seq.estimatedDuration || 0), 0);
-        
+
         const assemblyInstructions = {
           sessionId,
           assemblySequence: data.assemblySequence,
           totalEstimatedDuration: totalDuration,
           metadata: data.metadata || { protocolType: 'evento_traumatico_especifico' }
         };
-        
+
         await startAudioAssembly(assemblyInstructions);
-        
+
         if (protocolId) {
           await supabase
             .from('session_protocols')
             .update({ status: 'completed' })
             .eq('id', protocolId);
         }
-        
+
         addLog("🎉 Protocolo concluído com sucesso!");
-        
+
         onComplete({
-          type: 'audio_assembly_started',
+          type: 'assembly_instructions',
           assemblyInstructions: data, // data já é o objeto de instruções
+          ready: true,
+          optimized: true,
           event: selectedEvent,
           sentimentCount: sentiments.length,
           sentiments: sentiments
@@ -379,7 +381,7 @@ export const ProtocolEventoEspecifico = ({
     setError(null);
     clearCurrentJob();
     setSessionReactivated(false);
-    
+
     // Limpar protocolos órfãos
     try {
       await supabase
@@ -387,15 +389,15 @@ export const ProtocolEventoEspecifico = ({
         .update({ status: 'cancelled' })
         .eq('session_id', sessionId)
         .eq('status', 'active');
-      
+
       addLog("🧹 Protocolos órfãos limpos");
     } catch (error) {
       addLog(`⚠️ Erro na limpeza: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
-    
+
     // Forçar reativação
     await ensureSessionActive();
-    
+
     // Reiniciar do zero
     setCurrentStep('health_check');
     await performHealthCheck();
@@ -413,6 +415,27 @@ export const ProtocolEventoEspecifico = ({
     setRetryCount(0);
     clearCurrentJob();
     performHealthCheck();
+  };
+
+  // Cancelar protocolo e voltar ao chat
+  const cancelProtocol = async () => {
+    try {
+      // Cancelar o protocolo no banco de dados
+      await supabase
+        .from('session_protocols')
+        .update({ status: 'cancelled' })
+        .eq('session_id', sessionId)
+        .eq('status', 'active');
+
+      toast({
+        title: "Protocolo cancelado",
+        description: "Você pode continuar a conversa normalmente.",
+      });
+
+      onComplete({ type: 'cancelled', message: 'Protocolo cancelado pelo usuário.' });
+    } catch (err) {
+      console.error('Erro ao cancelar protocolo:', err);
+    }
   };
 
   // Health Check Screen
@@ -441,11 +464,11 @@ export const ProtocolEventoEspecifico = ({
             <AlertCircle className="h-5 w-5" />
             <h3 className="font-medium">Modo de Recuperação</h3>
           </div>
-          
+
           {error && (
             <p className="text-sm text-muted-foreground">{error}</p>
           )}
-          
+
           <div className="space-y-2">
             <Button onClick={forceRecovery} variant="outline" className="w-full">
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -454,8 +477,12 @@ export const ProtocolEventoEspecifico = ({
             <Button onClick={resetProtocol} variant="outline" className="w-full">
               Reiniciar Completamente
             </Button>
+            <Button onClick={cancelProtocol} variant="destructive" className="w-full">
+              <X className="h-4 w-4 mr-2" />
+              Cancelar e Voltar ao Chat
+            </Button>
           </div>
-          
+
           {diagnosticLogs.length > 0 && (
             <details className="mt-4">
               <summary className="cursor-pointer text-sm font-medium">
@@ -547,13 +574,37 @@ export const ProtocolEventoEspecifico = ({
           <p className="font-medium">Evento selecionado:</p>
           <p className="text-muted-foreground">{selectedEvent}</p>
         </Card>
-        {showSentiments && (
+        {showSentiments ? (
           <SentimentosPopup
             isOpen={true}
             onClose={() => setShowSentiments(false)}
             onConfirm={handleSentimentsSelected}
             context={selectedEvent}
           />
+        ) : (
+          <Card className="p-6">
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Você tem uma autocura em andamento. Para continuar,
+                selecione os sentimentos relacionados ao evento.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setShowSentiments(true)}
+                  className="flex-1"
+                >
+                  Continuar Autocura
+                </Button>
+                <Button
+                  onClick={cancelProtocol}
+                  variant="outline"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </Card>
         )}
       </div>
     );
@@ -577,7 +628,7 @@ export const ProtocolEventoEspecifico = ({
                     <span>{currentJob.progress_percentage}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-primary h-2 rounded-full transition-all duration-300"
                       style={{ width: `${currentJob.progress_percentage}%` }}
                     />
@@ -586,7 +637,7 @@ export const ProtocolEventoEspecifico = ({
               )}
             </div>
           </div>
-          
+
           {canRetry && (
             <div className="space-y-2">
               <Button

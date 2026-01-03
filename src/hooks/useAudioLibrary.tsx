@@ -6,9 +6,11 @@ export interface AudioLibraryItem {
   id: string;
   componentKey: string;
   text: string;
-  status: 'pending' | 'processing' | 'completed' | 'error';
+  status: 'pending' | 'processing' | 'completed' | 'error' | 'failed';
   audioPath?: string;
+  trimEndTime?: number; // Time in seconds to stop playback (for trimmed audio)
   type: 'base_word' | 'sentiment';
+  generationMethod?: 'ai' | 'manual';
   createdAt: string;
   updatedAt: string;
 }
@@ -36,26 +38,24 @@ export const useAudioLibrary = () => {
   const { toast } = useToast();
 
   // Load audio library data
-  const loadLibrary = useCallback(async () => {
+  const loadLibrary = useCallback(async (isBackground: boolean = false) => {
     try {
-      setIsLoading(true);
+      if (!isBackground) setIsLoading(true);
 
-      // Get base word components
+      // Get base word components (all base words regardless of protocol type)
       const { data: baseComponents, error: baseError } = await supabase
         .from('audio_components')
         .select('*')
         .eq('component_type', 'base_word')
-        .eq('protocol_type', 'evento_traumatico_especifico')
         .order('component_key');
 
       if (baseError) throw baseError;
 
-      // Get top sentiments
+      // Get ALL sentimentos (no limit - load all 285 base sentimentos)
       const { data: sentimentData, error: sentimentError } = await supabase
         .from('sentimentos')
         .select('*')
-        .order('frequencia_uso', { ascending: false })
-        .limit(20);
+        .order('nome');
 
       if (sentimentError) throw sentimentError;
 
@@ -69,7 +69,7 @@ export const useAudioLibrary = () => {
 
       // Map base words with user audio status
       const mappedBaseWords: AudioLibraryItem[] = (baseComponents || []).map(component => {
-        const userAudio = userLibrary?.find(item => 
+        const userAudio = userLibrary?.find(item =>
           item.component_key === component.component_key
         );
 
@@ -80,6 +80,8 @@ export const useAudioLibrary = () => {
           type: 'base_word' as const,
           status: (userAudio?.status as AudioLibraryItem['status']) || 'pending',
           audioPath: userAudio?.audio_path,
+          trimEndTime: (userAudio as any)?.trim_end_time ? Number((userAudio as any).trim_end_time) : undefined,
+          generationMethod: userAudio?.generation_method as any,
           createdAt: component.created_at,
           updatedAt: userAudio?.updated_at || component.updated_at
         };
@@ -88,17 +90,19 @@ export const useAudioLibrary = () => {
       // Map sentiments with user audio status
       const mappedSentiments: AudioLibraryItem[] = (sentimentData || []).map(sentiment => {
         const componentKey = `sentiment_${sentiment.nome}`;
-        const userAudio = userLibrary?.find(item => 
+        const userAudio = userLibrary?.find(item =>
           item.component_key === componentKey
         );
 
         return {
           id: sentiment.id,
           componentKey: sentiment.nome,
-          text: sentiment.contexto || `${sentiment.nome}s que eu senti`,
+          text: sentiment.nome,
           type: 'sentiment' as const,
           status: (userAudio?.status as AudioLibraryItem['status']) || 'pending',
           audioPath: userAudio?.audio_path,
+          trimEndTime: (userAudio as any)?.trim_end_time ? Number((userAudio as any).trim_end_time) : undefined,
+          generationMethod: userAudio?.generation_method as any,
           createdAt: sentiment.created_at,
           updatedAt: userAudio?.updated_at || sentiment.updated_at
         };
@@ -115,7 +119,7 @@ export const useAudioLibrary = () => {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      if (!isBackground) setIsLoading(false);
     }
   }, [toast]);
 
@@ -134,7 +138,7 @@ export const useAudioLibrary = () => {
 
       // Check if library item exists, create if not
       const componentKey = item.type === 'sentiment' ? `sentiment_${item.componentKey}` : item.componentKey;
-      
+
       let { data: existingItem } = await supabase
         .from('user_audio_library')
         .select('id')
@@ -167,8 +171,8 @@ export const useAudioLibrary = () => {
         .update({ status: 'processing' })
         .eq('id', libraryItemId);
 
-      // Refresh to show processing status
-      await loadLibrary();
+      // Refresh to show processing status - BACKGROUND update
+      await loadLibrary(true);
 
       // Call edge function to generate audio
       const { error } = await supabase.functions.invoke('generate-audio-item', {
@@ -185,8 +189,8 @@ export const useAudioLibrary = () => {
         description: `"${item.text}" foi gerado com sucesso`,
       });
 
-      // Refresh library
-      await loadLibrary();
+      // Refresh library - BACKGROUND update
+      await loadLibrary(true);
       return true;
 
     } catch (error: any) {
@@ -196,9 +200,9 @@ export const useAudioLibrary = () => {
         description: error.message || "Falha ao gerar áudio",
         variant: "destructive",
       });
-      
-      // Refresh to show correct status
-      await loadLibrary();
+
+      // Refresh to show correct status - BACKGROUND update
+      await loadLibrary(true);
       return false;
     }
   }, [toast, loadLibrary]);
@@ -207,7 +211,7 @@ export const useAudioLibrary = () => {
   const generateBatch = useCallback(async (type: 'base_words' | 'sentiments'): Promise<boolean> => {
     try {
       setIsGenerating(true);
-      
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) {
         toast({
@@ -236,8 +240,8 @@ export const useAudioLibrary = () => {
         description: `Geração de ${type === 'base_words' ? 'palavras base' : 'sentimentos'} iniciada`,
       });
 
-      // Set up periodic refresh
-      const interval = setInterval(loadLibrary, 5000);
+      // Set up periodic refresh - BACKGROUND updates
+      const interval = setInterval(() => loadLibrary(true), 5000);
       setTimeout(() => {
         clearInterval(interval);
         setIsGenerating(false);
@@ -256,12 +260,97 @@ export const useAudioLibrary = () => {
       return false;
     }
   }, [toast, sentiments, loadLibrary]);
+  // Save manually recorded audio
+  const saveManualAudio = useCallback(async (item: AudioLibraryItem, audioBlob: Blob): Promise<boolean> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) throw new Error("Usuário não autenticado");
+
+      const userId = session.user.id;
+      const componentKey = item.type === 'sentiment' ? `sentiment_${item.componentKey}` : item.componentKey;
+
+      // 1. Sanitize file name
+      const sanitizedKey = componentKey
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_]/g, '_')
+        .toLowerCase();
+
+      const fileName = `user-audio-library/${userId}/${Date.now()}/${sanitizedKey}_manual.webm`;
+
+      // 2. Upload to storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('audio-library')
+        .upload(fileName, audioBlob, {
+          contentType: audioBlob.type,
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+
+      // 3. Update or Insert database record
+      const { data: existingRecord } = await supabase
+        .from('user_audio_library')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('component_key', componentKey)
+        .maybeSingle();
+
+      if (existingRecord) {
+        const { error: updateError } = await supabase
+          .from('user_audio_library')
+          .update({
+            audio_path: uploadData.path,
+            status: 'completed',
+            generation_method: 'manual',
+            trim_end_time: null,
+            full_text: null,
+            display_text: item.text,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingRecord.id);
+
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('user_audio_library')
+          .insert({
+            user_id: userId,
+            component_key: componentKey,
+            component_type: item.type === 'base_word' ? 'base' : 'sentiment',
+            sentiment_name: item.type === 'sentiment' ? item.componentKey : null,
+            audio_path: uploadData.path,
+            status: 'completed',
+            generation_method: 'manual',
+            display_text: item.text
+          });
+
+        if (insertError) throw insertError;
+      }
+
+      toast({
+        title: "Áudio salvo!",
+        description: `Gravação manual para "${item.text}" salva com sucesso`,
+      });
+
+      await loadLibrary(true);
+      return true;
+    } catch (error: any) {
+      console.error('Error saving manual audio:', error);
+      toast({
+        title: "Erro ao salvar",
+        description: error.message || "Falha ao salvar gravação manual",
+        variant: "destructive",
+      });
+      return false;
+    }
+  }, [toast, loadLibrary]);
 
   // Calculate stats
   const getStats = useCallback((): AudioLibraryStats => {
     const baseCompleted = baseWords.filter(item => item.status === 'completed').length;
     const baseProcessing = baseWords.filter(item => item.status === 'processing').length;
-    
+
     const sentCompleted = sentiments.filter(item => item.status === 'completed').length;
     const sentProcessing = sentiments.filter(item => item.status === 'processing').length;
 
@@ -280,10 +369,9 @@ export const useAudioLibrary = () => {
       }
     };
   }, [baseWords, sentiments]);
-
   // Set up real-time subscriptions
   useEffect(() => {
-    loadLibrary();
+    loadLibrary(); // Initial load (shows loader)
 
     // Subscribe to user_audio_library changes
     const subscription = supabase
@@ -296,7 +384,7 @@ export const useAudioLibrary = () => {
           table: 'user_audio_library'
         },
         () => {
-          loadLibrary();
+          loadLibrary(true); // Realtime background update
         }
       )
       .subscribe();
@@ -314,6 +402,7 @@ export const useAudioLibrary = () => {
     stats: getStats(),
     loadLibrary,
     generateAudio,
-    generateBatch
+    generateBatch,
+    saveManualAudio
   };
 };

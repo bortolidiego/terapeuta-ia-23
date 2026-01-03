@@ -3,16 +3,26 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Play, Clock, MessageCircle, Search, X, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowLeft, Play, Clock, MessageCircle, Search, X, Trash2, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface PendingConsultation {
   id: string;
   title: string;
-  auto_generated_title: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +47,10 @@ export const PendingConsultations = ({ onBack }: PendingConsultationsProps) => {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<'single' | 'batch'>('single');
+  const [singleDeleteId, setSingleDeleteId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -48,7 +62,7 @@ export const PendingConsultations = ({ onBack }: PendingConsultationsProps) => {
     try {
       const { data, error } = await supabase
         .from("therapy_sessions")
-        .select("id, title, auto_generated_title, created_at, updated_at")
+        .select("id, title, created_at, updated_at")
         .eq("status", "paused")
         .order("updated_at", { ascending: false });
 
@@ -91,27 +105,92 @@ export const PendingConsultations = ({ onBack }: PendingConsultationsProps) => {
     }
   };
 
-  const cancelConsultation = async (consultationId: string, consultationTitle: string) => {
+  // Funções de seleção
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === consultations.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(consultations.map(c => c.id)));
+    }
+  };
+
+  // Abrir dialog de exclusão
+  const openDeleteDialog = (type: 'single' | 'batch', id?: string) => {
+    setDeleteTarget(type);
+    if (type === 'single' && id) {
+      setSingleDeleteId(id);
+    }
+    setShowDeleteDialog(true);
+  };
+
+  // Executar exclusão
+  const executeDelete = async () => {
+    const idsToDelete = deleteTarget === 'batch'
+      ? Array.from(selectedIds)
+      : singleDeleteId ? [singleDeleteId] : [];
+
+    if (idsToDelete.length === 0) return;
+
     try {
+      // Deletar registros relacionados primeiro (ordem de dependência)
+      // 1. Assembly jobs
+      await supabase
+        .from("assembly_jobs")
+        .delete()
+        .in("session_id", idsToDelete);
+
+      // 2. Autocura analytics
+      await supabase
+        .from("autocura_analytics" as any)
+        .delete()
+        .in("session_id", idsToDelete);
+
+      // 3. Session messages
+      await supabase
+        .from("session_messages")
+        .delete()
+        .in("session_id", idsToDelete);
+
+      // 4. Session protocols
+      await supabase
+        .from("session_protocols")
+        .delete()
+        .in("session_id", idsToDelete);
+
+      // 5. Finalmente, deletar as sessões
       const { error } = await supabase
         .from("therapy_sessions")
-        .update({ status: "cancelled", updated_at: new Date().toISOString() })
-        .eq("id", consultationId);
+        .delete()
+        .in("id", idsToDelete);
 
       if (error) throw error;
 
       toast({
-        title: "Consulta cancelada",
-        description: `A consulta "${consultationTitle}" foi cancelada com sucesso.`,
+        title: idsToDelete.length === 1 ? "Consulta excluída" : "Consultas excluídas",
+        description: `${idsToDelete.length} consulta(s) foram excluídas.`,
       });
 
-      // Recarregar a lista de consultas pendentes
+      setSelectedIds(new Set());
+      setSingleDeleteId(null);
+      setShowDeleteDialog(false);
       loadPendingConsultations();
     } catch (error) {
-      console.error("Erro ao cancelar consulta:", error);
+      console.error("Erro ao excluir consulta(s):", error);
       toast({
         title: "Erro",
-        description: "Não foi possível cancelar a consulta",
+        description: "Não foi possível excluir a(s) consulta(s)",
         variant: "destructive",
       });
     }
@@ -181,11 +260,11 @@ export const PendingConsultations = ({ onBack }: PendingConsultationsProps) => {
 
   const highlightText = (text: string, query: string) => {
     if (!query.trim()) return text;
-    
+
     const regex = new RegExp(`(${query})`, "gi");
     const parts = text.split(regex);
-    
-    return parts.map((part, index) => 
+
+    return parts.map((part, index) =>
       regex.test(part) ? (
         <mark key={index} className="bg-primary/20 text-primary font-medium rounded px-1">
           {part}
@@ -263,8 +342,8 @@ export const PendingConsultations = ({ onBack }: PendingConsultationsProps) => {
                     autoFocus
                   />
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="icon"
                   onClick={() => setSearchQuery("")}
                   disabled={!searchQuery}
@@ -355,55 +434,131 @@ export const PendingConsultations = ({ onBack }: PendingConsultationsProps) => {
                   </p>
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
-                  <div className="space-y-3">
-                    {consultations.map((consultation) => (
-                      <Card key={consultation.id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <MessageCircle className="h-4 w-4 text-primary" />
-                                <h3 className="font-medium">{consultation.auto_generated_title || consultation.title}</h3>
-                                <Badge variant="secondary" className="text-xs">
-                                  Pausada
-                                </Badge>
+                <>
+                  {/* Barra de ações em lote */}
+                  {consultations.length > 0 && (
+                    <div className="flex items-center justify-between mb-4 p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={selectedIds.size === consultations.length && consultations.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          {selectedIds.size > 0
+                            ? `${selectedIds.size} selecionada(s)`
+                            : "Selecionar todas"}
+                        </span>
+                      </div>
+                      {selectedIds.size > 0 && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => openDeleteDialog('batch')}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Excluir Selecionadas
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  <ScrollArea className="h-[400px]">
+                    <div className="space-y-3">
+                      {consultations.map((consultation) => (
+                        <Card
+                          key={consultation.id}
+                          className={`hover:shadow-md transition-shadow ${selectedIds.has(consultation.id) ? 'ring-2 ring-primary' : ''}`}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-3">
+                              <Checkbox
+                                checked={selectedIds.has(consultation.id)}
+                                onCheckedChange={() => toggleSelection(consultation.id)}
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <MessageCircle className="h-4 w-4 text-primary" />
+                                  <h3 className="font-medium">{consultation.title}</h3>
+                                  <Badge variant="secondary" className="text-xs">
+                                    Pausada
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                  Pausada em: {formatDate(consultation.updated_at)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Criada em: {formatDate(consultation.created_at)}
+                                </p>
                               </div>
-                              <p className="text-sm text-muted-foreground">
-                                Pausada em: {formatDate(consultation.updated_at)}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Criada em: {formatDate(consultation.created_at)}
-                              </p>
+                              <div className="flex gap-2 ml-4">
+                                <Button
+                                  onClick={() => resumeConsultation(consultation.id)}
+                                  size="sm"
+                                >
+                                  <Play className="h-4 w-4 mr-1" />
+                                  Continuar
+                                </Button>
+                                <Button
+                                  onClick={() => openDeleteDialog('single', consultation.id)}
+                                  size="sm"
+                                  variant="destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Excluir
+                                </Button>
+                              </div>
                             </div>
-                             <div className="flex gap-2 ml-4">
-                               <Button
-                                 onClick={() => resumeConsultation(consultation.id)}
-                                 size="sm"
-                               >
-                                 <Play className="h-4 w-4 mr-1" />
-                                 Continuar
-                               </Button>
-                               <Button
-                                 onClick={() => cancelConsultation(consultation.id, consultation.title)}
-                                 size="sm"
-                                 variant="destructive"
-                               >
-                                 <Trash2 className="h-4 w-4 mr-1" />
-                                 Cancelar
-                               </Button>
-                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </ScrollArea>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </>
               )
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Confirmar exclusão
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  Tem certeza que deseja excluir {deleteTarget === 'batch' ? `${selectedIds.size} consulta(s)` : 'esta consulta'}?
+                </p>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
+                  <p className="font-medium mb-1">⚠️ Atenção:</p>
+                  <p>
+                    A exclusão da consulta <strong>não apaga automaticamente</strong>:
+                  </p>
+                  <ul className="list-disc list-inside mt-1 text-xs">
+                    <li>Sentimentos selecionados durante as sessões</li>
+                    <li>Palavras-base criadas para sua voz</li>
+                    <li>Outros dados personalizados</li>
+                  </ul>
+                  <p className="mt-2 text-xs">
+                    Para excluir <strong>todos</strong> os seus dados, acesse o Perfil {">"} Privacidade.
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              <Trash2 className="h-4 w-4 mr-1" />
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

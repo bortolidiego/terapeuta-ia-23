@@ -26,7 +26,7 @@ export const Chat = () => {
         .select("id, status")
         .eq("id", id)
         .eq("status", "active")
-        .single();
+        .maybeSingle();
 
       if (error || !data) {
         toast({

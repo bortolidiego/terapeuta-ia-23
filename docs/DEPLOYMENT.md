@@ -2,44 +2,56 @@
 
 ## Ambientes
 
-| Ambiente | URL | Banco |
-|----------|-----|-------|
-| Local | http://localhost:5173 | Supabase Local |
-| Produção | (Vercel/Netlify) | vjwewfxcbdxtjwhwofzn.supabase.co |
+| Ambiente | URL | Projeto Supabase | Status |
+|----------|-----|-----------------|--------|
+| **Desenvolvimento** | http://localhost:5173 | `kajrbruhcpaahhoitwtv` | ✅ Ativo |
+| **Produção** | (Vercel/Netlify) | (a ser criado) | ⏳ Pendente |
 
-## Desenvolvimento Local
+> **Nota**: O ambiente local do Supabase foi desativado. Todo desenvolvimento usa o banco cloud.
 
-### 1. Iniciar Supabase Local
-```bash
-cd terapeuta-ia-23
-supabase start
-```
+## Configuração Inicial
 
-### 2. Configurar .env.local
+### 1. Criar arquivo `.env`
+
 ```env
-VITE_SUPABASE_URL="http://127.0.0.1:54331"
-VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+VITE_SUPABASE_URL=https://kajrbruhcpaahhoitwtv.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=<sua_anon_key>
 ```
 
-### 3. Rodar Frontend
+### 2. Linkar projeto ao CLI
+
+```bash
+supabase login
+supabase link --project-ref kajrbruhcpaahhoitwtv
+```
+
+### 3. Configurar Secrets no Supabase
+
+```bash
+supabase secrets set OPENROUTER_API_KEY=<sua_key>
+supabase secrets set ELEVENLABS_API_KEY=<sua_key>
+supabase secrets set ASAAS_API_KEY=<sua_key>
+supabase secrets set ASAAS_WEBHOOK_TOKEN=<token_seguro>
+supabase secrets set ASAAS_SANDBOX=true
+supabase secrets set RAPIDAPI_KEY=<sua_key>
+```
+
+### 4. Rodar Frontend
 ```bash
 npm run dev
 ```
 
-## Deploy para Produção
+## Providers Configurados
 
-### 1. Atualizar versão
-```bash
-# Editar package.json e public/version.json
-# Atualizar docs/CHANGELOG.md
-```
+| Funcionalidade | Provider | Variável |
+|----------------|----------|----------|
+| **LLM/Chat** | OpenRouter | `OPENROUTER_API_KEY` |
+| **TTS + Clonagem de Voz** | ElevenLabs | `ELEVENLABS_API_KEY` |
+| **Astrologia** | RapidAPI | `RAPIDAPI_KEY` |
+| **Pagamentos** | Asaas | `ASAAS_API_KEY` |
 
-### 2. Build
-```bash
-npm run build
-```
+## Deploy de Edge Functions
 
-### 3. Deploy Edge Functions
 ```bash
 supabase functions deploy therapy-chat
 supabase functions deploy protocol-executor
@@ -48,61 +60,23 @@ supabase functions deploy asaas-webhook
 supabase functions deploy asaas-create-charge
 ```
 
-### 4. Configurar Secrets (Produção)
-```bash
-supabase secrets set OPENROUTER_API_KEY=xxx
-supabase secrets set ELEVENLABS_API_KEY=xxx
-supabase secrets set ASAAS_API_KEY=xxx
-```
-
-## Variáveis de Ambiente
-
-### Frontend (.env)
-| Variável | Descrição |
-|----------|-----------|
-| `VITE_SUPABASE_URL` | URL do Supabase |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Anon Key |
-
-### Edge Functions (Secrets)
-| Variável | Descrição |
-|----------|-----------|
-| `SUPABASE_URL` | Auto-injetado |
-| `SUPABASE_SERVICE_ROLE_KEY` | Auto-injetado |
-| `OPENROUTER_API_KEY` | LLM Provider |
-| `ELEVENLABS_API_KEY` | TTS (atual) |
-| `VOICEKILLER_API_KEY` | TTS (futuro) |
-| `ASAAS_API_KEY` | Pagamentos |
-| `ASAAS_WEBHOOK_TOKEN` | Validação webhook |
-
 ## Migrations
 
-### Criar nova migration
 ```bash
+# Criar nova migration
 supabase migration new nome_da_migration
-```
 
-### Aplicar migrations
-```bash
+# Aplicar ao cloud (DEV)
 supabase db push
 ```
 
-### Reset local (CUIDADO)
-```bash
-supabase db reset
-```
+## Criar Ambiente de Produção
 
-## Checklist de Deploy
+1. Acessar https://supabase.com/dashboard
+2. Criar novo projeto para produção
+3. Configurar variáveis de ambiente com URL e keys de produção
+4. Deploy separado das Edge Functions
 
-- [ ] Atualizar versão em `package.json`
-- [ ] Atualizar `public/version.json`
-- [ ] Adicionar entrada no `docs/CHANGELOG.md`
-- [ ] Rodar `npm run build` sem erros
-- [ ] Deploy Edge Functions alteradas
-- [ ] Aplicar migrations se houver
-- [ ] Testar em staging antes de produção
+## Dashboard
 
-## Monitoramento
-
-- **Supabase Dashboard**: Logs, métricas, uso
-- **Edge Function Logs**: `supabase functions logs <nome>`
-- **Sentry** (opcional): Error tracking
+- **Dev**: https://supabase.com/dashboard/project/kajrbruhcpaahhoitwtv

@@ -38,15 +38,15 @@ export const useAudioPlayer = () => {
   useEffect(() => {
     if (audioRef.current) {
       const audio = audioRef.current;
-      
+
       const updateTime = () => setCurrentTime(audio.currentTime);
       const updateDuration = () => setDuration(audio.duration);
       const handleEnded = () => setIsPlaying(false);
-      
+
       audio.addEventListener('timeupdate', updateTime);
       audio.addEventListener('loadedmetadata', updateDuration);
       audio.addEventListener('ended', handleEnded);
-      
+
       return () => {
         audio.removeEventListener('timeupdate', updateTime);
         audio.removeEventListener('loadedmetadata', updateDuration);
@@ -61,13 +61,19 @@ export const useAudioPlayer = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // CORREÇÃO: Buscar APENAS jobs de assembly concluídos (Sessões de Auto-Cura)
+      // CORREÇÃO: Buscar APENAS jobs de assembly concluídos COM sessões finalizadas
       const { data: assemblyJobs, error: assemblyError } = await supabase
         .from("assembly_jobs")
-        .select("*")
+        .select(`
+            *,
+            therapy_sessions!inner (
+              status
+            )
+          `)
         .eq("user_id", user.id)
         .eq("status", "completed")
-        .not("result_audio_path", "is", null) // Garantir que o arquivo existe
+        .eq("therapy_sessions.status", "completed") // Apenas sessões finalizadas
+        .not("result_audio_path", "is", null)
         .order("created_at", { ascending: false });
 
       if (assemblyError) throw assemblyError;
@@ -99,14 +105,14 @@ export const useAudioPlayer = () => {
   const getAudioUrl = async (audioPath: string): Promise<string | undefined> => {
     try {
       console.log('🎵 [getAudioUrl] Requesting URL for path:', audioPath);
-      
+
       // Verificar cache primeiro
       const cached = urlCache.get(audioPath);
       const now = Date.now();
-      
+
       if (cached && cached.expiresAt > now) {
         console.log('🎵 [getAudioUrl] Using cached URL');
-        
+
         // Verificar se a URL ainda é válida
         try {
           const response = await fetch(cached.url, { method: 'HEAD' });
@@ -121,12 +127,12 @@ export const useAudioPlayer = () => {
           urlCache.delete(audioPath);
         }
       }
-      
+
       // Gerar nova URL se cache expirou ou não existe
       const { data, error } = await supabase.storage
         .from('audio-assembly')
         .createSignedUrl(audioPath, 7200); // 2 horas
-      
+
       if (error) {
         console.error('🎵 [getAudioUrl] Error generating URL:', error);
         toast({
@@ -136,12 +142,12 @@ export const useAudioPlayer = () => {
         });
         return undefined;
       }
-      
+
       if (!data?.signedUrl) {
         console.error('🎵 [getAudioUrl] URL assinada não retornada');
         return undefined;
       }
-      
+
       // Testar a URL antes de armazenar no cache
       try {
         const testResponse = await fetch(data.signedUrl, { method: 'HEAD' });
@@ -149,29 +155,29 @@ export const useAudioPlayer = () => {
           console.error('🎵 [getAudioUrl] URL gerada não é acessível');
           return undefined;
         }
-        
+
         // Verificar Content-Type
         const contentType = testResponse.headers.get('content-type');
         if (!contentType?.startsWith('audio/')) {
           console.error('🎵 [getAudioUrl] Arquivo não é um áudio válido:', contentType);
           return undefined;
         }
-        
+
         console.log('🎵 [getAudioUrl] URL validada, Content-Type:', contentType);
       } catch (testError) {
         console.error('🎵 [getAudioUrl] Erro ao testar URL:', testError);
         return undefined;
       }
-      
+
       // Armazenar no cache (expira 1.5 horas antes do limite de 2 horas)
       urlCache.set(audioPath, {
         url: data.signedUrl,
         expiresAt: now + (90 * 60 * 1000) // 1.5 horas
       });
-      
+
       console.log('🎵 [getAudioUrl] URL generated, tested and cached successfully');
       return data.signedUrl;
-      
+
     } catch (error: any) {
       console.error('🎵 [getAudioUrl] Unexpected error:', error);
       toast({
@@ -220,7 +226,7 @@ export const useAudioPlayer = () => {
 
       const fileName = item.audioPath.split('/').pop();
       const fileFound = fileExists?.some(file => file.name === fileName);
-      
+
       if (!fileFound) {
         console.error('🎵 [playAudio] Arquivo não encontrado no storage:', item.audioPath);
         toast({
@@ -244,22 +250,22 @@ export const useAudioPlayer = () => {
 
       console.log('🎵 [playAudio] URL obtida com sucesso, iniciando reprodução...');
       setCurrentAudio(item);
-      
+
       if (audioRef.current) {
         audioRef.current.src = audioUrl;
         audioRef.current.volume = volume;
-        
+
         // Event listeners para melhor tratamento de erros
         audioRef.current.addEventListener('loadstart', () => {
           console.log('🎵 Carregamento iniciado:', item.title);
         });
-        
+
         audioRef.current.addEventListener('error', (e: any) => {
           const error = e.target?.error;
           console.error('🎵 Erro no audio element:', error);
-          
+
           let errorMessage = "O arquivo de áudio está corrompido ou inacessível.";
-          
+
           // Diagnóstico específico do erro
           if (error) {
             switch (error.code) {
@@ -279,23 +285,23 @@ export const useAudioPlayer = () => {
                 errorMessage = `Erro desconhecido (${error.code}). Cache limpo, tente novamente.`;
             }
           }
-          
+
           // Limpar cache para este arquivo
           urlCache.delete(item.audioPath);
           setIsPlaying(false);
           setCurrentAudio(null);
-          
+
           toast({
             title: "Erro de reprodução",
             description: errorMessage,
             variant: "destructive",
           });
         });
-        
+
         audioRef.current.addEventListener('canplay', () => {
           console.log('🎵 Áudio pronto para reprodução:', item.title);
         });
-        
+
         try {
           await audioRef.current.play();
           setIsPlaying(true);
@@ -383,7 +389,7 @@ export const useAudioPlayer = () => {
     audioItems,
     isLoading,
     audioRef,
-    
+
     // Ações
     playAudio,
     pause,
