@@ -42,8 +42,36 @@ serve(async (req) => {
 
     console.log('User authenticated:', user.id);
 
-    const { audioBase64, voiceName, description, language } = await req.json();
+    const body = await req.json();
+    const { action, audioBase64, voiceName, description, language, voiceId } = body;
 
+    // AÇÃO: EXCLUIR VOZ
+    if (action === 'delete_voice') {
+      const targetVoiceId = voiceId;
+      if (!targetVoiceId) throw new Error('voiceId is required for deletion');
+
+      console.log(`Deleting voice ${targetVoiceId} from ElevenLabs...`);
+
+      const response = await fetch(`https://api.elevenlabs.io/v1/voices/${targetVoiceId}`, {
+        method: 'DELETE',
+        headers: {
+          'xi-api-key': elevenlabsApiKey,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('ElevenLabs Delete Error:', errorText);
+        throw new Error(`ElevenLabs API error: ${errorText}`);
+      }
+
+      console.log('Voice deleted successfully from ElevenLabs');
+      return new Response(JSON.stringify({ success: true, message: 'Voice deleted from ElevenLabs' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // AÇÃO PADRÃO: CLONAR VOZ (MANTENDO COMPATIBILIDADE)
     if (!audioBase64 || !voiceName) {
       throw new Error('Audio data and voice name are required');
     }

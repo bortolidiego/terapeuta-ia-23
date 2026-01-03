@@ -1586,7 +1586,28 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
     if (!userId) return;
     setIsDeleting(true);
     try {
-      // 1. Deletar arquivos de áudio do bucket voice_samples
+      // 1. Buscar o ID da voz na ElevenLabs antes de limpar
+      const { data: profile } = await (supabase
+        .from('user_profiles' as any))
+        .select('cloned_voice_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const externalVoiceId = (profile as any)?.cloned_voice_id;
+
+      // 2. Chamar Edge Function para deletar na ElevenLabs
+      if (externalVoiceId) {
+        try {
+          await supabase.functions.invoke('voice-cloning', {
+            body: { action: 'delete_voice', voiceId: externalVoiceId }
+          });
+          console.log("Voice deleted from ElevenLabs");
+        } catch (e) {
+          console.warn("Failed to delete voice from ElevenLabs API:", e);
+        }
+      }
+
+      // 3. Deletar arquivos de áudio do bucket voice_samples
       const { data: files } = await supabase.storage
         .from('voice_samples')
         .list(userId);
@@ -1655,7 +1676,27 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
       await (supabase.from('user_memory' as any)).delete().eq('user_id', userId);
       await (supabase.from('user_astro_data' as any)).delete().eq('user_id', userId);
 
-      // Deletar arquivos de voz do bucket
+      // 1. Buscar o ID da voz na ElevenLabs antes de limpar
+      const { data: profile } = await (supabase
+        .from('user_profiles' as any))
+        .select('cloned_voice_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const externalVoiceId = (profile as any)?.cloned_voice_id;
+
+      // 2. Chamar Edge Function para deletar na ElevenLabs
+      if (externalVoiceId) {
+        try {
+          await supabase.functions.invoke('voice-cloning', {
+            body: { action: 'delete_voice', voiceId: externalVoiceId }
+          });
+        } catch (e) {
+          console.warn("Failed to delete voice from ElevenLabs API:", e);
+        }
+      }
+
+      // 3. Deletar arquivos de voz do bucket
       const { data: files } = await supabase.storage
         .from('voice_samples')
         .list(userId);
@@ -1700,6 +1741,25 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
     if (!userId) return;
     setIsDeleting(true);
     try {
+      // 0. Buscar ID da voz para deletar na ElevenLabs antes de sumir com o perfil
+      const { data: profile } = await (supabase
+        .from('user_profiles' as any))
+        .select('cloned_voice_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const externalVoiceId = (profile as any)?.cloned_voice_id;
+
+      if (externalVoiceId) {
+        try {
+          await supabase.functions.invoke('voice-cloning', {
+            body: { action: 'delete_voice', voiceId: externalVoiceId }
+          });
+        } catch (e) {
+          console.warn("Failed to delete voice from ElevenLabs API:", e);
+        }
+      }
+
       // Deletar conversas, sentimentos e áudios
       try {
         await (supabase.from('assembly_jobs' as any)).delete().eq('user_id', userId);
