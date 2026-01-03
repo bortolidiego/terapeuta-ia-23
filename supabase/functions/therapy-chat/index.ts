@@ -53,9 +53,6 @@ Você deve diagnosticar o problema e, quando tiver certeza, sugerir o protocolo 
 ## DADOS DO USUÁRIO (Contexto Injetado)
 {{USER_CONTEXT}}
 
-## PENDÊNCIAS
-{{PENDING_TOPICS}}
-
 Seja direto, empático e focado na resolução informacional do trauma através de um diálogo humano e acolhedor.
 `;
 
@@ -97,8 +94,6 @@ serve(async (req) => {
             }
         }
 
-        // 2. Pendências (simplificado)
-        let pendingContext = "Nenhuma pendência.";
 
         // 3. Montar System Prompt Final
         // 3.1 Buscar dados do perfil (Nome) e contar sessões
@@ -140,8 +135,7 @@ serve(async (req) => {
         }
 
         const finalSystemPrompt = TERAPEUTA_SYSTEM_PROMPT
-            .replace('{{USER_CONTEXT}}', astroContext + profileContext)
-            .replace('{{PENDING_TOPICS}}', pendingContext);
+            .replace('{{USER_CONTEXT}}', astroContext + profileContext);
 
         // 3.1 MEMÓRIA DE LONGO PRAZO (NOVO)
         let memoryContext = "";

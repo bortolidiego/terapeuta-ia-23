@@ -148,18 +148,6 @@ serve(async (req) => {
         response = await activateProcedure1000x(actionData, supabase, userId);
         break;
 
-      // ===== PENDÊNCIAS =====
-      case 'create_pending_topic':
-        response = await createPendingTopic(actionData, supabase, userId, sessionId);
-        break;
-
-      case 'list_pending_topics':
-        response = await listPendingTopics(supabase, userId);
-        break;
-
-      case 'complete_pending_topic':
-        response = await completePendingTopic(actionData, supabase, userId);
-        break;
 
       default:
         throw new Error(`Unknown action: ${action}`);
@@ -1026,61 +1014,6 @@ async function activateProcedure1000x(actionData: any, supabase: any, userId?: s
   };
 }
 
-// =====================================================
-// PENDÊNCIAS
-// =====================================================
-async function createPendingTopic(actionData: any, supabase: any, userId?: string, sessionId?: string) {
-  if (!userId) throw new Error('User authentication required');
-  const { topic_type, description, priority, notes } = actionData || {};
-
-  if (!topic_type || !description) {
-    throw new Error('topic_type and description are required');
-  }
-
-  const { data, error } = await supabase.from('pending_topics').insert({
-    user_id: userId,
-    session_id: sessionId,
-    topic_type,
-    description,
-    priority: priority || 5,
-    notes
-  }).select().single();
-
-  if (error) throw error;
-  return { success: true, pendingTopic: data };
-}
-
-async function listPendingTopics(supabase: any, userId?: string) {
-  if (!userId) throw new Error('User authentication required');
-
-  const { data, error } = await supabase.from('pending_topics')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('status', 'pending')
-    .order('priority', { ascending: false });
-
-  if (error) throw error;
-  return { pendingTopics: data };
-}
-
-async function completePendingTopic(actionData: any, supabase: any, userId?: string) {
-  if (!userId) throw new Error('User authentication required');
-  const { topic_id } = actionData || {};
-  if (!topic_id) throw new Error('topic_id is required');
-
-  const { data, error } = await supabase.from('pending_topics')
-    .update({
-      status: 'completed',
-      completed_at: new Date().toISOString()
-    })
-    .eq('id', topic_id)
-    .eq('user_id', userId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return { success: true, completedTopic: data };
-}
 
 // =====================================================
 // HELPERS
