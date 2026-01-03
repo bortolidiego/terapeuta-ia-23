@@ -50,4 +50,4 @@ npm run build
 
 ## 📦 Versão Atual
 
-**v1.0.0** - Consulte [CHANGELOG.md](./CHANGELOG.md) para detalhes
+**v1.4.0** - Consulte [CHANGELOG.md](./CHANGELOG.md) para detalhes

@@ -17,7 +17,7 @@ export const useSessionManager = () => {
 
       if (error) {
         console.error("Error pausing session with edge function:", error);
-        
+
         // Fallback to direct database update
         const { error: dbError } = await supabase
           .from("therapy_sessions")
@@ -38,6 +38,23 @@ export const useSessionManager = () => {
           }
         }
       }
+
+      // Trigger session summarization (fire and forget)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        console.log('Triggering session summarization...');
+        supabase.functions.invoke('memory-manager', {
+          body: {
+            action: 'summarize',
+            sessionId,
+            userId: user.id
+          }
+        }).then(({ data, error }) => {
+          if (error) console.error('Error summarizing session:', error);
+          else console.log('Session summarization triggered:', data);
+        });
+      }
+
     } catch (error) {
       console.error("Error in pauseSession:", error);
     }
@@ -74,7 +91,7 @@ export const useSessionManager = () => {
 
       const session = sessions[0];
       const hasMessages = session.session_messages && session.session_messages.length > 0;
-      
+
       return {
         id: session.id,
         hasRecentMessages: hasMessages,
@@ -117,9 +134,9 @@ export const useSessionManager = () => {
 
       if (sessionsToCleanup.length > 0) {
         console.log(`Cleaning up ${sessionsToCleanup.length} orphaned sessions`);
-        
+
         const sessionIds = sessionsToCleanup.map(s => s.id);
-        
+
         // Pause orphaned sessions
         const { error: updateError } = await supabase
           .from("therapy_sessions")

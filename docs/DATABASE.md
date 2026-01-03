@@ -6,8 +6,8 @@ PostgreSQL 15 via Supabase com Row Level Security (RLS) habilitado.
 
 ## Tabelas Principais
 
-### `profiles`
-Dados do usuário.
+### `user_profiles`
+Dados do usuário e configurações de voz.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
@@ -15,6 +15,10 @@ Dados do usuário.
 | full_name | text | Nome completo |
 | avatar_url | text | URL do avatar |
 | asaas_customer_id | text | ID do cliente no Asaas |
+| cloned_voice_id | text | ID da voz clonada (ElevenLabs) |
+| birth_date | date | Data de nascimento |
+| birth_time | time | Horário de nascimento |
+| birth_city | text | Cidade de nascimento |
 | created_at | timestamptz | Data de criação |
 
 ### `therapy_sessions`
@@ -23,7 +27,7 @@ Sessões de terapia.
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
 | id | uuid | PK |
-| user_id | uuid | FK profiles |
+| user_id | uuid | FK user_profiles |
 | title | text | Título gerado |
 | status | text | active/paused/completed |
 | created_at | timestamptz | Início da sessão |
@@ -44,7 +48,7 @@ Saldo de créditos do usuário.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
-| user_id | uuid | FK profiles |
+| user_id | uuid | FK user_profiles |
 | openai_credits | integer | Créditos LLM |
 | elevenlabs_credits | integer | Créditos Voz |
 | total_spent_openai | decimal | Gasto USD LLM |
@@ -56,7 +60,7 @@ Histórico de consumo.
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
 | id | uuid | PK |
-| user_id | uuid | FK profiles |
+| user_id | uuid | FK user_profiles |
 | service | text | openai/elevenlabs |
 | operation_type | text | Tipo de operação |
 | tokens_used | integer | Tokens consumidos |
@@ -69,7 +73,7 @@ Jobs de montagem de áudio.
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
 | id | uuid | PK |
-| user_id | uuid | FK profiles |
+| user_id | uuid | FK user_profiles |
 | session_id | uuid | FK therapy_sessions |
 | status | text | pending/processing/completed/failed |
 | progress_percentage | integer | 0-100 |
@@ -82,7 +86,7 @@ Cache de TTS para economia.
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
 | id | uuid | PK |
-| user_id | uuid | FK profiles |
+| user_id | uuid | FK user_profiles |
 | voice_id | text | ID da voz |
 | text_hash | text | SHA-256 do texto |
 | text_content | text | Texto original |
@@ -98,13 +102,37 @@ Base de sentimentos disponíveis.
 | categoria | text | Categoria |
 | is_custom | boolean | Se é customizado |
 
-### `credit_purchases` (Nova)
+### `therapy_facts` (Nova)
+Conhecimento acumulado pela IA sobre o usuário.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | uuid | PK |
+| user_id | uuid | FK user_profiles |
+| category | text | Categoria do fato (histórico, trauma, preferência) |
+| content | text | Descrição do fato |
+| importance | integer | Nível de relevância 1-5 |
+| created_at | timestamptz | Data |
+
+### `user_audio_library` (Nova)
+Biblioteca de áudios gerados pelo usuário.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | uuid | PK |
+| user_id | uuid | FK user_profiles |
+| title | text | Nome do áudio |
+| audio_path | text | Path no Storage |
+| duration | integer | Duração em segundos |
+| created_at | timestamptz | Data |
+
+### `credit_purchases`
 Compras de créditos via Asaas.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
 | id | uuid | PK |
-| user_id | uuid | FK profiles |
+| user_id | uuid | FK user_profiles |
 | asaas_payment_id | text | ID do pagamento |
 | package_name | text | Nome do pacote |
 | llm_credits_added | integer | Créditos LLM |

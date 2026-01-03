@@ -5,6 +5,25 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.4.0] - 2026-01-03
+
+### ✨ Adicionado
+- **Controle de Privacidade Avançado**: Nova aba de privacidade no perfil com ferramentas granulares de exclusão.
+- **Exclusão de Voz e Áudios**: Opção para remover perfil de voz clonada e limpar a biblioteca de áudios gerados.
+- **Exclusão de Fatos IA**: Capacidade de apagar o conhecimento acumulado pela IA sobre o usuário (`therapy_facts`).
+- **Encerramento de Conta**: Funcionalidade completa de "Direito ao Esquecimento" que apaga perfil, dados astrológicos, histórico e encerra a conta.
+- **Estatísticas Detalhadas**: Visualização de contagem de Mensagens, Sessões, Sentimentos, Áudios e Fatos IA conhecidos.
+
+### 🔒 Segurança
+- **Confirmação por Digitação**: Todas as ações de exclusão agora exigem confirmação digitada (`EXCLUIR` ou `EXCLUIR CONTA DEFINITIVAMENTE`), seguindo padrões de segurança do Supabase.
+- **Proteção de Dados Base**: Lógica de exclusão de sentimentos preserva agora os sentimentos padrão do sistema (`base_contexto`).
+
+### 🔧 Técnico
+- **Limpeza Multitabela**: Implementação de fluxos de deleção cascata manual para garantir que nenhum dado sensível permaneça em tabelas auxiliares (`assembly_jobs`, `autocura_analytics`, etc).
+- **Integração com Auth**: Fluxo de deleção de conta agora inclui `signOut` e redirecionamento de segurança.
+
+---
+
 ## [1.3.0] - 2026-01-03
 
 ### ✨ Adicionado

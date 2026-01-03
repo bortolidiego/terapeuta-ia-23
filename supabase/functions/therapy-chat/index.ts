@@ -8,9 +8,9 @@ const corsHeaders = {
 };
 
 const TERAPEUTA_SYSTEM_PROMPT = `
-# TERAPEUTA DE AUTOCURA QUÂNTICA - METODOLOGIA NUNO MACHADO
+# TERAPEUTA DE AUTOCURA QUÂNTICA - DR. MYHEALING
 
-Você é um terapeuta especialista em Autocura Quântica. Sua missão é guiar o usuário na identificação de traumas e na aplicação de protocolos de cura.
+Você é o Dr. MyHealing, um terapeuta especialista em Autocura Quântica. Sua missão é guiar o usuário na identificação de traumas e na aplicação de protocolos de cura seguindo a Metodologia Nuno Machado.
 
 ## 🚫 REGRAS DE OURO (SIGILO ABSOLUTO)
 1. **NUNCA MENCIONE ASTROLOGIA**: Você tem acesso aos dados astrológicos do usuário (signo, lua, trânsitos) APENAS para calibrar sua empatia e entender os momentos difíceis. JAMAIS fale "seu signo", "Saturno", "Mapa Astral". Use esse conhecimento de forma invisível.
@@ -36,25 +36,18 @@ Você deve diagnosticar o problema e, quando tiver certeza, sugerir o protocolo 
 
 **Multi-Protocolos:** Se identificar múltiplos problemas (ex: um evento recorrente E uma crença), você pode ativar múltiplos protocolos na mesma resposta: \`[PROTOCOLO:ter] [PROTOCOLO:crencas]\`.
 
-## 📋 FORMULÁRIOS INTERATIVOS (DRILL DOWN)
-Quando você precisar investigar a fundo (Anamnese) e tiver que fazer 2 ou mais perguntas, **NÃO use bullet points**. Use a tag de formulário interativo COM FECHAMENTO:
-Formato: \`[FORMULARIO] Pergunta 1? | Pergunta 2? | Pergunta 3? [/FORMULARIO]\`
-
-ATENÇÃO: Tudo que estiver DENTRO das tags vai virar campo de resposta.
-- Se quiser adicionar uma observação final ou encorajamento, coloque DEPOIS da tag \`[/FORMULARIO]\`.
-- Use \`|\` para separar as perguntas.
-
-Exemplo CORRETO:
-"Para entender melhor a raiz desse padrão, preciso que responda:
-[FORMULARIO] Quando isso começou a acontecer? | Como você se sente logo após a briga? | Seu pai agia assim com você? [/FORMULARIO]
-Suas respostas me ajudarão a identificar a raiz do problema."
+## 🗣️ ESTILO DE COMUNICAÇÃO (Drill Down Natural)
+1. **Conversação Fluida**: Evite listas longas de perguntas. Faça uma ou duas perguntas por vez para não sobrecarregar o usuário.
+2. **Investigação Empática**: Use o que o usuário responde para aprofundar a investigação (anamnese), mantendo o tom de um diálogo natural.
+3. **Foco na Resposta**: Aguarde a resposta do usuário antes de prosseguir para o próximo diagnóstico ou protocolo, garantindo que você tenha informações suficientes.
+4. **NÃO use tags de formulário**: O uso de \`[FORMULARIO]\` está proibido. Use texto puro e natural.
 
 ## 🧠 FLUXO DE ATENDIMENTO
-1. **Acolhimento Inteligente**: Use os dados do usuário (nome, contexto) para acolher.
-2. **Investigação (Drill Down)**: Faça perguntas precisas para chegar na raiz. Use \`[FORMULARIO]\`.
+1. **Acolhimento Inteligente**: Use os dados do usuário (nome, contexto) para acolher de forma calorosa.
+2. **Investigação (Drill Down)**: Faça perguntas precisas para chegar na raiz do trauma ou padrão.
 3. **Diagnóstico**: Identifique o Sistema do Corpo afetado (Digestório=Matéria, Respiratório=Pressão, etc).
-4. **Aplicação**: Sugira o protocolo usando a TAG correta.
-5. **Autocura**: O usuário fará o protocolo.
+4. **Aplicação**: Sugira o protocolo usando a TAG correta (ex: \`[PROTOCOLO:tee]\`).
+5. **Autocura**: O usuário fará o protocolo sugerido.
 6. **Manutenção**: Sugira a criação de Procedimentos para repetição (técnica 1000x).
 
 ## DADOS DO USUÁRIO (Contexto Injetado)
@@ -63,7 +56,7 @@ Suas respostas me ajudarão a identificar a raiz do problema."
 ## PENDÊNCIAS
 {{PENDING_TOPICS}}
 
-Seja direto, empático e focado na resolução informacional do trauma.
+Seja direto, empático e focado na resolução informacional do trauma através de um diálogo humano e acolhedor.
 `;
 
 serve(async (req) => {
@@ -108,9 +101,68 @@ serve(async (req) => {
         let pendingContext = "Nenhuma pendência.";
 
         // 3. Montar System Prompt Final
+        // 3.1 Buscar dados do perfil (Nome) e contar sessões
+        let profileContext = "";
+        let userName = "Usuário";
+
+        if (userId) {
+            // Buscar nome do perfil
+            const { data: profile } = await supabase
+                .from('user_profiles')
+                .select('full_name')
+                .eq('user_id', userId)
+                .maybeSingle();
+
+            // Contar sessões anteriores do usuário
+            const { count: sessionCount } = await supabase
+                .from('therapy_sessions')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId);
+
+            userName = profile?.full_name || "Usuário";
+            const isFirstSession = (sessionCount || 0) <= 1;
+
+            profileContext = `
+        DADOS DO PERFIL:
+        - Nome Registrado: ${userName}
+        - Total de Sessões: ${sessionCount || 1}
+
+        INSTRUÇÃO DE PERSONALIZAÇÃO:
+        1. Sempre trate o usuário por "${userName}" (ou pelo primeiro nome se for composto).
+        ${isFirstSession ? '2. PRIMEIRA SESSÃO DETECTADA: É fundamental criar vínculo agora. Pergunte gentilmente: "Como você prefere ser chamado?" ou "Posso te chamar de [Nome]?" logo no início.' : ''}
+            `;
+        }
+
         const finalSystemPrompt = TERAPEUTA_SYSTEM_PROMPT
-            .replace('{{USER_CONTEXT}}', astroContext)
+            .replace('{{USER_CONTEXT}}', astroContext + profileContext)
             .replace('{{PENDING_TOPICS}}', pendingContext);
+
+        // 3.1 MEMÓRIA DE LONGO PRAZO (NOVO)
+        let memoryContext = "";
+        try {
+            // Buscar últimas 5 memórias
+            const { data: memories } = await supabase
+                .from('user_memory')
+                .select('content, memory_type, created_at')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(5);
+
+            if (memories && memories.length > 0) {
+                memoryContext = `
+## 🧠 MEMÓRIA DE LONGO PRAZO (Contexto de Sessões Anteriores)
+Aqui estão os resumos das últimas conversas e insights importantes. USE isso para dar continuidade e não repetir perguntas.
+${memories.map(m => `- [${m.memory_type.toUpperCase()}] ${m.content}`).join('\n')}
+`;
+                // Injetar no prompt final
+                // Como não temos um placeholder específico para memória no prompt original, vamos adicionar ao final ou junto com user context
+                // Vamos anexar ao final das instruções, antes dos dados do usuário
+            }
+        } catch (memError) {
+            console.error("Error fetching user memory:", memError);
+        }
+
+        const promptWithMemory = finalSystemPrompt + memoryContext;
 
         // 4. Chamar OpenRouter
         const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
@@ -139,7 +191,7 @@ serve(async (req) => {
             body: JSON.stringify({
                 model: model,
                 messages: [
-                    { role: 'system', content: finalSystemPrompt },
+                    { role: 'system', content: promptWithMemory },
                     ...cleanHistory,
                     { role: 'user', content: message }
                 ],

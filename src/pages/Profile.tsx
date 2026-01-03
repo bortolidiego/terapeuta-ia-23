@@ -1068,8 +1068,8 @@ export const Profile = () => {
                               )}
                               {data.dignity && (
                                 <span className={`text-xs px-1.5 py-0.5 rounded mt-1 inline-block ${data.dignity === 'Domicílio' || data.dignity === 'Exaltação'
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-rose-100 text-rose-700'
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-rose-100 text-rose-700'
                                   }`}>
                                   {data.dignity}
                                 </span>
@@ -1448,15 +1448,25 @@ const AudioLibraryTab = () => {
 const PrivacyTab = ({ userId }: { userId?: string }) => {
   const [showDeleteConversations, setShowDeleteConversations] = useState(false);
   const [showDeleteSentiments, setShowDeleteSentiments] = useState(false);
+  const [showDeleteVoice, setShowDeleteVoice] = useState(false);
   const [showDeleteAll, setShowDeleteAll] = useState(false);
-  const [confirmEmail, setConfirmEmail] = useState("");
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [confirmConversations, setConfirmConversations] = useState("");
+  const [confirmSentiments, setConfirmSentiments] = useState("");
+  const [confirmVoice, setConfirmVoice] = useState("");
+  const [confirmAll, setConfirmAll] = useState("");
+  const [confirmAccount, setConfirmAccount] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
-  const [stats, setStats] = useState<{ sessions: number; messages: number; sentiments: number }>({
+  const [stats, setStats] = useState<{ sessions: number; messages: number; sentiments: number; audios: number; hasVoice: boolean; facts: number }>({
     sessions: 0,
     messages: 0,
-    sentiments: 0
+    sentiments: 0,
+    audios: 0,
+    hasVoice: false,
+    facts: 0
   });
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (userId) loadStats();
@@ -1472,16 +1482,38 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
       .from('session_messages')
       .select('*', { count: 'exact', head: true });
 
-    // Sentimentos personalizados (criados pelo sistema durante sessões)
+    // Sentimentos personalizados (NÃO são base_contexto - são os criados durante sessões)
     const { count: sentimentsCount } = await supabase
       .from('sentimentos')
       .select('*', { count: 'exact', head: true })
-      .eq('criado_por', 'sistema');
+      .neq('categoria', 'base_contexto');
+
+    // Áudios do usuário
+    const { count: audiosCount } = await supabase
+      .from('user_audio_library')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    // Verificar se tem voz clonada
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('cloned_voice_id')
+      .eq('id', userId)
+      .single();
+
+    // Verificar fatos terapêuticos
+    const { count: factsCount } = await supabase
+      .from('therapy_facts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
 
     setStats({
       sessions: sessionsCount || 0,
       messages: messagesCount || 0,
-      sentiments: sentimentsCount || 0
+      sentiments: sentimentsCount || 0,
+      audios: audiosCount || 0,
+      hasVoice: !!profile?.cloned_voice_id,
+      facts: factsCount || 0
     });
   };
 
@@ -1526,18 +1558,65 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
     if (!userId) return;
     setIsDeleting(true);
     try {
-      // Deletar sentimentos criados pelo sistema
+      // Deletar apenas sentimentos NÃO padrão (personalizados e gerados por contexto)
+      // Mantém os sentimentos base_contexto que são padrão para todos os perfis
       await supabase
         .from('sentimentos')
         .delete()
-        .eq('criado_por', 'sistema');
+        .neq('categoria', 'base_contexto');
 
       toast({
         title: "Sentimentos excluídos",
-        description: "Todos os sentimentos personalizados foram excluídos.",
+        description: "Todos os sentimentos personalizados foram excluídos. Os sentimentos padrão foram mantidos.",
       });
 
       setShowDeleteSentiments(false);
+      loadStats();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const deleteVoiceAndAudios = async () => {
+    if (!userId) return;
+    setIsDeleting(true);
+    try {
+      // 1. Deletar arquivos de áudio do bucket voice_samples
+      const { data: files } = await supabase.storage
+        .from('voice_samples')
+        .list(userId);
+
+      if (files && files.length > 0) {
+        const filesToDelete = files.map(f => `${userId}/${f.name}`);
+        await supabase.storage
+          .from('voice_samples')
+          .remove(filesToDelete);
+      }
+
+      // 2. Limpar cloned_voice_id do perfil
+      await supabase
+        .from('user_profiles')
+        .update({ cloned_voice_id: null })
+        .eq('id', userId);
+
+      // 3. Deletar biblioteca de áudios
+      await supabase
+        .from('user_audio_library')
+        .delete()
+        .eq('user_id', userId);
+
+      toast({
+        title: "Voz e áudios excluídos",
+        description: "Seu perfil de voz clonada e biblioteca de áudios foram removidos.",
+      });
+
+      setShowDeleteVoice(false);
       loadStats();
     } catch (error: any) {
       toast({
@@ -1560,8 +1639,27 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
       await supabase.from('session_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       await supabase.from('session_protocols').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       await supabase.from('therapy_sessions').delete().eq('user_id', userId);
-      await supabase.from('sentimentos').delete().eq('criado_por', 'sistema');
+      await supabase.from('sentimentos').delete().neq('categoria', 'base_contexto');
       await supabase.from('user_audio_library').delete().eq('user_id', userId);
+      await supabase.from('therapy_facts').delete().eq('user_id', userId);
+
+      // Deletar arquivos de voz do bucket
+      const { data: files } = await supabase.storage
+        .from('voice_samples')
+        .list(userId);
+
+      if (files && files.length > 0) {
+        const filesToDelete = files.map(f => `${userId}/${f.name}`);
+        await supabase.storage
+          .from('voice_samples')
+          .remove(filesToDelete);
+      }
+
+      // Limpar cloned_voice_id do perfil
+      await supabase
+        .from('user_profiles')
+        .update({ cloned_voice_id: null })
+        .eq('id', userId);
 
       toast({
         title: "Dados excluídos",
@@ -1569,7 +1667,7 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
       });
 
       setShowDeleteAll(false);
-      setConfirmEmail("");
+      setConfirmAll("");
       loadStats();
     } catch (error: any) {
       toast({
@@ -1578,6 +1676,48 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
         variant: "destructive",
       });
     } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!userId) return;
+    setIsDeleting(true);
+    try {
+      // 1. Limpar todos os dados sensíveis primeiro
+      await supabase.from('assembly_jobs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('autocura_analytics' as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('session_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('session_protocols').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('therapy_sessions').delete().eq('user_id', userId);
+      await supabase.from('sentimentos').delete().neq('categoria', 'base_contexto');
+      await supabase.from('user_audio_library').delete().eq('user_id', userId);
+      await supabase.from('therapy_facts').delete().eq('user_id', userId);
+
+      // 2. Limpar buckets
+      const { data: files } = await supabase.storage.from('voice_samples').list(userId);
+      if (files && files.length > 0) {
+        await supabase.storage.from('voice_samples').remove(files.map(f => `${userId}/${f.name}`));
+      }
+
+      // 3. Deletar Perfil definitivamente
+      await supabase.from('user_profiles').delete().eq('id', userId);
+
+      // 4. Logout e Redirecionamento
+      await supabase.auth.signOut();
+
+      toast({
+        title: "Conta excluída",
+        description: "Seus dados foram removidos e sua sessão foi encerrada.",
+      });
+
+      navigate('/auth');
+    } catch (error: any) {
+      toast({
+        title: "Erro ao encerrar conta",
+        description: error.message,
+        variant: "destructive",
+      });
       setIsDeleting(false);
     }
   };
@@ -1595,7 +1735,7 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Estatísticas */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="p-4 bg-muted rounded-lg text-center">
             <p className="text-2xl font-bold">{stats.sessions}</p>
             <p className="text-sm text-muted-foreground">Sessões</p>
@@ -1607,6 +1747,17 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
           <div className="p-4 bg-muted rounded-lg text-center">
             <p className="text-2xl font-bold">{stats.sentiments}</p>
             <p className="text-sm text-muted-foreground">Sentimentos</p>
+          </div>
+          <div className="p-4 bg-muted rounded-lg text-center">
+            <p className="text-2xl font-bold">{stats.audios}</p>
+            <p className="text-sm text-muted-foreground">Áudios</p>
+            {stats.hasVoice && (
+              <span className="text-xs text-green-600 font-medium block">✓ Voz clonada</span>
+            )}
+          </div>
+          <div className="p-4 bg-muted rounded-lg text-center">
+            <p className="text-2xl font-bold">{stats.facts}</p>
+            <p className="text-sm text-muted-foreground">Fatos IA</p>
           </div>
         </div>
 
@@ -1626,14 +1777,14 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
           </div>
         </div>
 
-        {/* Excluir Sentimentos */}
+        {/* Excluir Sentimentos Personalizados (mantém os padrão) */}
         <div className="p-4 border rounded-lg space-y-3">
           <div className="flex items-start gap-3">
             <Trash2 className="h-5 w-5 text-muted-foreground mt-0.5" />
             <div className="flex-1">
-              <h4 className="font-medium">Excluir Sentimentos e Palavras-Base</h4>
+              <h4 className="font-medium">Excluir Sentimentos Personalizados</h4>
               <p className="text-sm text-muted-foreground">
-                Remove todos os sentimentos personalizados criados durante suas sessões.
+                Remove os sentimentos criados durante suas sessões. Os sentimentos padrão da lista base serão mantidos.
               </p>
             </div>
             <Button variant="destructive" size="sm" onClick={() => setShowDeleteSentiments(true)}>
@@ -1642,14 +1793,36 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
           </div>
         </div>
 
-        {/* Excluir Tudo */}
+        {/* Excluir Perfil de Voz e Áudios */}
+        <div className="p-4 border rounded-lg space-y-3">
+          <div className="flex items-start gap-3">
+            <Mic className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div className="flex-1">
+              <h4 className="font-medium">Excluir Perfil de Voz e Áudios</h4>
+              <p className="text-sm text-muted-foreground">
+                Remove sua voz clonada e todos os áudios gerados ({stats.audios} áudios).
+                {stats.hasVoice ? ' Inclui seu perfil de voz personalizado.' : ' Você não possui voz clonada no momento.'}
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDeleteVoice(true)}
+              disabled={stats.audios === 0 && !stats.hasVoice}
+            >
+              Excluir
+            </Button>
+          </div>
+        </div>
+
+        {/* Excluir Tudo (Mantendo Perfil) */}
         <div className="p-4 border border-destructive/50 bg-destructive/5 rounded-lg space-y-3">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
             <div className="flex-1">
-              <h4 className="font-medium text-destructive">Excluir TODOS os Dados</h4>
+              <h4 className="font-medium text-destructive">Limpar Histórico e Dados Terapêuticos</h4>
               <p className="text-sm text-muted-foreground">
-                Remove permanentemente todas as conversas, sentimentos, áudios e dados personalizados. Esta ação não pode ser desfeita.
+                Remove todas as conversas, sentimentos, áudios e fatos IA, mas <strong>mantém seu perfil e dados de nascimento</strong>.
               </p>
             </div>
             <Button variant="destructive" size="sm" onClick={() => setShowDeleteAll(true)}>
@@ -1657,23 +1830,57 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
             </Button>
           </div>
         </div>
+
+        {/* Excluir Conta Definitivamente */}
+        <div className="p-4 border border-destructive bg-destructive/10 rounded-lg space-y-3">
+          <div className="flex items-start gap-3">
+            <Shield className="h-5 w-5 text-destructive mt-0.5" />
+            <div className="flex-1">
+              <h4 className="font-bold text-destructive">Encerrar e Excluir Conta</h4>
+              <p className="text-sm text-muted-foreground">
+                A opção mais rigorosa. Apaga seu perfil, todos os seus dados astrológicos, conversas, fatos conhecidos pela IA e sua voz. Sua conta deixará de existir.
+              </p>
+            </div>
+            <Button variant="destructive" size="sm" onClick={() => setShowDeleteAccount(true)}>
+              Excluir Conta
+            </Button>
+          </div>
+        </div>
       </CardContent>
 
       {/* Dialog: Excluir Conversas */}
-      <AlertDialog open={showDeleteConversations} onOpenChange={setShowDeleteConversations}>
+      <AlertDialog open={showDeleteConversations} onOpenChange={(open) => {
+        setShowDeleteConversations(open);
+        if (!open) setConfirmConversations("");
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir todas as conversas?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Isso excluirá permanentemente {stats.sessions} sessões e {stats.messages} mensagens.
-              Esta ação não pode ser desfeita.
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>
+                  Isso excluirá permanentemente {stats.sessions} sessões e {stats.messages} mensagens.
+                  Esta ação não pode ser desfeita.
+                </p>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">
+                    Digite <span className="font-mono bg-muted px-1.5 py-0.5 rounded">EXCLUIR</span> para confirmar:
+                  </p>
+                  <Input
+                    value={confirmConversations}
+                    onChange={(e) => setConfirmConversations(e.target.value)}
+                    placeholder="Digite EXCLUIR"
+                    className="font-mono"
+                  />
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={deleteConversations}
-              disabled={isDeleting}
+              disabled={isDeleting || confirmConversations !== "EXCLUIR"}
               className="bg-destructive text-destructive-foreground"
             >
               {isDeleting ? "Excluindo..." : "Excluir Conversas"}
@@ -1683,20 +1890,38 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
       </AlertDialog>
 
       {/* Dialog: Excluir Sentimentos */}
-      <AlertDialog open={showDeleteSentiments} onOpenChange={setShowDeleteSentiments}>
+      <AlertDialog open={showDeleteSentiments} onOpenChange={(open) => {
+        setShowDeleteSentiments(open);
+        if (!open) setConfirmSentiments("");
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir sentimentos personalizados?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Isso excluirá os {stats.sentiments} sentimentos criados durante suas sessões.
-              Sentimentos padrão do sistema não serão afetados.
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <div>
+                  <p>Isso excluirá os {stats.sentiments} sentimentos personalizados criados durante suas sessões.</p>
+                  <strong className="block mt-2 text-green-700">✓ Os sentimentos padrão da lista base serão mantidos.</strong>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">
+                    Digite <span className="font-mono bg-muted px-1.5 py-0.5 rounded">EXCLUIR</span> para confirmar:
+                  </p>
+                  <Input
+                    value={confirmSentiments}
+                    onChange={(e) => setConfirmSentiments(e.target.value)}
+                    placeholder="Digite EXCLUIR"
+                    className="font-mono"
+                  />
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={deleteSentiments}
-              disabled={isDeleting}
+              disabled={isDeleting || confirmSentiments !== "EXCLUIR"}
               className="bg-destructive text-destructive-foreground"
             >
               {isDeleting ? "Excluindo..." : "Excluir Sentimentos"}
@@ -1705,15 +1930,64 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Dialog: Excluir Voz e Áudios */}
+      <AlertDialog open={showDeleteVoice} onOpenChange={(open) => {
+        setShowDeleteVoice(open);
+        if (!open) setConfirmVoice("");
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir perfil de voz e áudios?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 text-sm text-muted-foreground">
+                <div>
+                  <p>Isso excluirá permanentemente:</p>
+                  <ul className="list-disc list-inside mt-2">
+                    {stats.hasVoice && <li>Seu perfil de voz clonada</li>}
+                    <li>Todos os {stats.audios} áudios gerados na sua biblioteca</li>
+                    <li>Arquivos de amostra de voz salvos</li>
+                  </ul>
+                  <p className="text-amber-600 font-medium mt-2">Você precisará refazer a clonagem de voz para gerar novos áudios.</p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">
+                    Digite <span className="font-mono bg-muted px-1.5 py-0.5 rounded">EXCLUIR</span> para confirmar:
+                  </p>
+                  <Input
+                    value={confirmVoice}
+                    onChange={(e) => setConfirmVoice(e.target.value)}
+                    placeholder="Digite EXCLUIR"
+                    className="font-mono"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteVoiceAndAudios}
+              disabled={isDeleting || confirmVoice !== "EXCLUIR"}
+              className="bg-destructive text-destructive-foreground"
+            >
+              {isDeleting ? "Excluindo..." : "Excluir Voz e Áudios"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Dialog: Excluir Tudo */}
-      <AlertDialog open={showDeleteAll} onOpenChange={setShowDeleteAll}>
+      <AlertDialog open={showDeleteAll} onOpenChange={(open) => {
+        setShowDeleteAll(open);
+        if (!open) setConfirmAll("");
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="text-destructive">
               ⚠️ Exclusão Total de Dados
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-3 text-sm text-muted-foreground">
+              <div className="space-y-4 text-sm text-muted-foreground">
                 <p>
                   Esta é uma ação <strong>irreversível</strong>. Todos os seguintes dados serão excluídos permanentemente:
                 </p>
@@ -1721,8 +1995,21 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
                   <li>Todas as sessões de terapia ({stats.sessions})</li>
                   <li>Todas as mensagens ({stats.messages})</li>
                   <li>Todos os sentimentos personalizados ({stats.sentiments})</li>
-                  <li>Sua biblioteca de áudios</li>
+                  <li>Sua biblioteca de áudios ({stats.audios} áudios)</li>
+                  <li>Todos os {stats.facts} fatos que a IA aprendeu sobre você</li>
+                  {stats.hasVoice && <li>Seu perfil de voz clonada</li>}
                 </ul>
+                <div className="space-y-2 pt-2 border-t">
+                  <p className="text-sm font-medium text-foreground">
+                    Para confirmar, digite <span className="font-mono bg-destructive/10 text-destructive px-1.5 py-0.5 rounded">EXCLUIR TUDO</span>:
+                  </p>
+                  <Input
+                    value={confirmAll}
+                    onChange={(e) => setConfirmAll(e.target.value)}
+                    placeholder="Digite EXCLUIR TUDO"
+                    className="font-mono border-destructive/50"
+                  />
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1730,10 +2017,62 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={deleteAllData}
-              disabled={isDeleting}
+              disabled={isDeleting || confirmAll !== "EXCLUIR TUDO"}
               className="bg-destructive text-destructive-foreground"
             >
               {isDeleting ? "Excluindo..." : "Excluir TUDO"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Dialog: Excluir Conta Definitivamente */}
+      <AlertDialog open={showDeleteAccount} onOpenChange={(open) => {
+        setShowDeleteAccount(open);
+        if (!open) setConfirmAccount("");
+      }}>
+        <AlertDialogContent className="border-destructive">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              ADEUS: Excluir Conta Definitivamente?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 text-sm text-muted-foreground">
+                <p className="font-bold text-destructive underline">
+                  Esta ação é FINAL e IRREVERSÍVEL.
+                </p>
+                <p>
+                  Ao confirmar, removeremos:
+                </p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Seu perfil completo e dados de nascimento</li>
+                  <li>Todas as {stats.sessions} sessões e {stats.messages} mensagens</li>
+                  <li>Todos os {stats.facts} fatos que a IA aprendeu sobre você</li>
+                  <li>Sua voz clonada e {stats.audios} áudios gerados</li>
+                  <li>Seu saldo de créditos será perdido</li>
+                </ul>
+                <div className="space-y-2 pt-2 border-t">
+                  <p className="text-sm font-medium text-foreground">
+                    Para confirmar a exclusão da sua conta, digite <span className="font-mono bg-destructive text-white px-1.5 py-0.5 rounded text-xs">EXCLUIR CONTA DEFINITIVAMENTE</span>:
+                  </p>
+                  <Input
+                    value={confirmAccount}
+                    onChange={(e) => setConfirmAccount(e.target.value)}
+                    placeholder="Digite a frase de confirmação"
+                    className="font-mono border-destructive focus-visible:ring-destructive"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Mudei de idéia</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteAccount}
+              disabled={isDeleting || confirmAccount !== "EXCLUIR CONTA DEFINITIVAMENTE"}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Excluindo tudo..." : "Confirmar Exclusão de Conta"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

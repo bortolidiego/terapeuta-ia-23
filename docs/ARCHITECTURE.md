@@ -80,7 +80,7 @@ sequenceDiagram
 ## Banco de Dados
 
 ### Tabelas Principais
-- `profiles` - Dados do usuário
+- `user_profiles` - Dados do usuário e configurações de voz
 - `therapy_sessions` - Sessões de terapia
 - `session_messages` - Mensagens do chat
 - `user_credits` - Saldo de créditos
@@ -88,10 +88,19 @@ sequenceDiagram
 - `assembly_jobs` - Jobs de montagem de áudio
 - `audio_fragments_cache` - Cache de TTS
 - `sentimentos` - Base de sentimentos
+- `therapy_facts` - Memória persistente da IA sobre o usuário
 
-## Segurança
+## Segurança e Privacidade
 
-- JWT via Supabase Auth
-- RLS (Row Level Security) em todas tabelas
-- Edge Functions com validação de token
-- API keys em variáveis de ambiente
+### Proteção de Dados
+- **JWT**: Autenticação segura via Supabase Auth.
+- **RLS (Row Level Security)**: Isolamento total de dados entre usuários em nível de banco de dados.
+- **Edge Functions**: Validação rigorosa de tokens e permissões antes de qualquer processamento.
+- **API Keys**: Gerenciadas de forma segura em variáveis de ambiente (Secrets) do Supabase.
+
+### Direitos do Usuário (LGPD/GDPR)
+O sistema implementa o "Direito ao Esquecimento" através de:
+- **Exclusão Granular**: O usuário pode optar por remover apenas conversas, apenas sentimentos ou apenas dados de voz.
+- **Limpeza de Memória (Facts)**: Remoção de dados extraídos automaticamente pela IA.
+- **Exclusão Nuclear (Conta)**: Processo irreversível que remove o registro de autenticação (`profiles`), todos os buckets de armazenamento e dados relacionais, seguido de `signOut`.
+- **Confirmação de Duplo Fator (UI)**: Exigência de confirmação digitada para evitar deleções acidentais de dados sensíveis.

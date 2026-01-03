@@ -38,10 +38,45 @@ export const SimplifiedChatNew = () => {
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [useProtocolMode, setUseProtocolMode] = useState(true);
   const [protocolActive, setProtocolActive] = useState(false);
+  const [userInitials, setUserInitials] = useState("U");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const { pauseSession, cleanupOrphanedSessions } = useSessionManager();
+
+  // Fetch user profile for initials
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Buscar full_name da tabela user_profiles
+          const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('full_name')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (error) {
+            console.error('Error fetching user profile:', error);
+            return;
+          }
+
+          const fullName = (profile as any)?.full_name;
+          if (fullName && typeof fullName === 'string') {
+            const names = fullName.trim().split(' ');
+            const initials = names.length >= 2
+              ? (names[0][0] + names[names.length - 1][0]).toUpperCase()
+              : names[0].substring(0, 2).toUpperCase();
+            setUserInitials(initials);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user profile for initials:', error);
+      }
+    };
+    fetchUserProfile();
+  }, []);
 
   const {
     isRecording,
@@ -623,8 +658,8 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
           <div className="p-3 space-y-3">
             {messages.length === 0 && (
               <div className="text-center text-muted-foreground py-4 sm:py-6">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-primary rounded-full flex items-center justify-center">
-                  <Bot className="h-6 w-6 sm:h-8 sm:w-8 text-primary-foreground" />
+                <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 shadow-lg shadow-teal-500/30">
+                  <span className="text-lg sm:text-2xl font-bold text-white drop-shadow-sm">DM</span>
                 </div>
                 <p className="text-lg sm:text-xl font-medium mb-2 sm:mb-3 text-primary">
                   Bem-vindo ao MyHealing Chat
@@ -642,8 +677,8 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                   }`}
               >
                 {message.role === "assistant" && (
-                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
-                    <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 shadow-md shadow-teal-500/20">
+                    <span className="text-xs sm:text-sm font-bold text-white">DM</span>
                   </div>
                 )}
 
@@ -721,8 +756,8 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 </div>
 
                 {message.role === "user" && (
-                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent flex items-center justify-center border border-border">
-                    <User className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
+                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-purple-500/20">
+                    <span className="text-xs sm:text-sm font-bold text-white">{userInitials}</span>
                   </div>
                 )}
               </div>
@@ -731,8 +766,8 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
             {/* Protocol Executor */}
             {protocolActive && currentConsultationId && (
               <div className="flex gap-2 sm:gap-3 justify-start">
-                <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
-                  <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 shadow-md shadow-teal-500/20">
+                  <span className="text-xs sm:text-sm font-bold text-white">DM</span>
                 </div>
                 <div className="max-w-[85%] sm:max-w-[80%]">
                   <ProtocolExecutor
@@ -764,8 +799,8 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
 
             {isLoading && !protocolActive && (
               <div className="flex gap-2 sm:gap-3 justify-start">
-                <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center">
-                  <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 shadow-md shadow-teal-500/20 animate-pulse">
+                  <span className="text-xs sm:text-sm font-bold text-white">DM</span>
                 </div>
                 <div className="bg-muted p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border">
                   <div className="flex items-center gap-2">
