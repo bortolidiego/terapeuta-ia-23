@@ -1634,15 +1634,25 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
     if (!userId) return;
     setIsDeleting(true);
     try {
-      // Deletar tudo em ordem de dependências
-      await (supabase.from('assembly_jobs' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await (supabase.from('autocura_analytics' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await (supabase.from('session_messages' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await (supabase.from('session_protocols' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      // Deletar tudo vinculado ao usuário em ordem de dependências
+      try {
+        await (supabase.from('assembly_jobs' as any)).delete().eq('user_id', userId);
+      } catch (e: any) { console.warn("Failed to delete assembly_jobs:", e.message); }
+
+      try {
+        await (supabase.from('autocura_analytics' as any)).delete().eq('user_id', userId);
+      } catch (e: any) { console.warn("Failed to delete autocura_analytics:", e.message); }
+
+      // Deletar sessões (dispara delete em cascata se configurado, senão limpamos as mensagens depois)
       await (supabase.from('therapy_sessions' as any)).delete().eq('user_id', userId);
-      await (supabase.from('sentimentos' as any)).delete().neq('categoria', 'base_contexto');
+
+      // Limpar sentimentos criados pelo usuário
+      await (supabase.from('sentimentos' as any)).delete().neq('categoria', 'base_contexto').eq('criado_por', userId);
+
       await (supabase.from('user_audio_library' as any)).delete().eq('user_id', userId);
       await (supabase.from('user_memory' as any)).delete().eq('user_id', userId);
+      await (supabase.from('user_astro_data' as any)).delete().eq('user_id', userId);
+      await (supabase.from('pending_topics' as any)).delete().eq('user_id', userId);
 
       // Deletar arquivos de voz do bucket
       const { data: files } = await supabase.storage
@@ -1687,22 +1697,16 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
     try {
       // Deletar conversas, sentimentos e áudios
       try {
-        await (supabase.from('assembly_jobs' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await (supabase.from('assembly_jobs' as any)).delete().eq('user_id', userId);
       } catch (e: any) { console.warn("Failed to delete assembly_jobs:", e.message); }
       try {
-        await (supabase.from('autocura_analytics' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await (supabase.from('autocura_analytics' as any)).delete().eq('user_id', userId);
       } catch (e: any) { console.warn("Failed to delete autocura_analytics:", e.message); }
-      try {
-        await (supabase.from('session_messages' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      } catch (e: any) { console.warn("Failed to delete session_messages:", e.message); }
-      try {
-        await (supabase.from('session_protocols' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      } catch (e: any) { console.warn("Failed to delete session_protocols:", e.message); }
       try {
         await (supabase.from('therapy_sessions' as any)).delete().eq('user_id', userId);
       } catch (e: any) { console.warn("Failed to delete therapy_sessions:", e.message); }
       try {
-        await (supabase.from('sentimentos' as any)).delete().neq('categoria', 'base_contexto');
+        await (supabase.from('sentimentos' as any)).delete().neq('categoria', 'base_contexto').eq('criado_por', userId);
       } catch (e: any) { console.warn("Failed to delete sentiments:", e.message); }
       try {
         await (supabase.from('user_audio_library' as any)).delete().eq('user_id', userId);
@@ -1713,6 +1717,9 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
       try {
         await (supabase.from('user_astro_data' as any)).delete().eq('user_id', userId);
       } catch (e: any) { console.warn("Failed to delete user_astro_data:", e.message); }
+      try {
+        await (supabase.from('pending_topics' as any)).delete().eq('user_id', userId);
+      } catch (e: any) { console.warn("Failed to delete pending_topics:", e.message); }
 
       // Deletar arquivos de voz do buckets
       try {
