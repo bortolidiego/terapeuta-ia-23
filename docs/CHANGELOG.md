@@ -10,7 +10,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ### ✨ Adicionado
 - **Controle de Privacidade Avançado**: Nova aba de privacidade no perfil com ferramentas granulares de exclusão.
 - **Exclusão de Voz e Áudios**: Opção para remover perfil de voz clonada e limpar a biblioteca de áudios gerados.
-- **Exclusão de Fatos IA**: Capacidade de apagar o conhecimento acumulado pela IA sobre o usuário (`therapy_facts`).
+- **Exclusão de Memória IA**: Capacidade de apagar o conhecimento acumulado pela IA sobre o usuário (`user_memory`).
 - **Encerramento de Conta**: Funcionalidade completa de "Direito ao Esquecimento" que apaga perfil, dados astrológicos, histórico e encerra a conta.
 - **Estatísticas Detalhadas**: Visualização de contagem de Mensagens, Sessões, Sentimentos, Áudios e Fatos IA conhecidos.
 

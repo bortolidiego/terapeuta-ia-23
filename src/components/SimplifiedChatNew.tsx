@@ -664,8 +664,8 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
                 <p className="text-lg sm:text-xl font-medium mb-2 sm:mb-3 text-primary">
                   Bem-vindo ao MyHealing Chat
                 </p>
-                <p className="text-xs sm:text-sm max-w-xs sm:max-w-md mx-auto leading-relaxed px-4">
-                  Conte-me sobre um evento específico que você gostaria de processar.
+                <p className="text-xs sm:text-sm max-w-xs sm:max-w-md mx-auto leading-relaxed px-4 text-muted-foreground/80">
+                  Estou aqui para te ouvir e guiar no seu processo de autocura.
                 </p>
               </div>
             )}
@@ -798,15 +798,14 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
             )}
 
             {isLoading && !protocolActive && (
-              <div className="flex gap-2 sm:gap-3 justify-start">
-                <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 shadow-md shadow-teal-500/20 animate-pulse">
+              <div className="flex gap-2 sm:gap-3 justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 shadow-md shadow-teal-500/20">
                   <span className="text-xs sm:text-sm font-bold text-white">DM</span>
                 </div>
-                <div className="bg-muted p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin text-primary" />
-                    <span className="text-xs sm:text-sm text-muted-foreground">Iniciando protocolo...</span>
-                  </div>
+                <div className="bg-muted/50 backdrop-blur-sm px-4 py-3 rounded-2xl border border-border/50 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                  <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                  <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce"></span>
                 </div>
               </div>
             )}
@@ -820,12 +819,17 @@ Enquanto isso, gostaria de conversar sobre o que você está passando? Às vezes
       <div className="flex-shrink-0 bg-background p-2 sm:p-3 border-t border-border/20">
         <Card className="bg-card border-border shadow-sm rounded-xl sm:rounded-2xl">
           <CardContent className="p-2 sm:p-3">
-            {(hasDraft || audioDraft) && (
-              <div className="mb-2 text-xs text-muted-foreground/60 flex items-center gap-2">
-                {hasDraft && <span>📝</span>}
-                {audioDraft && <span>🎤</span>}
-              </div>
-            )}
+            <div className="relative h-0">
+              {(hasDraft || audioDraft) && (
+                <div className="absolute -top-7 left-0 flex items-center gap-1.5 transition-all animate-in fade-in slide-in-from-bottom-1">
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/80 backdrop-blur-sm border border-border/50 text-[10px] font-medium text-muted-foreground shadow-sm">
+                    {hasDraft && <NotebookPen className="w-3 h-3 text-primary/70" />}
+                    {audioDraft && <Mic className="w-3 h-3 text-red-500/70" />}
+                    <span>Rascunho salvo</span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="flex flex-wrap gap-1 sm:gap-2">
               <div className="flex gap-1">

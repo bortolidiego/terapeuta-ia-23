@@ -102,17 +102,28 @@ Base de sentimentos disponíveis.
 | categoria | text | Categoria |
 | is_custom | boolean | Se é customizado |
 
-### `therapy_facts` (Nova)
-Conhecimento acumulado pela IA sobre o usuário.
+### `user_memory` (Nova)
+Memória de longo prazo extraída das sessões para contexto persistente.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
 | id | uuid | PK |
 | user_id | uuid | FK user_profiles |
-| category | text | Categoria do fato (histórico, trauma, preferência) |
-| content | text | Descrição do fato |
-| importance | integer | Nível de relevância 1-5 |
+| content | text | Insight ou fato lembrado |
+| memory_type | text | insight/fact/history |
 | created_at | timestamptz | Data |
+
+### `user_astro_data`
+Dados de mapa astral e trânsitos.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| user_id | uuid | FK user_profiles |
+| sun_sign | text | Signo Solar |
+| moon_sign | text | Signo Lunar |
+| rising_sign | text | Ascendente |
+| planet_positions | jsonb | Posições detalhadas |
+| transits_active | jsonb | Trânsitos atuais |
 
 ### `user_audio_library` (Nova)
 Biblioteca de áudios gerados pelo usuário.

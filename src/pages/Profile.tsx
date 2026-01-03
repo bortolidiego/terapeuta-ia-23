@@ -1457,13 +1457,12 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
   const [confirmAll, setConfirmAll] = useState("");
   const [confirmAccount, setConfirmAccount] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
-  const [stats, setStats] = useState<{ sessions: number; messages: number; sentiments: number; audios: number; hasVoice: boolean; facts: number }>({
+  const [stats, setStats] = useState<{ sessions: number; messages: number; sentiments: number; audios: number; hasVoice: boolean }>({
     sessions: 0,
     messages: 0,
     sentiments: 0,
     audios: 0,
-    hasVoice: false,
-    facts: 0
+    hasVoice: false
   });
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -1473,47 +1472,49 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
   }, [userId]);
 
   const loadStats = async () => {
-    const { count: sessionsCount } = await supabase
-      .from('therapy_sessions')
+    const { count: sessionsCount } = await (supabase
+      .from('therapy_sessions' as any))
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);
 
-    const { count: messagesCount } = await supabase
-      .from('session_messages')
+    const { count: messagesCount } = await (supabase
+      .from('session_messages' as any))
       .select('*', { count: 'exact', head: true });
 
     // Sentimentos personalizados (NÃO são base_contexto - são os criados durante sessões)
-    const { count: sentimentsCount } = await supabase
-      .from('sentimentos')
+    const { count: sentimentsCount } = await (supabase
+      .from('sentimentos' as any))
       .select('*', { count: 'exact', head: true })
       .neq('categoria', 'base_contexto');
 
     // Áudios do usuário
-    const { count: audiosCount } = await supabase
-      .from('user_audio_library')
+    const { count: audiosCount } = await (supabase
+      .from('user_audio_library' as any))
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);
 
-    // Verificar se tem voz clonada
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('cloned_voice_id')
-      .eq('id', userId)
-      .single();
+    // Verificar se tem voz clonada de forma resiliente
+    let hasVoice = false;
+    try {
+      const { data: profile, error: profileError } = await (supabase
+        .from('user_profiles' as any))
+        .select('cloned_voice_id')
+        .eq('id', userId)
+        .maybeSingle();
 
-    // Verificar fatos terapêuticos
-    const { count: factsCount } = await supabase
-      .from('therapy_facts')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
+      if (!profileError && (profile as any)?.cloned_voice_id) {
+        hasVoice = true;
+      }
+    } catch (e) {
+      console.warn("Could not load user_profile:", e.message);
+    }
 
     setStats({
       sessions: sessionsCount || 0,
       messages: messagesCount || 0,
       sentiments: sentimentsCount || 0,
       audios: audiosCount || 0,
-      hasVoice: !!profile?.cloned_voice_id,
-      facts: factsCount || 0
+      hasVoice
     });
   };
 
@@ -1522,19 +1523,19 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
     setIsDeleting(true);
     try {
       // Deletar assembly_jobs primeiro (FK para therapy_sessions)
-      await supabase.from('assembly_jobs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await (supabase.from('assembly_jobs' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
       // Deletar autocura_analytics (FK para therapy_sessions)
-      await supabase.from('autocura_analytics' as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await (supabase.from('autocura_analytics' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
       // Deletar mensagens (FK)
-      await supabase.from('session_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await (supabase.from('session_messages' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
       // Deletar protocolos
-      await supabase.from('session_protocols').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await (supabase.from('session_protocols' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
       // Deletar sessões
-      await supabase.from('therapy_sessions').delete().eq('user_id', userId);
+      await (supabase.from('therapy_sessions' as any)).delete().eq('user_id', userId);
 
       toast({
         title: "Conversas excluídas",
@@ -1560,8 +1561,8 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
     try {
       // Deletar apenas sentimentos NÃO padrão (personalizados e gerados por contexto)
       // Mantém os sentimentos base_contexto que são padrão para todos os perfis
-      await supabase
-        .from('sentimentos')
+      await (supabase
+        .from('sentimentos' as any))
         .delete()
         .neq('categoria', 'base_contexto');
 
@@ -1600,14 +1601,14 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
       }
 
       // 2. Limpar cloned_voice_id do perfil
-      await supabase
-        .from('user_profiles')
+      await (supabase
+        .from('user_profiles' as any))
         .update({ cloned_voice_id: null })
         .eq('id', userId);
 
       // 3. Deletar biblioteca de áudios
-      await supabase
-        .from('user_audio_library')
+      await (supabase
+        .from('user_audio_library' as any))
         .delete()
         .eq('user_id', userId);
 
@@ -1634,14 +1635,14 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
     setIsDeleting(true);
     try {
       // Deletar tudo em ordem de dependências
-      await supabase.from('assembly_jobs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('autocura_analytics' as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('session_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('session_protocols').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('therapy_sessions').delete().eq('user_id', userId);
-      await supabase.from('sentimentos').delete().neq('categoria', 'base_contexto');
-      await supabase.from('user_audio_library').delete().eq('user_id', userId);
-      await supabase.from('therapy_facts').delete().eq('user_id', userId);
+      await (supabase.from('assembly_jobs' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await (supabase.from('autocura_analytics' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await (supabase.from('session_messages' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await (supabase.from('session_protocols' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await (supabase.from('therapy_sessions' as any)).delete().eq('user_id', userId);
+      await (supabase.from('sentimentos' as any)).delete().neq('categoria', 'base_contexto');
+      await (supabase.from('user_audio_library' as any)).delete().eq('user_id', userId);
+      await (supabase.from('user_memory' as any)).delete().eq('user_id', userId);
 
       // Deletar arquivos de voz do bucket
       const { data: files } = await supabase.storage
@@ -1656,8 +1657,8 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
       }
 
       // Limpar cloned_voice_id do perfil
-      await supabase
-        .from('user_profiles')
+      await (supabase
+        .from('user_profiles' as any))
         .update({ cloned_voice_id: null })
         .eq('id', userId);
 
@@ -1684,24 +1685,48 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
     if (!userId) return;
     setIsDeleting(true);
     try {
-      // 1. Limpar todos os dados sensíveis primeiro
-      await supabase.from('assembly_jobs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('autocura_analytics' as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('session_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('session_protocols').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('therapy_sessions').delete().eq('user_id', userId);
-      await supabase.from('sentimentos').delete().neq('categoria', 'base_contexto');
-      await supabase.from('user_audio_library').delete().eq('user_id', userId);
-      await supabase.from('therapy_facts').delete().eq('user_id', userId);
+      // Deletar conversas, sentimentos e áudios
+      try {
+        await (supabase.from('assembly_jobs' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      } catch (e: any) { console.warn("Failed to delete assembly_jobs:", e.message); }
+      try {
+        await (supabase.from('autocura_analytics' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      } catch (e: any) { console.warn("Failed to delete autocura_analytics:", e.message); }
+      try {
+        await (supabase.from('session_messages' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      } catch (e: any) { console.warn("Failed to delete session_messages:", e.message); }
+      try {
+        await (supabase.from('session_protocols' as any)).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      } catch (e: any) { console.warn("Failed to delete session_protocols:", e.message); }
+      try {
+        await (supabase.from('therapy_sessions' as any)).delete().eq('user_id', userId);
+      } catch (e: any) { console.warn("Failed to delete therapy_sessions:", e.message); }
+      try {
+        await (supabase.from('sentimentos' as any)).delete().neq('categoria', 'base_contexto');
+      } catch (e: any) { console.warn("Failed to delete sentiments:", e.message); }
+      try {
+        await (supabase.from('user_audio_library' as any)).delete().eq('user_id', userId);
+      } catch (e: any) { console.warn("Failed to delete user_audio_library:", e.message); }
+      try {
+        await (supabase.from('user_memory' as any)).delete().eq('user_id', userId);
+      } catch (e: any) { console.warn("Failed to delete user_memory:", e.message); }
+      try {
+        await (supabase.from('user_astro_data' as any)).delete().eq('user_id', userId);
+      } catch (e: any) { console.warn("Failed to delete user_astro_data:", e.message); }
 
-      // 2. Limpar buckets
-      const { data: files } = await supabase.storage.from('voice_samples').list(userId);
-      if (files && files.length > 0) {
-        await supabase.storage.from('voice_samples').remove(files.map(f => `${userId}/${f.name}`));
-      }
+      // Deletar arquivos de voz do buckets
+      try {
+        const { data: files } = await supabase.storage.from('voice_samples').list(userId);
+        if (files && files.length > 0) {
+          await supabase.storage.from('voice_samples').remove(files.map(f => `${userId}/${f.name}`));
+        }
+      } catch (e) { console.warn("Failed to delete voice_samples from bucket:", e.message); }
 
       // 3. Deletar Perfil definitivamente
-      await supabase.from('user_profiles').delete().eq('id', userId);
+      await (supabase.from('user_profiles' as any)).delete().eq('id', userId);
+      try {
+        await (supabase.from('profiles' as any)).delete().eq('id', userId);
+      } catch (e: any) { console.warn("Failed to delete legacy profiles:", e.message); }
 
       // 4. Logout e Redirecionamento
       await supabase.auth.signOut();
@@ -1735,7 +1760,7 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Estatísticas */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-4 bg-muted rounded-lg text-center">
             <p className="text-2xl font-bold">{stats.sessions}</p>
             <p className="text-sm text-muted-foreground">Sessões</p>
@@ -1754,10 +1779,6 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
             {stats.hasVoice && (
               <span className="text-xs text-green-600 font-medium block">✓ Voz clonada</span>
             )}
-          </div>
-          <div className="p-4 bg-muted rounded-lg text-center">
-            <p className="text-2xl font-bold">{stats.facts}</p>
-            <p className="text-sm text-muted-foreground">Fatos IA</p>
           </div>
         </div>
 
@@ -1996,7 +2017,6 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
                   <li>Todas as mensagens ({stats.messages})</li>
                   <li>Todos os sentimentos personalizados ({stats.sentiments})</li>
                   <li>Sua biblioteca de áudios ({stats.audios} áudios)</li>
-                  <li>Todos os {stats.facts} fatos que a IA aprendeu sobre você</li>
                   {stats.hasVoice && <li>Seu perfil de voz clonada</li>}
                 </ul>
                 <div className="space-y-2 pt-2 border-t">
@@ -2047,7 +2067,6 @@ const PrivacyTab = ({ userId }: { userId?: string }) => {
                 <ul className="list-disc list-inside space-y-1">
                   <li>Seu perfil completo e dados de nascimento</li>
                   <li>Todas as {stats.sessions} sessões e {stats.messages} mensagens</li>
-                  <li>Todos os {stats.facts} fatos que a IA aprendeu sobre você</li>
                   <li>Sua voz clonada e {stats.audios} áudios gerados</li>
                   <li>Seu saldo de créditos será perdido</li>
                 </ul>

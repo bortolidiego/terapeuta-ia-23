@@ -106,21 +106,27 @@ serve(async (req) => {
         let userName = "Usuário";
 
         if (userId) {
+            console.log('Fetching profile and session count for userId:', userId);
             // Buscar nome do perfil
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
                 .from('user_profiles')
                 .select('full_name')
                 .eq('user_id', userId)
                 .maybeSingle();
 
+            if (profileError) console.error('Error fetching profile:', profileError);
+
             // Contar sessões anteriores do usuário
-            const { count: sessionCount } = await supabase
+            const { count: sessionCount, error: countError } = await supabase
                 .from('therapy_sessions')
                 .select('*', { count: 'exact', head: true })
                 .eq('user_id', userId);
 
+            if (countError) console.error('Error counting sessions:', countError);
+
             userName = profile?.full_name || "Usuário";
             const isFirstSession = (sessionCount || 0) <= 1;
+            console.log('Profile context built for:', userName, 'Session count:', sessionCount);
 
             profileContext = `
         DADOS DO PERFIL:
