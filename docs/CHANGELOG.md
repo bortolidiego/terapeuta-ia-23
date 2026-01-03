@@ -5,6 +5,27 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.5.0] - 2026-01-03
+
+### ✨ Adicionado
+- **Persona Dr. MyHealing**: Implementação oficial do terapeuta com voz e tom acolhedores baseados na Metodologia Nuno Machado.
+- **Integração Gemini 3 Flash Thinking**: Migração para o modelo `google/gemini-3-flash-preview` via OpenRouter, proporcionando raciocínio de alta performance e profundidade terapêutica.
+- **Memória de Longo Prazo Ativa**: Deploy da Edge Function `memory-manager` que agora permite ao terapeuta lembrar de insights de sessões anteriores.
+
+### 🔄 Alterado
+- **Interface de Chat Premium**:
+  - Novos avatares com gradientes dinâmicos e iniciais do usuário.
+  - Animação de "digitando" moderna com glassmorphism, eliminando saltos de layout.
+  - Indicador de rascunho salvo reposicionado com design elegante e flutuante.
+- **Fluxo de Conversa Natural**: Remoção do formato rígido de formulários interativos em favor de um diálogo humano e fluido.
+- **Personalização de Tratamento**: O terapeuta agora utiliza prioritariamente o nome real do usuário (`full_name`) para maior conexão.
+
+### 🐛 Corrigido
+- **CORS e Deploy de Funções**: Resolvido erro que impedia o funcionamento da memória e summarização de sessões.
+- **Estabilidade do Modelo**: Superada instabilidade de modelos gratuitos com fallback inteligente e seleção de modelo estável no OpenRouter.
+
+---
+
 ## [1.4.0] - 2026-01-03
 
 ### ✨ Adicionado

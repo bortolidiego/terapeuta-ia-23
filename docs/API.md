@@ -9,7 +9,7 @@ Todas as Edge Functions estão em `supabase/functions/` e rodam no Deno Runtime.
 ### 🧠 Terapia
 
 #### `therapy-chat`
-Processa mensagens do chat terapêutico.
+Processa mensagens do chat terapêutico usando o modelo `google/gemini-3-flash-preview` via OpenRouter.
 
 ```typescript
 POST /functions/v1/therapy-chat
@@ -18,14 +18,38 @@ Body:
 {
   "message": string,
   "sessionId": string,
-  "history": Message[]
+  "history": Message[],
+  "userId": string
 }
 
 Response:
 {
-  "content": string,
-  "detectedSentiments": string[]
+  "reply": string,
+  "detectedProtocol": string | null
 }
+```
+
+#### `memory-manager`
+Gerencia resumos de sessões e memórias de longo prazo do usuário.
+
+```typescript
+POST /functions/v1/memory-manager
+
+Body (Summarize):
+{
+  "action": "summarize",
+  "sessionId": string,
+  "userId": string
+}
+
+Body (Retrieve):
+{
+  "action": "retrieve",
+  "userId": string,
+  "limit": number
+}
+
+Response: JSON com sumário ou lista de memórias.
 ```
 
 #### `protocol-executor`

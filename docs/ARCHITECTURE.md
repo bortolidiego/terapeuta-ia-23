@@ -43,14 +43,21 @@
 
 ## Fluxos Principais
 
-### 1. Sessão de Terapia
+### 1. Sessão de Terapia e Memória
 ```mermaid
 sequenceDiagram
-    User->>Frontend: Inicia sessão
-    Frontend->>therapy-chat: Envia mensagem
-    therapy-chat->>OpenRouter: Processa com IA
-    OpenRouter-->>therapy-chat: Resposta
+    User->>Frontend: Mensagem
+    Frontend->>therapy-chat: Envia (Mensagem + Contexto User)
+    therapy-chat->>DB: Busca Memória (Últimos 5 resumos)
+    DB-->>therapy-chat: Memórias
+    therapy-chat->>OpenRouter: Prompt (Instruções + Memória + Msg)
+    OpenRouter-->>therapy-chat: Resposta Terapêutica
     therapy-chat-->>Frontend: Exibe resposta
+    User->>Frontend: Sai da conversa
+    Frontend->>memory-manager: Summarize Session
+    memory-manager->>OpenRouter: Resume diálogo
+    OpenRouter-->>memory-manager: Resumo
+    memory-manager->>DB: Salva na user_memory
 ```
 
 ### 2. Protocolo de Autocura

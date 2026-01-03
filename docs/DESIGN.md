@@ -115,3 +115,21 @@ import { Brain, Mic, CreditCard } from "lucide-react";
 | Tablet | `md:` | ≥ 768px |
 | Desktop | `lg:` | ≥ 1024px |
 | Wide | `xl:` | ≥ 1280px |
+
+## 🧩 Identidade Visual do Chat
+
+O chat possui uma identidade visual prêmio com foco em acolhimento e fluidez.
+
+### Avatares
+- **Dr. MyHealing (DM)**: Fundo em gradiente `from-emerald-400 via-teal-500 to-cyan-600`.
+- **Usuário**: Fundo em gradiente `from-violet-500 to-purple-600` exibindo as iniciais do nome (`full_name`).
+
+### Animações Avançadas (Premium)
+1. **Thinking Dots (Em Pensamento)**: Animação de três pontos saltitantes com glassmorphism (`backdrop-blur-sm`).
+2. **Draft Indicator (Rascunho)**:Badge absoluto flutuante 1.75rem acima da caixa de input para evitar saltos de layout.
+3. **Mensagens**: Animação de entrada suave via `animate-in fade-in slide-in-from-bottom-2`.
+
+## 🛠️ Regras de Interface (UI)
+- **Cores**: Use gradientes `to-br` para elementos de identidade.
+- **Micro-interações**: Hover effects em botões com sombra colorida correspondente (ex: `shadow-purple-500/20`).
+- **Layout Fixo**: Elementos de status de digitação devem ser posicionados de forma absoluta para não causar reflow de layout.
