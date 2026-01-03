@@ -854,6 +854,130 @@ export const Profile = () => {
                       </div>
                     </div>
 
+                    {/* Pontos Especiais - Lilith, Nodo Norte, Fortuna, MC */}
+                    {(astroData.lilith_sign || astroData.north_node_sign || astroData.fortune_sign || astroData.mc_sign) && (
+                      <div className="mt-4 grid grid-cols-4 gap-2">
+                        {astroData.lilith_sign && (
+                          <div className="bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-200 rounded-lg p-3 text-center">
+                            <span className="text-xl block">⚸</span>
+                            <span className="text-xs text-violet-600">Lilith</span>
+                            <p className="font-semibold text-violet-900 text-sm">{astroData.lilith_sign}</p>
+                          </div>
+                        )}
+                        {astroData.north_node_sign && (
+                          <div className="bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-3 text-center">
+                            <span className="text-xl block">☊</span>
+                            <span className="text-xs text-teal-600">Nodo Norte</span>
+                            <p className="font-semibold text-teal-900 text-sm">{astroData.north_node_sign}</p>
+                          </div>
+                        )}
+                        {astroData.fortune_sign && (
+                          <div className="bg-gradient-to-br from-yellow-50 to-amber-50 border border-yellow-200 rounded-lg p-3 text-center">
+                            <span className="text-xl block">⊕</span>
+                            <span className="text-xs text-yellow-700">Fortuna</span>
+                            <p className="font-semibold text-yellow-900 text-sm">{astroData.fortune_sign}</p>
+                          </div>
+                        )}
+                        {astroData.mc_sign && (
+                          <div className="bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-200 rounded-lg p-3 text-center">
+                            <span className="text-xl block">🔝</span>
+                            <span className="text-xs text-sky-600">Meio do Céu</span>
+                            <p className="font-semibold text-sky-900 text-sm">{astroData.mc_sign}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Distribuição de Elementos */}
+                    {astroData.element_distribution && Object.keys(astroData.element_distribution).length > 0 && (
+                      <div className="mt-4 bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xl">🌍</span>
+                          <span className="font-semibold text-green-900 text-sm">Distribuição de Elementos</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                          <div className="text-center bg-white/60 rounded-lg p-2">
+                            <span className="text-2xl block">🔥</span>
+                            <span className="text-xs text-orange-600 font-medium">Fogo</span>
+                            <p className="font-bold text-orange-700">{astroData.element_distribution.Fogo || 0}%</p>
+                          </div>
+                          <div className="text-center bg-white/60 rounded-lg p-2">
+                            <span className="text-2xl block">🌱</span>
+                            <span className="text-xs text-green-600 font-medium">Terra</span>
+                            <p className="font-bold text-green-700">{astroData.element_distribution.Terra || 0}%</p>
+                          </div>
+                          <div className="text-center bg-white/60 rounded-lg p-2">
+                            <span className="text-2xl block">💨</span>
+                            <span className="text-xs text-cyan-600 font-medium">Ar</span>
+                            <p className="font-bold text-cyan-700">{astroData.element_distribution.Ar || 0}%</p>
+                          </div>
+                          <div className="text-center bg-white/60 rounded-lg p-2">
+                            <span className="text-2xl block">💧</span>
+                            <span className="text-xs text-blue-600 font-medium">Água</span>
+                            <p className="font-bold text-blue-700">{astroData.element_distribution['Água'] || 0}%</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Qualidades e Polaridade */}
+                    {(astroData.quality_distribution || astroData.polarity_distribution) && (
+                      <div className="mt-4 grid grid-cols-2 gap-4">
+                        {astroData.quality_distribution && Object.keys(astroData.quality_distribution).length > 0 && (
+                          <div className="bg-gradient-to-br from-fuchsia-50 to-pink-50 border border-fuchsia-200 rounded-xl p-4 shadow-sm">
+                            <span className="font-semibold text-fuchsia-900 text-sm block mb-2">Qualidades</span>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-fuchsia-700">Cardinal</span>
+                                <span className="font-bold">{astroData.quality_distribution.Cardinal || 0}%</span>
+                              </div>
+                              <div className="flex justify-between text-xs">
+                                <span className="text-fuchsia-700">Fixo</span>
+                                <span className="font-bold">{astroData.quality_distribution.Fixo || 0}%</span>
+                              </div>
+                              <div className="flex justify-between text-xs">
+                                <span className="text-fuchsia-700">Mutável</span>
+                                <span className="font-bold">{astroData.quality_distribution['Mutável'] || 0}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {astroData.polarity_distribution && Object.keys(astroData.polarity_distribution).length > 0 && (
+                          <div className="bg-gradient-to-br from-gray-50 to-slate-100 border border-gray-200 rounded-xl p-4 shadow-sm">
+                            <span className="font-semibold text-gray-900 text-sm block mb-2">Polaridade</span>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-700">☀️ Yang (Ativo)</span>
+                                <span className="font-bold">{astroData.polarity_distribution.Yang || 0}%</span>
+                              </div>
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-700">🌙 Yin (Reativo)</span>
+                                <span className="font-bold">{astroData.polarity_distribution.Yin || 0}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Planetas Retrógrados */}
+                    {astroData.retrograde_planets && astroData.retrograde_planets.length > 0 && (
+                      <div className="mt-4 bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-lg">℞</span>
+                          <span className="font-semibold text-amber-900 text-sm">Planetas Retrógrados</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {astroData.retrograde_planets.map((planet: string) => (
+                            <span key={planet} className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
+                              {planet} ℞
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-xs text-amber-600 mt-2 italic">Planetas em movimento aparente reverso - energias internalizadas</p>
+                      </div>
+                    )}
+
                     {/* Aspectos de Tensão */}
                     {astroData.aspects_summary && astroData.aspects_summary.length > 0 && (
                       <div className="mt-4 bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-4 shadow-sm">
@@ -916,8 +1040,45 @@ export const Profile = () => {
                       </div>
                     )}
 
-                    {/* Todos os Planetas - Expandível */}
-                    {astroData.astro_chart?.all_planets && (
+                    {/* Todos os Planetas - Expandível com Graus e Retrógrado */}
+                    {astroData.planet_positions && Object.keys(astroData.planet_positions).length > 0 ? (
+                      <details className="mt-4 group">
+                        <summary className="cursor-pointer bg-purple-50 hover:bg-purple-100 transition-all rounded-lg p-3 flex items-center justify-between text-purple-700 font-medium text-sm border border-purple-100">
+                          <span className="flex items-center gap-2">
+                            <span>🌌</span> Ver Todos os Planetas (com Graus)
+                          </span>
+                          <span className="text-purple-400 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-4 bg-purple-50/50 rounded-lg border border-purple-100">
+                          {Object.entries(astroData.planet_positions).map(([planet, data]: [string, any]) => data && (
+                            <div key={planet} className="bg-white rounded-lg p-3 border border-purple-100 shadow-sm">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xl">{data.emoji || '🔮'}</span>
+                                <span className="text-xs text-muted-foreground capitalize flex-1">{planet}</span>
+                                {data.isRetrograde && (
+                                  <span className="text-amber-600 text-xs font-bold" title="Retrógrado">℞</span>
+                                )}
+                              </div>
+                              <p className="font-semibold text-purple-800">{data.sign || '—'}</p>
+                              {data.fullPosition && (
+                                <p className="text-xs text-purple-600">{data.fullPosition}</p>
+                              )}
+                              {data.house && (
+                                <p className="text-xs text-muted-foreground">Casa {data.house}</p>
+                              )}
+                              {data.dignity && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded mt-1 inline-block ${data.dignity === 'Domicílio' || data.dignity === 'Exaltação'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-rose-100 text-rose-700'
+                                  }`}>
+                                  {data.dignity}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    ) : astroData.astro_chart?.all_planets && (
                       <details className="mt-4 group">
                         <summary className="cursor-pointer bg-purple-50 hover:bg-purple-100 transition-all rounded-lg p-3 flex items-center justify-between text-purple-700 font-medium text-sm border border-purple-100">
                           <span className="flex items-center gap-2">
@@ -933,6 +1094,32 @@ export const Profile = () => {
                               <span className="font-medium text-purple-800 text-sm block">{data.sign || '—'}</span>
                             </div>
                           ))}
+                        </div>
+                      </details>
+                    )}
+
+                    {/* Cúspides das 12 Casas */}
+                    {astroData.house_cusps && Object.keys(astroData.house_cusps).length > 0 && (
+                      <details className="mt-4 group">
+                        <summary className="cursor-pointer bg-indigo-50 hover:bg-indigo-100 transition-all rounded-lg p-3 flex items-center justify-between text-indigo-700 font-medium text-sm border border-indigo-100">
+                          <span className="flex items-center gap-2">
+                            <span>🏠</span> Ver Cúspides das 12 Casas
+                          </span>
+                          <span className="text-indigo-400 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div className="mt-2 grid grid-cols-4 sm:grid-cols-6 gap-2 p-4 bg-indigo-50/50 rounded-lg border border-indigo-100">
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((num) => {
+                            const cusp = astroData.house_cusps[`house_${num}`];
+                            return (
+                              <div key={num} className="bg-white rounded-lg p-2 text-center border border-indigo-100 shadow-sm">
+                                <span className="text-xs text-indigo-600 font-medium block">Casa {num}</span>
+                                <span className="font-semibold text-indigo-800 text-sm block">{cusp?.sign || '—'}</span>
+                                {cusp?.degree !== null && cusp?.degree !== undefined && (
+                                  <span className="text-xs text-indigo-500">{cusp.degree}°</span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </details>
                     )}
