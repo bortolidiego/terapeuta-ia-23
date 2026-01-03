@@ -71,31 +71,36 @@ export const VersionBadge: React.FC = () => {
             </button>
 
             {/* Notificação de atualização */}
+            {/* Notificação de atualização - Topo da tela */}
             {hasUpdate && (
-                <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4">
-                    <div className="bg-background border rounded-lg shadow-lg p-4 max-w-sm">
-                        <div className="flex items-start gap-3">
-                            <Sparkles className="h-5 w-5 text-primary mt-0.5" />
-                            <div className="flex-1">
-                                <p className="font-medium text-sm">Nova versão disponível!</p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    v{currentVersion.version} traz novas funcionalidades.
+                <div className="fixed top-0 left-0 w-full z-50 animate-in slide-in-from-top-2 shadow-md">
+                    <div className="bg-primary text-primary-foreground p-3 flex items-center justify-between gap-4 px-4 sm:px-8">
+                        <div className="flex items-center gap-3">
+                            <Sparkles className="h-5 w-5 animate-pulse" />
+                            <div>
+                                <p className="text-sm font-medium">
+                                    Nova versão {currentVersion.version} disponível!
                                 </p>
-                                <div className="flex gap-2 mt-3">
-                                    <Button size="sm" onClick={handleUpdate} className="h-7 text-xs">
-                                        <RefreshCw className="h-3 w-3 mr-1" />
-                                        Atualizar
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={handleViewChangelog}
-                                        className="h-7 text-xs"
-                                    >
-                                        Ver mudanças
-                                    </Button>
-                                </div>
                             </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={handleUpdate}
+                                className="h-8 text-xs font-semibold whitespace-nowrap"
+                            >
+                                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                                Atualizar Agora
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={handleViewChangelog}
+                                className="h-8 text-xs hover:bg-white/20 text-white hover:text-white hidden sm:flex"
+                            >
+                                Ver novidades
+                            </Button>
                         </div>
                     </div>
                 </div>

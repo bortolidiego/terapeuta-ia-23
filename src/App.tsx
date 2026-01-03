@@ -8,7 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import GlobalHeader from "@/components/GlobalHeader";
 import AuthSessionManager from "@/components/AuthSessionManager";
 import Index from "./pages/Index";
-import Admin from "./pages/Admin";
+
 import Auth from "./pages/Auth";
 import Security from "./pages/Security";
 import NotFound from "./pages/NotFound";
@@ -81,19 +81,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute requireAdmin={true}>
-                  <div className="min-h-screen flex flex-col">
-                    <GlobalHeader />
-                    <div className="flex-1">
-                      <Admin />
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              }
-            />
+
             <Route
               path="/security"
               element={

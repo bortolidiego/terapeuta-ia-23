@@ -12,11 +12,16 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - **Geocodificação Precisa**: Novo componente `CityAutocomplete` integrado ao Nominatim (OpenStreetMap) para busca global de cidades.
 - **Armazenamento de Coordenadas**: Campos `birth_latitude` e `birth_longitude` no perfil para cálculos astronômicos precisos.
 - **Seleção de Horário Intuitiva**: Novos seletores dedicados para Hora e Minuto com formato 24h claro.
+- **Notificação de Atualização**: Banner de destaque fixo no topo com botão "Atualizar Agora" para novas versões.
 
 ### 🐛 Corrigido
 - **Bug da Meia-Noite**: Corrigido erro onde hora "00:xx" era interpretada como meio-dia ("12:xx") no cálculo do mapa.
 - **Extração de Dados da API**: Ajuste para garantir que planetas terapêuticos (Quíron, Saturno) sejam sempre retornados pela API.
 - **Contexto do Terapeuta**: Correção para garantir que o assistente receba o contexto astrológico completo (incluindo trânsitos e aspectos).
+
+### 🗑️ Removido
+- **Menu Admin**: Removido o botão e página de administração (`/admin`) do sistema.
+- Arquivos removidos: `AdminPanel.tsx`, `Admin.tsx`.
 
 ### 🔧 Técnico
 - Otimização da Edge Function `astro-chart` com fallback inteligente (usa coordenadas salvas se disponíveis).

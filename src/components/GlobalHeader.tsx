@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
-import { LogOut, Settings, User, CreditCard } from 'lucide-react';
+import { LogOut, User, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { VersionBadge } from '@/components/VersionBadge';
@@ -18,9 +18,7 @@ const GlobalHeader = () => {
   const { user, userRole, signOut, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  const handleAdminClick = () => {
-    navigate('/admin');
-  };
+
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -40,18 +38,7 @@ const GlobalHeader = () => {
         <div className="flex items-center gap-2">
           <NotificationDropdown />
 
-          {/* Botão Admin - apenas se for admin */}
-          {isAdmin() && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAdminClick}
-              className="gap-2"
-            >
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Admin</span>
-            </Button>
-          )}
+
 
           {/* Dropdown do Usuário */}
           <DropdownMenu>
