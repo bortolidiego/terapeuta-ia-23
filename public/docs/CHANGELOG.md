@@ -5,6 +5,23 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.3.0] - 2026-01-03
+
+### ✨ Adicionado
+- **Integração Completa de Astrologia**: Implementação de todos os principais pontos astrológicos via RapidAPI.
+  - **Novos Pontos**: Lilith (Lua Negra), Nodo Norte, Parte da Fortuna e Meio do Céu (MC).
+  - **Cúspides das 12 Casas**: Visualização detalhada de todas as casas e seus signos.
+  - **Detalhes Planetários**: Exibição de graus, minutos, indicador de retrógrado (_℞_) e dignidades (Domicílio, Exaltação, etc.).
+  - **Distribuições Energéticas**: Gráficos percentuais para Elementos (Fogo/Terra/Ar/Água), Qualidades (Cardinal/Fixo/Mutável) e Polaridade (Yang/Yin).
+  - **Aspectos Completos**: Inclusão de todos os aspectos planetários formados.
+
+### 🔧 Técnico
+- **Migrations via MCP**: Resolução de conflitos de banco de dados utilizando MCP Supabase Server para aplicar migrations diretamente.
+- **Schema Estendido**: Adição de colunas JSONB (`house_cusps`, `planet_positions`, `distributions`) na tabela `user_astro_data`.
+- **Edge Function Refatorada**: Reescrita completa da função `astro-chart` para processamento avançado de dados astrológicos.
+
+---
+
 ## [1.2.0] - 2026-01-03
 
 ### ✨ Adicionado

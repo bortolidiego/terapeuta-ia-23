@@ -28,7 +28,7 @@ export const VersionBadge: React.FC = () => {
 
         try {
             // Carregar changelog do arquivo markdown
-            const response = await fetch('/docs/CHANGELOG.md');
+            const response = await fetch(`/docs/CHANGELOG.md?t=${Date.now()}`);
             if (response.ok) {
                 const text = await response.text();
                 setChangelog(text);
