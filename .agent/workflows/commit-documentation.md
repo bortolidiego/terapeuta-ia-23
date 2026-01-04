@@ -6,6 +6,21 @@ description: Workflow obrigatório para atualizar documentação e changelog ant
 
 Este workflow deve ser seguido **SEMPRE** antes de commitar qualquer correção ou melhoria no GitHub.
 
+---
+
+## ⛔ REGRA CRÍTICA (LER ANTES DE QUALQUER COMMIT)
+
+> **VOCÊ NÃO PODE FAZER COMMIT SEM ATUALIZAR O CHANGELOG!**
+> 
+> Antes de rodar `git commit`, você DEVE:
+> 1. Abrir `docs/CHANGELOG.md`
+> 2. Adicionar uma entrada descrevendo o que foi feito (com emojis e categorias corretas)
+> 3. Se for uma nova versão, atualizar `package.json` e `public/version.json`
+>
+> **Mensagens de commit curtas NÃO substituem o changelog.** O changelog é a documentação oficial para o usuário e desenvolvedores futuros.
+
+---
+
 ## Checklist Obrigatório
 
 Antes de fazer commit, verifique se completou TODOS os itens:

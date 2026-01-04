@@ -5,6 +5,23 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.5.1] - 2026-01-03
+
+### 🐛 Corrigido
+- **Exclusão Completa de Dados**: Corrigido problema onde o botão "Limpar Tudo" não apagava corretamente `user_memory` e `user_astro_data` devido a políticas de RLS incorretas.
+- **Filtro de User ID Errado**: Corrigido filtro de exclusão que usava `id` ao invés de `user_id` na tabela `user_profiles`, impedindo reset do perfil de voz.
+- **Exclusão Real na ElevenLabs**: Implementada exclusão física do perfil de voz clonada nos servidores da ElevenLabs ao usar "Limpar Tudo", "Excluir Voz" ou "Excluir Conta".
+
+### 🗑️ Removido
+- **Pending Topics**: Removido sistema de tópicos pendentes (`pending_topics`) que não estava em uso.
+
+### 🔧 Técnico
+- **Novas Políticas RLS**: Aplicadas migrations para permitir DELETE em `user_memory`, `user_astro_data` e outras tabelas pelo próprio usuário.
+- **Edge Function `voice-cloning` Refatorada**: Adicionada action `delete_voice` para remoção de vozes na API ElevenLabs.
+- **Segurança de Deleção Reforçada**: Todos os comandos de DELETE agora filtram explicitamente por `user_id` ou `criado_por`, garantindo isolamento de dados entre usuários.
+
+---
+
 ## [1.5.0] - 2026-01-03
 
 ### ✨ Adicionado
