@@ -5,6 +5,63 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.5.1] - 2026-01-03
+
+### 🐛 Corrigido
+- **Exclusão Completa de Dados**: Corrigido problema onde o botão "Limpar Tudo" não apagava corretamente `user_memory` e `user_astro_data` devido a políticas de RLS incorretas.
+- **Filtro de User ID Errado**: Corrigido filtro de exclusão que usava `id` ao invés de `user_id` na tabela `user_profiles`, impedindo reset do perfil de voz.
+- **Exclusão Real na ElevenLabs**: Implementada exclusão física do perfil de voz clonada nos servidores da ElevenLabs ao usar "Limpar Tudo", "Excluir Voz" ou "Excluir Conta".
+
+### 🗑️ Removido
+- **Pending Topics**: Removido sistema de tópicos pendentes (`pending_topics`) que não estava em uso.
+
+### 🔧 Técnico
+- **Novas Políticas RLS**: Aplicadas migrations para permitir DELETE em `user_memory`, `user_astro_data` e outras tabelas pelo próprio usuário.
+- **Edge Function `voice-cloning` Refatorada**: Adicionada action `delete_voice` para remoção de vozes na API ElevenLabs.
+- **Segurança de Deleção Reforçada**: Todos os comandos de DELETE agora filtram explicitamente por `user_id` ou `criado_por`, garantindo isolamento de dados entre usuários.
+
+---
+
+## [1.5.0] - 2026-01-03
+
+### ✨ Adicionado
+- **Persona Dr. MyHealing**: Implementação oficial do terapeuta com voz e tom acolhedores baseados na Metodologia Nuno Machado.
+- **Integração Gemini 3 Flash Thinking**: Migração para o modelo `google/gemini-3-flash-preview` via OpenRouter, proporcionando raciocínio de alta performance e profundidade terapêutica.
+- **Memória de Longo Prazo Ativa**: Deploy da Edge Function `memory-manager` que agora permite ao terapeuta lembrar de insights de sessões anteriores.
+
+### 🔄 Alterado
+- **Interface de Chat Premium**:
+  - Novos avatares com gradientes dinâmicos e iniciais do usuário.
+  - Animação de "digitando" moderna com glassmorphism, eliminando saltos de layout.
+  - Indicador de rascunho salvo reposicionado com design elegante e flutuante.
+- **Fluxo de Conversa Natural**: Remoção do formato rígido de formulários interativos em favor de um diálogo humano e fluido.
+- **Personalização de Tratamento**: O terapeuta agora utiliza prioritariamente o nome real do usuário (`full_name`) para maior conexão.
+
+### 🐛 Corrigido
+- **CORS e Deploy de Funções**: Resolvido erro que impedia o funcionamento da memória e summarização de sessões.
+- **Estabilidade do Modelo**: Superada instabilidade de modelos gratuitos com fallback inteligente e seleção de modelo estável no OpenRouter.
+
+---
+
+## [1.4.0] - 2026-01-03
+
+### ✨ Adicionado
+- **Controle de Privacidade Avançado**: Nova aba de privacidade no perfil com ferramentas granulares de exclusão.
+- **Exclusão de Voz e Áudios**: Opção para remover perfil de voz clonada e limpar a biblioteca de áudios gerados.
+- **Exclusão de Memória IA**: Capacidade de apagar o conhecimento acumulado pela IA sobre o usuário (`user_memory`).
+- **Encerramento de Conta**: Funcionalidade completa de "Direito ao Esquecimento" que apaga perfil, dados astrológicos, histórico e encerra a conta.
+- **Estatísticas Detalhadas**: Visualização de contagem de Mensagens, Sessões, Sentimentos, Áudios e Fatos IA conhecidos.
+
+### 🔒 Segurança
+- **Confirmação por Digitação**: Todas as ações de exclusão agora exigem confirmação digitada (`EXCLUIR` ou `EXCLUIR CONTA DEFINITIVAMENTE`), seguindo padrões de segurança do Supabase.
+- **Proteção de Dados Base**: Lógica de exclusão de sentimentos preserva agora os sentimentos padrão do sistema (`base_contexto`).
+
+### 🔧 Técnico
+- **Limpeza Multitabela**: Implementação de fluxos de deleção cascata manual para garantir que nenhum dado sensível permaneça em tabelas auxiliares (`assembly_jobs`, `autocura_analytics`, etc).
+- **Integração com Auth**: Fluxo de deleção de conta agora inclui `signOut` e redirecionamento de segurança.
+
+---
+
 ## [1.3.0] - 2026-01-03
 
 ### ✨ Adicionado

@@ -32,18 +32,9 @@ serve(async (req) => {
       });
     }
 
-    // Get user profile for personalization
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('full_name, gender, birth_city')
-      .eq('user_id', user.id)
-      .single();
-
-    const userName = profile?.full_name || profile?.display_name || 'pessoa especial';
-    const userGender = profile?.gender || 'neutro';
-    const userCity = profile?.birth_city || 'sua cidade';
-
-    // Generate personalized inspirational text for voice cloning via OpenRouter
+    // Generate reading text for voice cloning via OpenRouter
+    // NOTE: This is NOT a personalized text for the user - it's a reading script
+    // designed to capture phonetic variety for optimal voice cloning quality
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -57,40 +48,58 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Você é um roteirista especializado em textos para clonagem de voz.
-            
-            OBJETIVO:
-            Criar um texto contínuo, poético e inspiracional para ser lido em voz alta (aprox. 1 minuto).
-            
-            REGRAS DE FORMATAÇÃO (CRÍTICAS):
-            1. TEXTO LIMPO: Não inclua títulos (ex: "Título: ...") nem direções de palco (ex: "(Início: Tom calmo...)"). Gere APENAS o texto a ser lido.
-            2. ZERO PLACEHOLDERS: Nunca use colchetes como [Nome da Cidade]. Integre o nome da cidade e da pessoa naturalmente no fluxo do texto.
-            3. SEM INTERRUPÇÕES: Não peça para o usuário completar frases. O texto deve estar 100% pronto.
-            4. ESTILO VISUAL: Use *itálico* suavemente para palavras que pedem ênfase. Evite excesso de negrito ou símbolos estranhos. Pode usar emojis pontuais (🌸, ✨) para dar leveza, mas sem exageros.
-            
-            CONTEÚDO E FONÉTICA:
-            - Capture a riqueza do português (rr, ss, lh, nh, ão, ões).
-            - Alterne o ritmo: comece suave, suba a energia para algo vibrante e motivador, e termine em paz.
-            - O tema CENTRAL é: Potencial Humano, Autocura e Renascimento sob a ótica da Física Quântica.
-            - **INSPIRAÇÃO TEMÁTICA (Obrigatória):**
-              - **Joe Dispenza:** Focar na mudança de energia/assinatura eletromagnética.
-              - **Nassim Haramein:** Conexão com o todo/vácuo quântico.
-              - **Osho:** Consciência como observador.
-              - **Eckhart Tolle:** O poder do Agora, quietude e presença.
-              - Use termos como: campo unificado, colapso da função de onda (poeticamente), frequência vibracional, coerência cardíaca.`
+            content: `Você é um engenheiro de áudio especializado em criar textos de leitura para CLONAGEM DE VOZ.
+
+OBJETIVO PRINCIPAL:
+Criar um texto de LEITURA (não uma mensagem para alguém) que capture a máxima variedade fonética do português brasileiro para otimizar a qualidade da clonagem de voz.
+
+REGRAS ABSOLUTAS:
+1. NÃO PERSONALIZE: Nunca use nomes próprios, nunca se dirija a alguém ("você", "caro ouvinte", etc.)
+2. TERCEIRA PESSOA: Escreva como um texto de livro ou artigo, usando "a consciência", "o ser", "a mente", "o universo"
+3. TEXTO CONTÍNUO: Sem títulos, sem direções, sem colchetes, sem placeholders
+4. LINGUAGEM RICA: Priorize palavras com fonemas complexos do português brasileiro
+
+REQUISITOS FONÉTICOS OBRIGATÓRIOS (incluir palavras com):
+- Dígrafos: RR (terrenho, correr), SS (possível, essência), LH (maravilha, espelho), NH (caminho, sonho), CH (escolha, chama)
+- Nasais: ÃO (coração, expansão), ÕES (vibrações, emoções), ÃE (mães, capitães), AM/EM (também, viagem)
+- Vogais abertas/fechadas: É vs Ê, Ó vs Ô
+- Encontros consonantais: PR, BR, TR, DR, GR, CR, PL, BL, FL
+- Sibilantes: S inicial, S intervocálico, Z
+- Líquidas: L, R brando, R forte
+
+TEMÁTICA INSPIRACIONAL (para conteúdo):
+Os autores abaixo devem INSPIRAR o conteúdo, mas o texto é uma LEITURA genérica, não uma fala direcionada:
+- Joe Dispenza: mudança de energia, assinatura eletromagnética, transformação pessoal
+- Nassim Haramein: vácuo quântico, campo unificado, geometria sagrada
+- Osho: consciência como observador, meditação, presença
+- Eckhart Tolle: poder do agora, quietude, silêncio interior
+
+TERMOS A INCLUIR NATURALMENTE:
+campo unificado, frequência vibracional, coerência cardíaca, expansão da consciência, 
+observador quântico, ressonância, transmutação, despertar, fluxo energético, 
+sincronicidade, presença, totalidade, infinito, renascimento`
           },
           {
             role: 'user',
-            content: `Escreva o roteiro de leitura para ${userName} (${userGender}).
-            Quero um texto profundo e transformador (aprox. 150 a 200 palavras, para leitura de 1 minuto).
-            
-            O texto deve guiar a pessoa a sentir que ela é criadora da própria realidade.
-            NÃO mencione cidade ou localização física. O foco é UNIVERSAL e INTERNO.
-            Comece saudando a pessoa e convidando-a para essa jornada interior.`
+            content: `Escreva um texto de leitura (150-200 palavras) focado em CLONAGEM DE VOZ.
+
+O texto deve ser escrito em TERCEIRA PESSOA, como um trecho de livro inspiracional.
+Exemplo de tom correto: "A consciência que observa o pensamento transcende a mente..."
+Exemplo de tom ERRADO: "Você é consciência pura..." ou "Querido amigo, respire..."
+
+NÃO é uma mensagem motivacional para alguém.
+É um TEXTO DE LEITURA com vocabulário rico em fonemas variados.
+
+Priorize:
+- Palavras longas e polissilábicas (extraordinário, transformação, transcendência)
+- Frases com ritmo variado (curtas e longas)
+- Sons específicos do português brasileiro
+
+O resultado deve ser um parágrafo contínuo, sem formatação especial, pronto para leitura em voz alta.`
           }
         ],
-        max_tokens: 1500, // Aumentado para permitir texto mais longo
-        temperature: 0.8,
+        max_tokens: 1500,
+        temperature: 0.7, // Slightly lower for more consistent output
       }),
     });
 

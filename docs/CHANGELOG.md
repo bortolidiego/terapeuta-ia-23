@@ -5,6 +5,21 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.5.2] - 2026-01-03
+
+### 🐛 Corrigido
+- **Texto de Clonagem de Voz**: Corrigido prompt da função `generate-voice-sample-text` que gerava textos personalizados com o nome do usuário (ex: "Diego, respire fundo..."). O texto agora é uma **leitura genérica em terceira pessoa**, otimizada para captura fonética de qualidade.
+
+### 🔧 Técnico
+- **Novo Prompt Fonético**: O texto gerado agora prioriza:
+  - Dígrafos brasileiros (RR, SS, LH, NH, CH)
+  - Nasais (ÃO, ÕES, ÃE, AM/EM)
+  - Encontros consonantais variados
+  - Vocabulário polissilábico inspirado em Joe Dispenza, Nassim Haramein, Osho e Eckhart Tolle
+- **Remoção de Personalização**: A função não mais consulta `user_profiles` para buscar nome/gênero, garantindo textos neutros e universais.
+
+---
+
 ## [1.5.1] - 2026-01-03
 
 ### 🐛 Corrigido

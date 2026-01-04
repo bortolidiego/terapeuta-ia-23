@@ -27,7 +27,16 @@ Antes de fazer commit, verifique se completou TODOS os itens:
 
 ### 1. Atualizar Changelog
 
-Edite `docs/CHANGELOG.md` adicionando uma entrada na seção "Unreleased" ou na versão atual:
+Edite `docs/CHANGELOG.md` adicionando uma entrada na seção da versão atual:
+
+⚠️ **IMPORTANTE**: Existem DOIS arquivos de changelog!
+- `docs/CHANGELOG.md` → Fonte da verdade (edite este)
+- `public/docs/CHANGELOG.md` → Cópia para o frontend (sincronize após editar)
+
+Após editar `docs/CHANGELOG.md`, **SEMPRE** copie para `public/docs/`:
+```powershell
+Copy-Item -Path "docs\CHANGELOG.md" -Destination "public\docs\CHANGELOG.md" -Force
+```
 
 ```markdown
 ## [Unreleased] ou [X.X.X] - YYYY-MM-DD
